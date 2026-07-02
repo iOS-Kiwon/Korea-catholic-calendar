@@ -1,0 +1,10 @@
+{
+  "id": "korea_proper",
+  "locale": "ko",
+  "version": "2026.1",
+  "_comment": "⚠️ 한국 고유 전례력 overlay. 등급·명칭·날짜는 반드시 한국 천주교 주교회의(CBCK) 공식 전례력으로 검토·보완해야 합니다. 아래는 대표 항목만 수록한 초안입니다 (ACTION_ITEMS.md 참조).",
+  "celebrations": [
+    {"id":"korean_martyrs","month":9,"day":20,"name":"성 김대건 안드레아 사제와 성 정하상 바오로와 동료 순교자 대축일","rank":"solemnity","color":"red","properToKorea":true,"titles":["순교자"]},
+    {"id":"yun_jichung_companions","month":5,"day":29,"name":"복자 윤지충 바오로와 동료 순교자 기념일","rank":"obligatoryMemorial","color":"red","properToKorea":true,"titles":["순교자"]}
+  ]
+}

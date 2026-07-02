@@ -1,0 +1,7 @@
+{
+  "_comment": "한국 전례력 국가 조정 정책. 주님 공현·승천·성체 성혈 대축일을 주일로 이동(2026년 CBCK 전례력으로 검증됨). 의무 축일 목록(holyDaysOfObligation)은 ⚠️ CBCK 확인 필요.",
+  "epiphanyOnSunday": true,
+  "ascensionOnSunday": true,
+  "corpusChristiOnSunday": true,
+  "holyDaysOfObligation": ["christmas", "mary_mother_of_god"]
+}
