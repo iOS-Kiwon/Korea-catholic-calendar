@@ -1,4 +1,4 @@
-package app.catholiccalendar.catholic_calendar
+package com.sidore.catholiccalendar
 
 import io.flutter.embedding.android.FlutterActivity
 

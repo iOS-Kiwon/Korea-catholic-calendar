@@ -18,7 +18,7 @@ class _CatholicCalendarAppState extends State<CatholicCalendarApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: '가톨릭 전례력',
+      title: '가톨릭 달력',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),

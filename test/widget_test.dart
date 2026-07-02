@@ -29,7 +29,7 @@ void main() {
     );
     await tester.pump(); // resolve the (immediately-available) calendar future
 
-    expect(find.text('가톨릭 전례력'), findsOneWidget);
+    expect(find.text('가톨릭 달력'), findsOneWidget);
     expect(find.text('2026년 7월'), findsOneWidget);
     // 2026-07-15 is a ferial Wednesday in Ordinary Time.
     expect(find.text('연중 제15주간 수요일'), findsWidgets);
