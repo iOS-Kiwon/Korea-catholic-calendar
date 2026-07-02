@@ -5,3 +5,4 @@
 library;
 
 export 'src/core/computus.dart';
+export 'src/model/enums.dart';
