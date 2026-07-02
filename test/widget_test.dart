@@ -21,18 +21,19 @@ Widget _wrap(Widget child) => ProviderScope(
 );
 
 void main() {
-  testWidgets('month grid shows header and liturgical day titles', (
-    tester,
-  ) async {
+  testWidgets('month header and notable day names render', (tester) async {
+    tester.view.physicalSize = const Size(1200, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
     await tester.pumpWidget(
       _wrap(const CalendarPage(month: YearMonth(2026, 7))),
     );
     await tester.pump(); // resolve the (immediately-available) calendar future
 
-    expect(find.text('가톨릭 달력'), findsOneWidget);
-    expect(find.text('2026년 7월'), findsOneWidget);
-    // 2026-07-15 is a ferial Wednesday in Ordinary Time.
-    expect(find.text('연중 제15주간 수요일'), findsWidgets);
+    expect(find.text('2026년 7월'), findsOneWidget); // colored header
+    // Sundays are "notable" and show their name in the wide grid.
+    expect(find.text('연중 제15주일'), findsWidgets); // 2026-07-12
   });
 
   testWidgets('day detail shows season, color and reading cycle', (
