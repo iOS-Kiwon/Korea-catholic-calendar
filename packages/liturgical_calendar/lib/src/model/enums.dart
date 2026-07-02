@@ -41,3 +41,7 @@ enum SundayCycle { a, b, c }
 
 /// 평일 독서 주기 — the two-year weekday lectionary cycle (홀/짝해).
 enum WeekdayCycle { i, ii }
+
+/// Whether a celebration comes from the Proper of Time (temporale) or the
+/// Proper of Saints (sanctorale).
+enum CelebrationKind { temporale, sanctorale }
