@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:liturgical_calendar/liturgical_calendar.dart';
 
 import '../../../../core/date/year_month.dart';
+import '../../data/calendar_service.dart';
 import 'day_cell.dart';
 
 /// A monthly grid of [DayCell]s. Weeks start on Sunday; leading/trailing days
@@ -17,7 +17,7 @@ class MonthGrid extends StatelessWidget {
     required this.onSelectDay,
   });
 
-  final LiturgicalCalendar calendar;
+  final CalendarService calendar;
   final YearMonth month;
   final DateTime today;
   final DateTime? selectedDate;

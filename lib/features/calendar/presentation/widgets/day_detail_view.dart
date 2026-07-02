@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:liturgical_calendar/liturgical_calendar.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/theme/liturgical_colors.dart';
 import 'liturgical_color_badge.dart';
@@ -96,6 +97,8 @@ class DayDetailView extends StatelessWidget {
               ),
             _Chip(label: _rankLabel(day.celebration.rank)),
             if (day.isHolyDayOfObligation) const _Chip(label: '의무 축일'),
+            if (day.specialDay != null && day.specialDay!.isNotEmpty)
+              _Chip(label: day.specialDay!),
           ],
         ),
         const Divider(height: 32),
@@ -103,6 +106,30 @@ class DayDetailView extends StatelessWidget {
         _InfoRow(label: '평일 독서', value: _weekdayCycleLabel(day.weekdayCycle)),
         if (day.celebration.isProperToKorea)
           const _InfoRow(label: '전례력', value: '한국 고유 전례력'),
+        if (day.scriptureReadings.isNotEmpty) ...[
+          const Divider(height: 32),
+          Text('말씀 (구절)', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 8),
+          for (final r in day.scriptureReadings)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(r, style: theme.textTheme.bodyMedium),
+            ),
+          if (day.sourceUrl != null) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => launchUrl(
+                  Uri.parse(day.sourceUrl!),
+                  mode: LaunchMode.externalApplication,
+                ),
+                icon: const Icon(Icons.open_in_new, size: 18),
+                label: const Text('매일미사에서 전문 보기'),
+              ),
+            ),
+          ],
+        ],
         if (day.optionalMemorials.isNotEmpty) ...[
           const Divider(height: 32),
           Text('이 날의 다른 기념', style: theme.textTheme.titleSmall),

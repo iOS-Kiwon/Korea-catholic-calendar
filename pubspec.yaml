@@ -43,6 +43,7 @@ dependencies:
   intl: ^0.20.2
   liturgical_calendar:
     path: packages/liturgical_calendar
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

@@ -1,6 +1,7 @@
 import 'package:catholic_calendar/app/theme/app_theme.dart';
 import 'package:catholic_calendar/core/date/year_month.dart';
 import 'package:catholic_calendar/features/calendar/application/calendar_providers.dart';
+import 'package:catholic_calendar/features/calendar/data/calendar_service.dart';
 import 'package:catholic_calendar/features/calendar/presentation/pages/calendar_page.dart';
 import 'package:catholic_calendar/features/calendar/presentation/widgets/day_detail_view.dart';
 import 'package:flutter/material.dart';
@@ -9,9 +10,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:liturgical_calendar/liturgical_calendar.dart';
 
 Widget _wrap(Widget child) => ProviderScope(
-  // Inject the engine directly so the test does not depend on asset loading.
+  // Inject the engine-only service so the test does not depend on asset loading
+  // (no CBCK snapshot → falls back to the computed engine).
   overrides: [
-    liturgicalCalendarProvider.overrideWith((ref) => LiturgicalCalendar()),
+    liturgicalCalendarProvider.overrideWith(
+      (ref) => CalendarService(engine: LiturgicalCalendar()),
+    ),
   ],
   child: MaterialApp(theme: AppTheme.light(), home: child),
 );

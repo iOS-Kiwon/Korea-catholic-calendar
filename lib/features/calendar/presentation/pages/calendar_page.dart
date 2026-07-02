@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:liturgical_calendar/liturgical_calendar.dart';
 
 import '../../../../core/date/year_month.dart';
 import '../../../../core/layout/breakpoints.dart';
 import '../../application/calendar_providers.dart';
+import '../../data/calendar_service.dart';
 import '../widgets/day_detail_view.dart';
 import '../widgets/month_grid.dart';
 import '../widgets/month_header.dart';
@@ -55,7 +55,7 @@ class CalendarPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildGridArea(BuildContext context, LiturgicalCalendar calendar) {
+  Widget _buildGridArea(BuildContext context, CalendarService calendar) {
     final today = DateTime.now();
     return Column(
       children: [
@@ -88,7 +88,7 @@ class CalendarPage extends ConsumerWidget {
     );
   }
 
-  Widget _detailPane(BuildContext context, LiturgicalCalendar calendar) {
+  Widget _detailPane(BuildContext context, CalendarService calendar) {
     final date = selectedDate ?? DateTime.now();
     if (selectedDate == null &&
         (date.year != month.year || date.month != month.month)) {

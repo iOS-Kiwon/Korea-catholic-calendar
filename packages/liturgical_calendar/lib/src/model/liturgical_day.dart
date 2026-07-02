@@ -22,6 +22,9 @@ class LiturgicalDay {
     this.optionalMemorials = const [],
     this.commemorations = const [],
     this.isHolyDayOfObligation = false,
+    this.scriptureReadings = const [],
+    this.specialDay,
+    this.sourceUrl,
   });
 
   /// Date-only value (time normalized away).
@@ -56,7 +59,47 @@ class LiturgicalDay {
   /// Display title for the day (the winning celebration's name).
   final String title;
 
+  /// Scripture reading citations for the day (e.g. `마태 5,1-12`), when known.
+  /// References only — never the reading text (copyright). Empty when the engine
+  /// computes the day without an authoritative source.
+  final List<String> scriptureReadings;
+
+  /// Special observance overlaid on the day (e.g. `교황 주일`, `농민 주일`), if any.
+  final String? specialDay;
+
+  /// Deep link to the authoritative source for this day (매일미사), if any.
+  final String? sourceUrl;
+
   bool get isSunday => date.weekday == DateTime.sunday;
+
+  LiturgicalDay copyWith({
+    LiturgicalColor? color,
+    List<LiturgicalColor>? alternativeColors,
+    Celebration? celebration,
+    List<Celebration>? optionalMemorials,
+    String? title,
+    List<String>? scriptureReadings,
+    String? specialDay,
+    String? sourceUrl,
+  }) {
+    return LiturgicalDay(
+      date: date,
+      season: season,
+      seasonWeek: seasonWeek,
+      color: color ?? this.color,
+      alternativeColors: alternativeColors ?? this.alternativeColors,
+      celebration: celebration ?? this.celebration,
+      optionalMemorials: optionalMemorials ?? this.optionalMemorials,
+      commemorations: commemorations,
+      sundayCycle: sundayCycle,
+      weekdayCycle: weekdayCycle,
+      isHolyDayOfObligation: isHolyDayOfObligation,
+      title: title ?? this.title,
+      scriptureReadings: scriptureReadings ?? this.scriptureReadings,
+      specialDay: specialDay ?? this.specialDay,
+      sourceUrl: sourceUrl ?? this.sourceUrl,
+    );
+  }
 
   @override
   String toString() =>
