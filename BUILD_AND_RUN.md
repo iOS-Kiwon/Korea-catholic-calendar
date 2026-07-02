@@ -8,6 +8,21 @@
 > 배너는 보이지 않습니다. "디버그 빌드 자체가 아닌" 상태로 돌리려면 아래 `--release`
 > 또는 `--profile` 모드를 쓰세요.
 
+## ⚡ 빠른 스크립트 (권장)
+
+루트에 헬퍼 스크립트가 있습니다. (기기/툴체인이 없으면 경고 후 건너뜀)
+
+```bash
+./build.sh              # iOS + Android 릴리스 빌드 (android | ios 로 개별 지정 가능)
+./run.sh                # 연결된 첫 기기에서 실행 (release → DEBUG 없음)
+./run.sh ios            # 첫 iOS 기기/시뮬레이터
+./run.sh android        # 첫 Android 기기/에뮬레이터
+./run.sh all            # iOS + Android 동시 실행 (백그라운드, 로그: build/run-logs/)
+MODE=debug ./run.sh ios # 모드 변경 (release[기본] | debug | profile)
+```
+
+세부 절차/사전 준비는 아래를 참고하세요.
+
 ---
 
 ## 0. 사전 준비 (최초 1회)
