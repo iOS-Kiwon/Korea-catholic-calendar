@@ -69,6 +69,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     final calendarAsync = ref.watch(liturgicalCalendarProvider);
     return Scaffold(
       body: SafeArea(
+        bottom: false, // 하단 인셋은 전역 배너(BottomAdBanner)에서 처리
         child: calendarAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('전례력을 불러오지 못했습니다.\n$e')),

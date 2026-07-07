@@ -44,6 +44,7 @@ dependencies:
   liturgical_calendar:
     path: packages/liturgical_calendar
   url_launcher: ^6.3.2
+  google_mobile_ads: ^9.0.0
 
 dev_dependencies:
   flutter_test:
