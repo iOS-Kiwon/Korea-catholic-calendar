@@ -17,6 +17,13 @@ class _CatholicCalendarAppState extends State<CatholicCalendarApp> {
   late final GoRouter _router = buildRouter();
 
   @override
+  void initState() {
+    super.initState();
+    // Consent → ATT → Mobile Ads SDK, after the first frame (no-op off mobile).
+    WidgetsBinding.instance.addPostFrameCallback((_) => initAds());
+  }
+
+  @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
       title: '가톨릭 달력',

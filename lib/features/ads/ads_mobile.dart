@@ -1,15 +1,49 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 
+import 'package:app_tracking_transparency/app_tracking_transparency.dart';
 import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 bool get _adsSupported => Platform.isAndroid || Platform.isIOS;
 
-/// Initializes the Mobile Ads SDK (mobile only).
+/// Sets up ads on mobile in the required order:
+/// 1) UMP consent (EEA/GDPR), 2) iOS App Tracking Transparency, 3) SDK init.
+///
+/// Call after the first frame (UI/activity must exist for the consent form and
+/// the ATT prompt). No-op off mobile.
 Future<void> initAds() async {
   if (!_adsSupported) return;
+  await _gatherConsent();
+  await _requestAtt();
   await MobileAds.instance.initialize();
+}
+
+/// Requests the UMP consent info and shows the consent form if required.
+Future<void> _gatherConsent() {
+  final done = Completer<void>();
+  ConsentInformation.instance.requestConsentInfoUpdate(
+    ConsentRequestParameters(),
+    () => ConsentForm.loadAndShowConsentFormIfRequired((_) {
+      if (!done.isCompleted) done.complete();
+    }),
+    (error) {
+      if (!done.isCompleted) done.complete();
+    },
+  );
+  return done.future;
+}
+
+/// Shows the iOS ATT prompt once (when still undetermined).
+Future<void> _requestAtt() async {
+  if (!Platform.isIOS) return;
+  final status = await AppTrackingTransparency.trackingAuthorizationStatus;
+  if (status == TrackingStatus.notDetermined) {
+    // Small delay so the app is active before the system prompt appears.
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    await AppTrackingTransparency.requestTrackingAuthorization();
+  }
 }
 
 /// The banner ad unit id.
