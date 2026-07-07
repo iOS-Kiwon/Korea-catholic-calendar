@@ -24,12 +24,17 @@ _최종 갱신: 2026-07-02 — 앱 이름·번들 ID·계정 확정 반영._
   - release=실 광고, debug=테스트 광고(정책 준수). 웹은 광고 없음.
 - 웹사이트 제공: 보류(결정 시 호스팅 연결 진행).
 
+## ✅ 최근 추가 (ATT · SKAdNetwork · UMP · app-ads.txt)
+
+- iOS **ATT** 프롬프트 + `NSUserTrackingUsageDescription`, **SKAdNetworkItems**(Google 공식 50개), **UMP 동의(GDPR)** 흐름(동의→ATT→SDK init), `web/app-ads.txt`(`pub-5980133283002959`) 코드/설정 완료.
+
 ## ⏳ 남은 당신의 몫
 
-- [ ] **AdMob 실기기 검증** — 시뮬레이터/에뮬레이터·실기기에서 배너 노출 확인. (iOS는 CocoaPods 설치 필요: `sudo gem install cocoapods`)
-- [ ] (선택) iOS **App Tracking Transparency(ATT)**·SKAdNetwork·`app-ads.txt`·GDPR 동의(UMP) — 맞춤 광고/수익 최적화 및 정책 요건 필요 시. (현재는 기본 배너만)
-- [ ] (선택) Android **적응형 아이콘(adaptive)** 전경/배경 이미지 — 최상의 안드로이드 표시를 원할 때. (현재는 레거시 아이콘으로 동작)
-- [ ] 출시 전 **AdMob 정책 검토**(가이드 3번) — 배너 위치/클릭 유도 금지 등.
+- [ ] **AdMob 콘솔에서 동의/개인정보 메시지 생성** — AdMob → 개인정보 보호 및 메시지(Privacy & messaging)에서 **GDPR(유럽) 동의 메시지**(및 원하면 IDFA/ATT 사전 설명 메시지)를 만들어 게시해야 UMP 동의 폼이 실제로 표시됩니다. (코드는 준비됨)
+- [ ] **`app-ads.txt` 호스팅** — App Store/Play 개발자 프로필에 등록한 **웹사이트 도메인 루트**(`https://<도메인>/app-ads.txt`)에 올려야 인증됩니다. 웹 배포 도메인이 정해지면 `web/app-ads.txt`가 자동 서빙되거나, 해당 도메인 루트에 파일을 두세요.
+- [ ] **AdMob 실기기 검증** — 배너 노출 + (EEA 시뮬레이션 시) 동의 폼 + iOS ATT 프롬프트 확인. (iOS는 CocoaPods 필요: `sudo gem install cocoapods`)
+- [ ] (선택) Android **적응형 아이콘(adaptive)** 전경/배경 이미지.
+- [ ] 출시 전 **AdMob 정책 검토**.
 
 ## 📌 데이터 유지보수 (주기적)
 
