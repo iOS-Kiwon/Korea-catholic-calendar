@@ -21,7 +21,7 @@ class _CatholicCalendarAppState extends State<CatholicCalendarApp> {
       title: '가톨릭 달력',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
+      themeMode: ThemeMode.light, // 다크 모드 미지원 — 항상 라이트 테마
       routerConfig: _router,
       locale: const Locale('ko'),
       supportedLocales: const [Locale('ko'), Locale('en')],

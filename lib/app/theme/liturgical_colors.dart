@@ -34,15 +34,6 @@ class LiturgicalColors extends ThemeExtension<LiturgicalColors> {
     black: Color(0xFF455A64),
   );
 
-  static const dark = LiturgicalColors(
-    white: Color(0xFFD9BE5C),
-    red: Color(0xFFEF7A7A),
-    green: Color(0xFF7CC47F),
-    violet: Color(0xFFC58AE0),
-    rose: Color(0xFFF48FB1),
-    black: Color(0xFFB0BEC5),
-  );
-
   Color of(LiturgicalColor c) {
     switch (c) {
       case LiturgicalColor.white:
