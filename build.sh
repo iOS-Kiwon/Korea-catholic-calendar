@@ -26,6 +26,7 @@ TARGET="${1:-all}"
 MODE="${2:-test}"
 RELEASE=0
 BUILD_DEFINES=(--dart-define=ADS_ENABLED=false)
+RELEASE_OUTPUT_DIRS=()
 FAIL=0
 info() { printf "\033[1;34m[build]\033[0m %s\n" "$*"; }
 warn() { printf "\033[1;33m[build] ⚠ %s\033[0m\n" "$*"; }
@@ -39,6 +40,35 @@ usage() {
 
 have_android() {
   [ -n "${ANDROID_HOME:-}" ] || [ -n "${ANDROID_SDK_ROOT:-}" ] || [ -d "$HOME/Library/Android/sdk" ]
+}
+
+remember_release_output_dir() {
+  [ "$RELEASE" -eq 1 ] || return
+
+  local dir="$1"
+  local existing
+  for existing in "${RELEASE_OUTPUT_DIRS[@]}"; do
+    [ "$existing" = "$dir" ] && return
+  done
+  RELEASE_OUTPUT_DIRS+=("$dir")
+}
+
+open_release_output_dirs() {
+  [ "$RELEASE" -eq 1 ] || return
+  [ "${#RELEASE_OUTPUT_DIRS[@]}" -gt 0 ] || return
+
+  if [ "$(uname)" != "Darwin" ] || ! command -v open >/dev/null 2>&1; then
+    warn "Finder를 열 수 없는 환경입니다. 산출물 위치: ${RELEASE_OUTPUT_DIRS[*]}"
+    return
+  fi
+
+  local dir
+  for dir in "${RELEASE_OUTPUT_DIRS[@]}"; do
+    if [ -d "$dir" ]; then
+      info "Finder 열기: $dir"
+      open "$dir"
+    fi
+  done
 }
 
 require_android_release_signing() {
@@ -169,6 +199,7 @@ build_android_aab() {
   info "Android App Bundle (.aab) 빌드…"
   if flutter build appbundle --release "${BUILD_DEFINES[@]}"; then
     info "→ build/app/outputs/bundle/release/app-release.aab"
+    remember_release_output_dir "build/app/outputs/bundle/release"
   else err "App Bundle 빌드 실패"; FAIL=1; fi
 }
 
@@ -181,6 +212,7 @@ build_android_apk() {
   info "Android APK 빌드…"
   if flutter build apk --release "${BUILD_DEFINES[@]}"; then
     info "→ build/app/outputs/flutter-apk/app-release.apk"
+    remember_release_output_dir "build/app/outputs/flutter-apk"
   else err "APK 빌드 실패"; FAIL=1; fi
 }
 
@@ -199,6 +231,7 @@ build_ios() {
     info "iOS IPA 심사용 빌드…"
     if flutter build ipa --release "${BUILD_DEFINES[@]}"; then
       info "→ build/ios/ipa/*.ipa"
+      remember_release_output_dir "build/ios/ipa"
     else err "iOS IPA 빌드 실패 (Apple Developer 서명/Xcode 상태 확인)"; FAIL=1; fi
   else
     info "iOS 빌드 (서명 없이, 빌드 가능 여부 확인)…"
@@ -218,6 +251,7 @@ esac
 
 if [ "$FAIL" -eq 0 ]; then
   info "빌드 완료 ✅"
+  open_release_output_dirs
 else
   err "일부 플랫폼 빌드에 실패했습니다."
   exit 1
