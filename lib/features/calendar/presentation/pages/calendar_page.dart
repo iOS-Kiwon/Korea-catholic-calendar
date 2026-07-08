@@ -33,6 +33,16 @@ class CalendarPage extends ConsumerStatefulWidget {
 class _CalendarPageState extends ConsumerState<CalendarPage> {
   DateTime? _selected;
 
+  // Accumulated horizontal drag distance for the swipe gesture.
+  double _dragDx = 0;
+
+  // 스와이프로 인정할 최소 이동 거리(px). 미스탭(짧은 튐)은 무시.
+  static const _swipeDistance = 72.0;
+
+  // 짧더라도 아주 빠른 플릭은 허용하되, 최소한의 이동은 있어야 함.
+  static const _flickVelocity = 700.0;
+  static const _flickMinDistance = 28.0;
+
   @override
   void initState() {
     super.initState();
@@ -65,12 +75,18 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   }
 
   /// 좌→우 스와이프(오른쪽으로) → 다음 달, 우→좌 스와이프 → 이전 달.
-  void _onHorizontalSwipe(DragEndDetails details) {
+  /// 속도가 아니라 실제 이동 거리를 기준으로 판정해 미스탭을 걸러낸다.
+  void _onSwipeEnd(DragEndDetails details) {
+    final dx = _dragDx;
     final v = details.primaryVelocity ?? 0;
-    if (v > 150) {
-      _goMonth(widget.month.next);
-    } else if (v < -150) {
-      _goMonth(widget.month.previous);
+    final isSwipe =
+        dx.abs() >= _swipeDistance ||
+        (v.abs() >= _flickVelocity && dx.abs() >= _flickMinDistance);
+    if (!isSwipe) return;
+    if (dx > 0) {
+      _goMonth(widget.month.next); // 좌→우
+    } else {
+      _goMonth(widget.month.previous); // 우→좌
     }
   }
 
@@ -88,7 +104,9 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
               final wide = constraints.maxWidth >= _wideBreakpoint;
               return GestureDetector(
                 behavior: HitTestBehavior.translucent,
-                onHorizontalDragEnd: _onHorizontalSwipe,
+                onHorizontalDragStart: (_) => _dragDx = 0,
+                onHorizontalDragUpdate: (d) => _dragDx += d.delta.dx,
+                onHorizontalDragEnd: _onSwipeEnd,
                 child: wide ? _wide(service) : _narrow(service),
               );
             },
