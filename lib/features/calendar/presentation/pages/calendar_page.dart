@@ -64,6 +64,16 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     _goMonth(YearMonth.of(now));
   }
 
+  /// 좌→우 스와이프(오른쪽으로) → 다음 달, 우→좌 스와이프 → 이전 달.
+  void _onHorizontalSwipe(DragEndDetails details) {
+    final v = details.primaryVelocity ?? 0;
+    if (v > 150) {
+      _goMonth(widget.month.next);
+    } else if (v < -150) {
+      _goMonth(widget.month.previous);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final calendarAsync = ref.watch(liturgicalCalendarProvider);
@@ -76,7 +86,11 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
           data: (service) => LayoutBuilder(
             builder: (context, constraints) {
               final wide = constraints.maxWidth >= _wideBreakpoint;
-              return wide ? _wide(service) : _narrow(service);
+              return GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onHorizontalDragEnd: _onHorizontalSwipe,
+                child: wide ? _wide(service) : _narrow(service),
+              );
             },
           ),
         ),
