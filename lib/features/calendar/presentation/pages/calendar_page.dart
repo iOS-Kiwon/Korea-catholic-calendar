@@ -179,10 +179,6 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   // --- narrow layout: header + compact grid + bottom summary card ---
   Widget _narrow(CalendarService s) {
     final focus = _focusDate;
-    final isToday =
-        _inMonth(DateTime.now()) &&
-        DateTime.now().day == focus.day &&
-        _selected == null;
     return Column(
       children: [
         _header(s, compact: true),
@@ -203,7 +199,6 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
           padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
           child: DaySummaryCard(
             day: s.day(focus),
-            isToday: isToday,
             onTap: () => _openDetailSheet(s, focus),
           ),
         ),
