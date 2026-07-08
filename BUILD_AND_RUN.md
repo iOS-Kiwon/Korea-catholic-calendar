@@ -26,12 +26,12 @@ MODE=debug ./run.sh ios # 모드 변경 (release[기본] | debug | profile)
 ```
 
 출시 빌드는 `release` 옵션을 붙입니다. 앱 버전과 빌드번호를 입력하면
-`pubspec.yaml`의 `version`을 갱신한 뒤 광고 ON(`ADS_ENABLED=true`)으로 빌드합니다.
+`pubspec.yaml`의 `version`을 갱신한 뒤 광고 ON(`ADS_ENABLED=true`)으로 심사용 산출물을 빌드합니다.
 
 ```bash
-./build.sh android release    # 버전 입력 -> Android AAB/APK
-./build.sh aab release        # 버전 입력 -> Android AAB
-./build.sh ios release        # 버전 입력 -> iOS no-codesign
+./build.sh android release    # 버전 입력 -> Android AAB/APK 심사용 빌드
+./build.sh aab release        # 버전 입력 -> Android AAB 심사용 빌드
+./build.sh ios release        # 버전 입력 -> iOS IPA 심사용 빌드
 ```
 
 세부 절차/사전 준비는 아래를 참고하세요.
@@ -113,10 +113,10 @@ flutter run -d "<시뮬레이터ID>"     # 실행 (배너 없이: 뒤에 --relea
 ### 스토어 배포용 빌드
 ```bash
 ./build.sh ios release
-# 산출물: build/ios/iphoneos/Runner.app (서명 없음)
+# 산출물: build/ios/ipa/*.ipa
 ```
-스토어 업로드용 IPA는 Xcode 서명 설정 후 `flutter build ipa --release`를 사용하세요.
-(또는 `flutter build ios --release` 후 Xcode에서 Product ▸ Archive)
+Xcode에서 Apple Developer 팀/Bundle ID 서명이 설정되어 있어야 합니다.
+생성된 IPA는 Transporter 또는 Xcode Organizer로 App Store Connect에 업로드합니다.
 
 ---
 
@@ -141,12 +141,20 @@ flutter run -d "<기기ID>"           # 실행 (배너 없이: 뒤에 --release)
 # 산출물: build/app/outputs/bundle/release/app-release.aab
 ```
 
-> ⚠️ **릴리스 서명**: 현재 release 빌드는 임시로 **디버그 키**로 서명됩니다
-> (`android/app/build.gradle.kts`의 `signingConfig = signingConfigs.getByName("debug")`).
-> Play 스토어 업로드 전에 **릴리스 keystore** 생성 + `android/key.properties` 설정 +
-> gradle 서명 구성이 필요합니다.
+> ⚠️ **릴리스 서명**: `./build.sh ... release`는 `android/key.properties`와 릴리스 keystore가
+> 없으면 중단됩니다. Play Console 심사용 AAB/APK는 debug key가 아니라 릴리스 keystore로
+> 서명되어야 합니다.
 > 참고: https://docs.flutter.dev/deployment/android#signing-the-app
 > (applicationId = `com.sidore.catholiccalendar`)
+
+`android/key.properties` 예시:
+
+```properties
+storePassword=...
+keyPassword=...
+keyAlias=upload
+storeFile=upload-keystore.jks
+```
 
 ---
 

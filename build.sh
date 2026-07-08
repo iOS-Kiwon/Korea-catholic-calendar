@@ -10,13 +10,12 @@
 #   ./build.sh aab                # Android AAB만
 #
 # 출시 빌드:
-#   ./build.sh android release    # 버전 입력 -> pubspec 갱신 -> Android AAB/APK 광고 ON 빌드
-#   ./build.sh aab release        # 버전 입력 -> pubspec 갱신 -> Android AAB 광고 ON 빌드
-#   ./build.sh ios release        # 버전 입력 -> pubspec 갱신 -> iOS no-codesign 광고 ON 빌드
+#   ./build.sh android release    # 버전 입력 -> pubspec 갱신 -> Android AAB/APK 심사용 광고 ON 빌드
+#   ./build.sh aab release        # 버전 입력 -> pubspec 갱신 -> Android AAB 심사용 광고 ON 빌드
+#   ./build.sh ios release        # 버전 입력 -> pubspec 갱신 -> iOS IPA 심사용 광고 ON 빌드
 #
 # - Android: App Bundle(.aab) + APK(.apk) 릴리스 산출.
-# - iOS: 서명 없이(--no-codesign) 빌드 가능 여부까지 확인. 스토어용 IPA는
-#        Xcode 서명 설정 후 `flutter build ipa --release` 사용.
+# - iOS: 기본 빌드는 서명 없이(--no-codesign) 확인, release 옵션은 IPA 산출.
 # - 준비물이 없는 플랫폼은 건너뛰고 경고만 출력합니다 (BUILD_AND_RUN.md 참고).
 #
 set -uo pipefail
@@ -36,6 +35,45 @@ command -v flutter >/dev/null 2>&1 || { err "flutter 명령을 찾을 수 없습
 
 usage() {
   sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+have_android() {
+  [ -n "${ANDROID_HOME:-}" ] || [ -n "${ANDROID_SDK_ROOT:-}" ] || [ -d "$HOME/Library/Android/sdk" ]
+}
+
+require_android_release_signing() {
+  [ "$RELEASE" -eq 0 ] && return
+
+  local props="android/key.properties"
+  if [ ! -f "$props" ]; then
+    err "Android 심사용 release 빌드에는 $props 파일이 필요합니다."
+    err "필수 키: storePassword, keyPassword, keyAlias, storeFile"
+    FAIL=1
+    return 1
+  fi
+
+  local missing=0 key value store_file
+  for key in storePassword keyPassword keyAlias storeFile; do
+    value="$(sed -n "s/^${key}=//p" "$props" | head -n 1)"
+    if [ -z "$value" ]; then
+      err "$props에 $key 값이 없습니다."
+      missing=1
+    fi
+  done
+
+  store_file="$(sed -n 's/^storeFile=//p' "$props" | head -n 1)"
+  if [ -n "$store_file" ] && [ "${store_file#/}" = "$store_file" ]; then
+    store_file="android/app/$store_file"
+  fi
+  if [ -n "$store_file" ] && [ ! -f "$store_file" ]; then
+    err "Android keystore 파일을 찾을 수 없습니다: $store_file"
+    missing=1
+  fi
+
+  if [ "$missing" -eq 1 ]; then
+    FAIL=1
+    return 1
+  fi
 }
 
 current_pubspec_version() {
@@ -111,6 +149,10 @@ case "$TARGET" in
   *) err "알 수 없는 대상: '$TARGET'"; usage; exit 1 ;;
 esac
 
+case "$TARGET" in
+  all|android|apk|aab) require_android_release_signing || exit 1 ;;
+esac
+
 if [ "$RELEASE" -eq 1 ]; then
   prompt_release_version
 fi
@@ -118,15 +160,12 @@ fi
 info "flutter pub get"
 flutter pub get || { err "pub get 실패"; exit 1; }
 
-have_android() {
-  [ -n "${ANDROID_HOME:-}" ] || [ -n "${ANDROID_SDK_ROOT:-}" ] || [ -d "$HOME/Library/Android/sdk" ]
-}
-
 build_android_aab() {
   if ! have_android; then
     warn "Android SDK 미설치 → Android 빌드 건너뜀 (Android Studio 설치 후 재시도)"
     return
   fi
+  require_android_release_signing || return
   info "Android App Bundle (.aab) 빌드…"
   if flutter build appbundle --release "${BUILD_DEFINES[@]}"; then
     info "→ build/app/outputs/bundle/release/app-release.aab"
@@ -138,6 +177,7 @@ build_android_apk() {
     warn "Android SDK 미설치 → Android 빌드 건너뜀 (Android Studio 설치 후 재시도)"
     return
   fi
+  require_android_release_signing || return
   info "Android APK 빌드…"
   if flutter build apk --release "${BUILD_DEFINES[@]}"; then
     info "→ build/app/outputs/flutter-apk/app-release.apk"
@@ -155,11 +195,17 @@ build_ios() {
     return
   fi
   command -v pod >/dev/null 2>&1 || warn "CocoaPods 미설치 → iOS 빌드가 실패할 수 있습니다 (sudo gem install cocoapods)"
-  info "iOS 빌드 (서명 없이, 빌드 가능 여부 확인)…"
-  if flutter build ios --release --no-codesign "${BUILD_DEFINES[@]}"; then
-    info "→ build/ios/iphoneos/Runner.app (서명 없음)"
-    info "  스토어 업로드용 IPA: Xcode 서명 설정 후  flutter build ipa --release"
-  else err "iOS 빌드 실패 (CocoaPods/Xcode 상태 확인)"; FAIL=1; fi
+  if [ "$RELEASE" -eq 1 ]; then
+    info "iOS IPA 심사용 빌드…"
+    if flutter build ipa --release "${BUILD_DEFINES[@]}"; then
+      info "→ build/ios/ipa/*.ipa"
+    else err "iOS IPA 빌드 실패 (Apple Developer 서명/Xcode 상태 확인)"; FAIL=1; fi
+  else
+    info "iOS 빌드 (서명 없이, 빌드 가능 여부 확인)…"
+    if flutter build ios --release --no-codesign "${BUILD_DEFINES[@]}"; then
+      info "→ build/ios/iphoneos/Runner.app (서명 없음)"
+    else err "iOS 빌드 실패 (CocoaPods/Xcode 상태 확인)"; FAIL=1; fi
+  fi
 }
 
 case "$TARGET" in
