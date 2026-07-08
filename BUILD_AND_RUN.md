@@ -13,12 +13,25 @@
 루트에 헬퍼 스크립트가 있습니다. (기기/툴체인이 없으면 경고 후 건너뜀)
 
 ```bash
-./build.sh              # iOS + Android 릴리스 빌드 (android | ios 로 개별 지정 가능)
+./build.sh              # Android + iOS 스크린샷/테스트 빌드
+./build.sh android      # Android AAB/APK
+./build.sh ios          # iOS no-codesign
+./build.sh apk          # Android APK만
+./build.sh aab          # Android AAB만
 ./run.sh                # 연결된 첫 기기에서 실행 (release → DEBUG 없음)
 ./run.sh ios            # 첫 iOS 기기/시뮬레이터
 ./run.sh android        # 첫 Android 기기/에뮬레이터
 ./run.sh all            # iOS + Android 동시 실행 (백그라운드, 로그: build/run-logs/)
 MODE=debug ./run.sh ios # 모드 변경 (release[기본] | debug | profile)
+```
+
+출시 빌드는 `release` 옵션을 붙입니다. 앱 버전과 빌드번호를 입력하면
+`pubspec.yaml`의 `version`을 갱신한 뒤 광고 ON(`ADS_ENABLED=true`)으로 빌드합니다.
+
+```bash
+./build.sh android release    # 버전 입력 -> Android AAB/APK
+./build.sh aab release        # 버전 입력 -> Android AAB
+./build.sh ios release        # 버전 입력 -> iOS no-codesign
 ```
 
 세부 절차/사전 준비는 아래를 참고하세요.
@@ -99,10 +112,10 @@ flutter run -d "<시뮬레이터ID>"     # 실행 (배너 없이: 뒤에 --relea
 
 ### 스토어 배포용 빌드
 ```bash
-flutter build ipa --release
-# 산출물: build/ios/ipa/*.ipa
-# → Xcode Organizer 또는 Transporter로 App Store Connect 업로드
+./build.sh ios release
+# 산출물: build/ios/iphoneos/Runner.app (서명 없음)
 ```
+스토어 업로드용 IPA는 Xcode 서명 설정 후 `flutter build ipa --release`를 사용하세요.
 (또는 `flutter build ios --release` 후 Xcode에서 Product ▸ Archive)
 
 ---
@@ -118,13 +131,13 @@ flutter run -d "<기기ID>"           # 실행 (배너 없이: 뒤에 --release)
 
 ### 설치용 APK (사이드로드/테스트)
 ```bash
-flutter build apk --release
+./build.sh apk
 # 산출물: build/app/outputs/flutter-apk/app-release.apk
 ```
 
 ### Play 스토어용 App Bundle
 ```bash
-flutter build appbundle --release
+./build.sh aab release
 # 산출물: build/app/outputs/bundle/release/app-release.aab
 ```
 
