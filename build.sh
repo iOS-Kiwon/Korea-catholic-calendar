@@ -126,7 +126,7 @@ version_lt() {
 }
 
 prompt_release_version() {
-  local current current_name current_number next_name next_number
+  local current current_name current_number next_name next_number same_answer
   current="$(current_pubspec_version)"
   current_name="${current%%+*}"
   current_number="${current#*+}"
@@ -157,6 +157,20 @@ prompt_release_version() {
     if ((10#$next_number < 10#$current_number)); then
       warn "입력한 빌드번호($next_number)가 현재 빌드번호($current_number)보다 낮습니다. 다시 입력하세요."
       continue
+    fi
+    if [ "$next_name" = "$current_name" ] && [ "$next_number" = "$current_number" ]; then
+      while true; do
+        printf "입력한 앱 버전과 빌드번호가 현재와 동일합니다 (%s+%s). 이 값으로 빌드할까요? [y/N]: " "$next_name" "$next_number"
+        read -r same_answer
+        case "$same_answer" in
+          [Yy]|[Yy][Ee][Ss]) break ;;
+          ""|[Nn]|[Nn][Oo])
+            warn "다시 입력하세요."
+            continue 2
+            ;;
+          *) warn "y 또는 n으로 입력하세요." ;;
+        esac
+      done
     fi
 
     perl -0pi -e "s/^version:\\s*.*\$/version: $next_name+$next_number/m" pubspec.yaml
