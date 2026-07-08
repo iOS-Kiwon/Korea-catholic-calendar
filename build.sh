@@ -4,17 +4,16 @@
 #
 # 사용법:
 #   ./build.sh                    # Android + iOS 스크린샷/테스트 빌드
-#   ./build.sh android            # Android AAB/APK
+#   ./build.sh android            # Android AAB
 #   ./build.sh ios                # iOS no-codesign
-#   ./build.sh apk                # Android APK만
 #   ./build.sh aab                # Android AAB만
 #
 # 출시 빌드:
-#   ./build.sh android release    # 버전 입력 -> pubspec 갱신 -> Android AAB/APK 심사용 광고 ON 빌드
+#   ./build.sh android release    # 버전 입력 -> pubspec 갱신 -> Android AAB 심사용 광고 ON 빌드
 #   ./build.sh aab release        # 버전 입력 -> pubspec 갱신 -> Android AAB 심사용 광고 ON 빌드
 #   ./build.sh ios release        # 버전 입력 -> pubspec 갱신 -> iOS IPA 심사용 광고 ON 빌드
 #
-# - Android: App Bundle(.aab) + APK(.apk) 릴리스 산출.
+# - Android: App Bundle(.aab) 릴리스 산출.
 # - iOS: 기본 빌드는 서명 없이(--no-codesign) 확인, release 옵션은 IPA 산출.
 # - 준비물이 없는 플랫폼은 건너뛰고 경고만 출력합니다 (BUILD_AND_RUN.md 참고).
 #
@@ -189,12 +188,12 @@ elif [ "$MODE" != "test" ]; then
 fi
 
 case "$TARGET" in
-  all|android|ios|apk|aab) ;;
+  all|android|ios|aab) ;;
   *) err "알 수 없는 대상: '$TARGET'"; usage; exit 1 ;;
 esac
 
 case "$TARGET" in
-  all|android|apk|aab) require_android_release_signing || exit 1 ;;
+  all|android|aab) require_android_release_signing || exit 1 ;;
 esac
 
 if [ "$RELEASE" -eq 1 ]; then
@@ -217,22 +216,8 @@ build_android_aab() {
   else err "App Bundle 빌드 실패"; FAIL=1; fi
 }
 
-build_android_apk() {
-  if ! have_android; then
-    warn "Android SDK 미설치 → Android 빌드 건너뜀 (Android Studio 설치 후 재시도)"
-    return
-  fi
-  require_android_release_signing || return
-  info "Android APK 빌드…"
-  if flutter build apk --release "${BUILD_DEFINES[@]}"; then
-    info "→ build/app/outputs/flutter-apk/app-release.apk"
-    remember_release_output_dir "build/app/outputs/flutter-apk"
-  else err "APK 빌드 실패"; FAIL=1; fi
-}
-
 build_android() {
   build_android_aab
-  build_android_apk
 }
 
 build_ios() {
@@ -258,7 +243,6 @@ build_ios() {
 case "$TARGET" in
   ios)     build_ios ;;
   android) build_android ;;
-  apk)     build_android_apk ;;
   aab)     build_android_aab ;;
   all)     build_android; build_ios ;;
 esac

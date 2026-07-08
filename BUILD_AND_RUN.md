@@ -14,9 +14,8 @@
 
 ```bash
 ./build.sh              # Android + iOS 스크린샷/테스트 빌드
-./build.sh android      # Android AAB/APK
+./build.sh android      # Android AAB
 ./build.sh ios          # iOS no-codesign
-./build.sh apk          # Android APK만
 ./build.sh aab          # Android AAB만
 ./run.sh                # 연결된 첫 기기에서 실행 (release → DEBUG 없음)
 ./run.sh ios            # 첫 iOS 기기/시뮬레이터
@@ -29,7 +28,7 @@ MODE=debug ./run.sh ios # 모드 변경 (release[기본] | debug | profile)
 `pubspec.yaml`의 `version`을 갱신한 뒤 광고 ON(`ADS_ENABLED=true`)으로 심사용 산출물을 빌드합니다.
 
 ```bash
-./build.sh android release    # 버전 입력 -> Android AAB/APK 심사용 빌드
+./build.sh android release    # 버전 입력 -> Android AAB 심사용 빌드
 ./build.sh aab release        # 버전 입력 -> Android AAB 심사용 빌드
 ./build.sh ios release        # 버전 입력 -> iOS IPA 심사용 빌드
 ```
@@ -129,12 +128,6 @@ flutter run -d "<기기ID>"           # 실행 (배너 없이: 뒤에 --release)
 ```
 에뮬레이터가 없으면 Android Studio ▸ Device Manager에서 생성.
 
-### 설치용 APK (사이드로드/테스트)
-```bash
-./build.sh apk
-# 산출물: build/app/outputs/flutter-apk/app-release.apk
-```
-
 ### Play 스토어용 App Bundle
 ```bash
 ./build.sh aab release
@@ -142,7 +135,7 @@ flutter run -d "<기기ID>"           # 실행 (배너 없이: 뒤에 --release)
 ```
 
 > ⚠️ **릴리스 서명**: `./build.sh ... release`는 `android/key.properties`와 릴리스 keystore가
-> 없으면 중단됩니다. Play Console 심사용 AAB/APK는 debug key가 아니라 릴리스 keystore로
+> 없으면 중단됩니다. Play Console 심사용 AAB는 debug key가 아니라 릴리스 keystore로
 > 서명되어야 합니다.
 > 참고: https://docs.flutter.dev/deployment/android#signing-the-app
 > (applicationId = `com.sidore.catholiccalendar`)
