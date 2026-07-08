@@ -25,12 +25,20 @@ MODE=debug ./run.sh ios # 모드 변경 (release[기본] | debug | profile)
 ```
 
 출시 빌드는 `release` 옵션을 붙입니다. 앱 버전과 빌드번호를 입력하면
-`pubspec.yaml`의 `version`을 갱신한 뒤 광고 ON(`ADS_ENABLED=true`)으로 심사용 산출물을 빌드합니다.
+플랫폼별 버전 파일을 갱신한 뒤 광고 ON(`ADS_ENABLED=true`)으로 심사용 산출물을 빌드합니다.
+Android와 iOS는 서로 다른 버전을 사용할 수 있습니다.
 
 ```bash
 ./build.sh android release    # 버전 입력 -> Android AAB 심사용 빌드
 ./build.sh aab release        # 버전 입력 -> Android AAB 심사용 빌드
 ./build.sh ios release        # 버전 입력 -> iOS IPA 심사용 빌드
+```
+
+플랫폼별 release 버전 파일:
+
+```text
+android/release_version.properties
+ios/release_version.properties
 ```
 
 세부 절차/사전 준비는 아래를 참고하세요.

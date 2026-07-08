@@ -9,9 +9,9 @@
 #   ./build.sh aab                # Android AAB만
 #
 # 출시 빌드:
-#   ./build.sh android release    # 버전 입력 -> pubspec 갱신 -> Android AAB 심사용 광고 ON 빌드
-#   ./build.sh aab release        # 버전 입력 -> pubspec 갱신 -> Android AAB 심사용 광고 ON 빌드
-#   ./build.sh ios release        # 버전 입력 -> pubspec 갱신 -> iOS IPA 심사용 광고 ON 빌드
+#   ./build.sh android release    # Android 버전 입력 -> Android AAB 심사용 광고 ON 빌드
+#   ./build.sh aab release        # Android 버전 입력 -> Android AAB 심사용 광고 ON 빌드
+#   ./build.sh ios release        # iOS 버전 입력 -> iOS IPA 심사용 광고 ON 빌드
 #
 # - Android: App Bundle(.aab) 릴리스 산출.
 # - iOS: 기본 빌드는 서명 없이(--no-codesign) 확인, release 옵션은 IPA 산출.
@@ -25,6 +25,10 @@ TARGET="${1:-all}"
 MODE="${2:-test}"
 RELEASE=0
 BUILD_DEFINES=(--dart-define=ADS_ENABLED=false)
+ANDROID_VERSION_FILE="android/release_version.properties"
+IOS_VERSION_FILE="ios/release_version.properties"
+ANDROID_BUILD_ARGS=()
+IOS_BUILD_ARGS=()
 RELEASE_OUTPUT_DIRS=()
 FAIL=0
 info() { printf "\033[1;34m[build]\033[0m %s\n" "$*"; }
@@ -109,6 +113,45 @@ current_pubspec_version() {
   sed -n 's/^version:[[:space:]]*//p' pubspec.yaml | head -n 1
 }
 
+read_release_version() {
+  local file="$1"
+  local fallback current_name current_number
+
+  if [ -f "$file" ]; then
+    current_name="$(sed -n 's/^appVersion=//p' "$file" | head -n 1)"
+    current_number="$(sed -n 's/^buildNumber=//p' "$file" | head -n 1)"
+  fi
+
+  if [ -z "${current_name:-}" ] || [ -z "${current_number:-}" ]; then
+    fallback="$(current_pubspec_version)"
+    current_name="${fallback%%+*}"
+    current_number="${fallback#*+}"
+  fi
+
+  if [[ -z "$current_name" || -z "$current_number" || ! "$current_name" =~ ^[0-9]+(\.[0-9]+){2}$ || ! "$current_number" =~ ^[0-9]+$ ]]; then
+    err "버전 형식을 읽을 수 없습니다: $file"
+    exit 1
+  fi
+
+  printf "%s+%s\n" "$current_name" "$current_number"
+}
+
+write_release_version() {
+  local file="$1"
+  local app_version="$2"
+  local build_number="$3"
+
+  if [ ! -f "$file" ]; then
+    {
+      printf "appVersion=%s\n" "$app_version"
+      printf "buildNumber=%s\n" "$build_number"
+    } > "$file"
+    return
+  fi
+
+  perl -0pi -e "s/^appVersion=.*\$/appVersion=$app_version/m; s/^buildNumber=.*\$/buildNumber=$build_number/m" "$file"
+}
+
 version_lt() {
   local IFS=.
   local -a left right
@@ -125,41 +168,38 @@ version_lt() {
 }
 
 prompt_release_version() {
-  local current current_name current_number next_name next_number same_answer
-  current="$(current_pubspec_version)"
+  local platform file current current_name current_number next_name next_number same_answer
+  platform="$1"
+  file="$2"
+  current="$(read_release_version "$file")"
   current_name="${current%%+*}"
   current_number="${current#*+}"
 
-  if [[ -z "$current" || "$current" == "$current_number" || ! "$current_number" =~ ^[0-9]+$ ]]; then
-    err "pubspec.yaml의 version 형식을 읽을 수 없습니다: '$current'"
-    exit 1
-  fi
-
   while true; do
-    printf "앱 버전 입력 (현재 %s, 예: 1.2.3): " "$current_name"
+    printf "%s 앱 버전 입력 (현재 %s, 예: 1.2.3): " "$platform" "$current_name"
     read -r next_name
-    printf "빌드번호 입력 (현재 %s, 예: 42): " "$current_number"
+    printf "%s 빌드번호 입력 (현재 %s, 예: 42): " "$platform" "$current_number"
     read -r next_number
 
     if [[ ! "$next_name" =~ ^[0-9]+(\.[0-9]+){2}$ ]]; then
-      warn "앱 버전은 1.2.3 형식이어야 합니다."
+      warn "$platform 앱 버전은 1.2.3 형식이어야 합니다."
       continue
     fi
     if [[ ! "$next_number" =~ ^[0-9]+$ ]]; then
-      warn "빌드번호는 0 이상의 정수여야 합니다."
+      warn "$platform 빌드번호는 0 이상의 정수여야 합니다."
       continue
     fi
     if version_lt "$next_name" "$current_name"; then
-      warn "입력한 앱 버전($next_name)이 현재 버전($current_name)보다 낮습니다. 다시 입력하세요."
+      warn "입력한 $platform 앱 버전($next_name)이 현재 버전($current_name)보다 낮습니다. 다시 입력하세요."
       continue
     fi
     if ((10#$next_number < 10#$current_number)); then
-      warn "입력한 빌드번호($next_number)가 현재 빌드번호($current_number)보다 낮습니다. 다시 입력하세요."
+      warn "입력한 $platform 빌드번호($next_number)가 현재 빌드번호($current_number)보다 낮습니다. 다시 입력하세요."
       continue
     fi
     if [ "$next_name" = "$current_name" ] && [ "$next_number" = "$current_number" ]; then
       while true; do
-        printf "입력한 앱 버전과 빌드번호가 현재와 동일합니다 (%s+%s). 이 값으로 빌드할까요? [y/N]: " "$next_name" "$next_number"
+        printf "입력한 %s 앱 버전과 빌드번호가 현재와 동일합니다 (%s+%s). 이 값으로 빌드할까요? [y/N]: " "$platform" "$next_name" "$next_number"
         read -r same_answer
         case "$same_answer" in
           [Yy]|[Yy][Ee][Ss]) break ;;
@@ -172,10 +212,25 @@ prompt_release_version() {
       done
     fi
 
-    perl -0pi -e "s/^version:\\s*.*\$/version: $next_name+$next_number/m" pubspec.yaml
-    info "pubspec.yaml version: $current -> $next_name+$next_number"
+    write_release_version "$file" "$next_name" "$next_number"
+    info "$file: $current -> $next_name+$next_number"
+    case "$platform" in
+      Android) ANDROID_BUILD_ARGS=(--build-name="$next_name" --build-number="$next_number") ;;
+      iOS) IOS_BUILD_ARGS=(--build-name="$next_name" --build-number="$next_number") ;;
+    esac
     break
   done
+}
+
+prompt_release_versions() {
+  case "$TARGET" in
+    all)
+      prompt_release_version "Android" "$ANDROID_VERSION_FILE"
+      prompt_release_version "iOS" "$IOS_VERSION_FILE"
+      ;;
+    android|aab) prompt_release_version "Android" "$ANDROID_VERSION_FILE" ;;
+    ios) prompt_release_version "iOS" "$IOS_VERSION_FILE" ;;
+  esac
 }
 
 if [ "$MODE" = "release" ]; then
@@ -197,7 +252,7 @@ case "$TARGET" in
 esac
 
 if [ "$RELEASE" -eq 1 ]; then
-  prompt_release_version
+  prompt_release_versions
 fi
 
 info "flutter pub get"
@@ -210,7 +265,7 @@ build_android_aab() {
   fi
   require_android_release_signing || return
   info "Android App Bundle (.aab) 빌드…"
-  if flutter build appbundle --release "${BUILD_DEFINES[@]}"; then
+  if flutter build appbundle --release "${BUILD_DEFINES[@]}" "${ANDROID_BUILD_ARGS[@]}"; then
     info "→ build/app/outputs/bundle/release/app-release.aab"
     remember_release_output_dir "build/app/outputs/bundle/release"
   else err "App Bundle 빌드 실패"; FAIL=1; fi
@@ -228,7 +283,7 @@ build_ios() {
   command -v pod >/dev/null 2>&1 || warn "CocoaPods 미설치 → iOS 빌드가 실패할 수 있습니다 (sudo gem install cocoapods)"
   if [ "$RELEASE" -eq 1 ]; then
     info "iOS IPA 심사용 빌드…"
-    if flutter build ipa --release "${BUILD_DEFINES[@]}"; then
+    if flutter build ipa --release "${BUILD_DEFINES[@]}" "${IOS_BUILD_ARGS[@]}"; then
       info "→ build/ios/ipa/*.ipa"
       remember_release_output_dir "build/ios/ipa"
     else err "iOS IPA 빌드 실패 (Apple Developer 서명/Xcode 상태 확인)"; FAIL=1; fi
