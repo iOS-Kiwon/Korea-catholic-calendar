@@ -8,15 +8,9 @@ const _weekdayFull = ['일', '월', '화', '수', '목', '금', '토'];
 /// Compact liturgical-color summary card shown under the phone calendar.
 /// Tapping it opens the full detail (a bottom sheet).
 class DaySummaryCard extends StatelessWidget {
-  const DaySummaryCard({
-    super.key,
-    required this.day,
-    required this.isToday,
-    required this.onTap,
-  });
+  const DaySummaryCard({super.key, required this.day, required this.onTap});
 
   final LiturgicalDay day;
-  final bool isToday;
   final VoidCallback onTap;
 
   @override
@@ -39,7 +33,7 @@ class DaySummaryCard extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                '${isToday ? '오늘' : '선택'} · ${LiturgicalColors.label(day.color)}',
+                LiturgicalColors.label(day.color),
                 style: TextStyle(
                   color: on.withValues(alpha: 0.85),
                   fontSize: 13,

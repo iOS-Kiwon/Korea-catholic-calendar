@@ -44,6 +44,8 @@ dependencies:
   liturgical_calendar:
     path: packages/liturgical_calendar
   url_launcher: ^6.3.2
+  google_mobile_ads: ^9.0.0
+  app_tracking_transparency: ^2.0.7
 
 dev_dependencies:
   flutter_test:
@@ -55,6 +57,20 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+# 앱 아이콘 생성 설정 (dart run flutter_launcher_icons)
+flutter_launcher_icons:
+  image_path: "assets/icon/app_icon.png"
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  background_color_ios: "#FFFFFF"
+  web:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+    background_color: "#FFFBFE"
+    theme_color: "#2E7D32"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

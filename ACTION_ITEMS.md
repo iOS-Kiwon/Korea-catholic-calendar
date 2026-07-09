@@ -13,12 +13,35 @@ _최종 갱신: 2026-07-02 — 앱 이름·번들 ID·계정 확정 반영._
 - 주 시작 요일: 일요일 고정.
 - 계정: Apple Developer / Google Play 모두 보유.
 
-## ⏳ 당신이 전달/결정 대기 중
+## ✅ 최근 확정·완료
 
-- ✅ **디자인 시안(현대 절충 1c) 반영 완료** — 전례색 헤더 · 범례 · 상단 색 바 · 오늘 pill(웹) / 색 점·채운 원·하단 요약 카드(모바일). 추가 시안/수정본 있으면 마저 반영.
-- [ ] **앱 아이콘 이미지** → 현재 Flutter 기본 아이콘. 로고/아이콘(1024px) 주시면 교체.
-- [ ] (선택) 다크 모드 전례색 톤 검토 — 시안은 라이트 기준. 다크 팔레트 미세조정 원하면 알려주세요.
-- [ ] **웹사이트 제공 여부** → 보류. 연결하기로 결정되면 그때 호스팅(Cloudflare/Firebase 등) 선택 + SPA fallback 설정 진행.
+- 디자인 시안(현대 절충 1c) 반영 완료.
+- **앱 아이콘 적용 완료** — 전달해 주신 아이콘으로 iOS/Android/웹 아이콘 생성(`assets/icon/app_icon.png` 원본). 수정본 주시면 `dart run flutter_launcher_icons` 재실행으로 교체.
+- **다크 모드 미지원 확정** — 항상 라이트 테마.
+- **AdMob 배너 통합 완료** — 모든 화면 하단(SafeArea.bottom 바로 위). iOS/Android 실 ID 반영:
+  - iOS 앱 `~4438618627` · 배너 `/3997553939`
+  - Android 앱 `~2281981735` · 배너 `/6029655050`
+  - release=실 광고, debug=테스트 광고(정책 준수). 웹은 광고 없음.
+- 웹사이트 제공: 보류(결정 시 호스팅 연결 진행).
+
+## ✅ 최근 추가 (ATT · SKAdNetwork · UMP · app-ads.txt)
+
+- iOS **ATT** 프롬프트 + `NSUserTrackingUsageDescription`, **SKAdNetworkItems**(Google 공식 50개), **UMP 동의(GDPR)** 흐름(동의→ATT→SDK init), `web/app-ads.txt`(`pub-5980133283002959`) 코드/설정 완료.
+
+## 🌐 CBCK 캐시 게이트웨이 (새로 추가 — 배포 필요)
+
+CBCK 호출을 최소화하는 캐시 게이트웨이(Cloudflare Worker)를 `server/`에 구현했습니다.
+- [ ] **배포**(당신, Cloudflare 계정 필요): `server/README.md` 절차대로 `wrangler login` → `kv namespace create CAL`(출력 id를 `wrangler.toml`에 반영) → `wrangler deploy`.
+- [ ] 배포 후 **Worker URL을 알려주세요** → 앱을 그 URL의 원격 소스에 연결(현재 보는 연도만 받아 기기 캐시, 실패/미발행 시 번들+엔진 폴백).
+- 참고: 게이트웨이는 호출 완화책일 뿐, 근본적으로는 **CBCK 사용 허가/제휴**가 정답(아래 참조).
+
+## ⏳ 남은 당신의 몫
+
+- [ ] **AdMob 콘솔에서 동의/개인정보 메시지 생성** — AdMob → 개인정보 보호 및 메시지(Privacy & messaging)에서 **GDPR(유럽) 동의 메시지**(및 원하면 IDFA/ATT 사전 설명 메시지)를 만들어 게시해야 UMP 동의 폼이 실제로 표시됩니다. (코드는 준비됨)
+- [ ] **`app-ads.txt` 호스팅** — App Store/Play 개발자 프로필에 등록한 **웹사이트 도메인 루트**(`https://<도메인>/app-ads.txt`)에 올려야 인증됩니다. 웹 배포 도메인이 정해지면 `web/app-ads.txt`가 자동 서빙되거나, 해당 도메인 루트에 파일을 두세요.
+- [ ] **AdMob 실기기 검증** — 배너 노출 + (EEA 시뮬레이션 시) 동의 폼 + iOS ATT 프롬프트 확인. (iOS는 CocoaPods 필요: `sudo gem install cocoapods`)
+- [ ] (선택) Android **적응형 아이콘(adaptive)** 전경/배경 이미지.
+- [ ] 출시 전 **AdMob 정책 검토**.
 
 ## 📌 데이터 유지보수 (주기적)
 

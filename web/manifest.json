@@ -5,7 +5,7 @@
     "start_url": ".",
     "display": "standalone",
     "background_color": "#FFFBFE",
-    "theme_color": "#6A1B9A",
+    "theme_color": "#2E7D32",
     "description": "한국 가톨릭 전례력 월간 달력",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
