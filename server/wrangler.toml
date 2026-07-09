@@ -1,0 +1,12 @@
+name = "catholic-calendar-cache"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+# KV: 연도별 전례력 캐시. 아래 id는 `wrangler kv namespace create CAL`로 생성 후 채우세요.
+kv_namespaces = [
+  { binding = "CAL", id = "REPLACE_WITH_KV_NAMESPACE_ID" }
+]
+
+# 매일 18:00 UTC(≈ 한국 03:00)에 인접 연도 프리워밍.
+[triggers]
+crons = ["0 18 * * *"]
