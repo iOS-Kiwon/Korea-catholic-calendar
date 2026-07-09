@@ -7,6 +7,6 @@ kv_namespaces = [
   { binding = "CAL", id = "REPLACE_WITH_KV_NAMESPACE_ID" }
 ]
 
-# 매일 18:00 UTC(≈ 한국 03:00)에 인접 연도 프리워밍.
+# 매일 18:00 UTC(≈ 한국 03:00)에 가까운 4개월 프리워밍(이미 캐시된 달은 건너뜀).
 [triggers]
 crons = ["0 18 * * *"]
