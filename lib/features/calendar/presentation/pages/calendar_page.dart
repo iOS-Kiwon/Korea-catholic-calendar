@@ -147,7 +147,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     calendar: s,
     month: widget.month,
     today: DateTime.now(),
-    selectedDate: _selected,
+    // 모바일은 하단 요약 카드가 가리키는 날(_focusDate)을 그리드에도 표시.
+    selectedDate: compact ? _focusDate : _selected,
     compact: compact,
     onSelectDay: (date) {
       setState(() => _selected = date);
