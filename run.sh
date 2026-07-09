@@ -14,6 +14,10 @@
 #
 # 모드 변경:  MODE=debug ./run.sh ios   (release[기본] | debug | profile)
 #
+# 참고: 물리 iOS 기기는 flutter run(디버거 실행)이 구형 iOS+최신 Xcode 조합에서
+# 실패하므로, 자동으로 flutter install(설치 전용)만 수행합니다. 설치 후 홈 화면에서
+# 아이콘을 탭해 실행하세요. (시뮬레이터/안드로이드는 그대로 flutter run)
+#
 set -uo pipefail
 export PATH="/opt/homebrew/bin:$PATH"
 cd "$(dirname "$0")"
@@ -43,9 +47,40 @@ for d in devs:
 ' "$1"
 }
 
-run_fg() { # $1 = device id, $2 = label
-  info "$2 실행 (mode=$MODE, device=$1)"
-  flutter run --"$MODE" -d "$1"
+# 기기 메타데이터 출력: "<targetPlatform> <emulator(true|false)>"
+device_meta() {
+  flutter devices --machine 2>/dev/null | python3 -c '
+import sys, json
+tid = sys.argv[1]
+try:
+    devs = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+for d in devs:
+    if d.get("id") == tid:
+        print(str(d.get("targetPlatform", "")), str(d.get("emulator", False)).lower())
+        break
+' "$1"
+}
+
+# 물리 iOS 기기는 install(설치 전용), 그 외는 flutter run.
+launch() { # $1 = device id, $2 = label
+  local id="$1" label="$2" meta plat emu
+  meta="$(device_meta "$id")"
+  plat="${meta%% *}"
+  emu="${meta##* }"
+  if [[ "$plat" == ios* && "$emu" == "false" ]]; then
+    info "$label: 물리 iOS 기기 → flutter install (설치 전용)"
+    warn "이 기기(구형 iOS + 최신 Xcode)는 flutter run 자동 실행이 실패하므로 install만 수행합니다."
+    if flutter install --release -d "$id"; then
+      info "설치 완료 ✅  아이폰 홈 화면에서 '가톨릭 달력' 아이콘을 탭해 실행하세요."
+    else
+      err "설치 실패 — 아이폰 잠금 해제 후 재시도하세요."
+    fi
+  else
+    info "$label 실행 (mode=$MODE, device=$id)"
+    flutter run --"$MODE" -d "$id"
+  fi
 }
 
 case "$TARGET" in
@@ -56,7 +91,7 @@ case "$TARGET" in
   ios|android)
     dev="$(pick_device "$TARGET")"
     [ -n "$dev" ] || { err "$TARGET 기기를 찾을 수 없습니다 (flutter devices 로 확인)"; exit 1; }
-    run_fg "$dev" "$TARGET"
+    launch "$dev" "$TARGET"
     ;;
   all)
     ios_dev="$(pick_device ios)"
@@ -76,6 +111,6 @@ case "$TARGET" in
     wait
     ;;
   *)
-    run_fg "$TARGET" "지정 기기"
+    launch "$TARGET" "지정 기기"
     ;;
 esac
