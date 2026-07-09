@@ -28,6 +28,13 @@ _최종 갱신: 2026-07-02 — 앱 이름·번들 ID·계정 확정 반영._
 
 - iOS **ATT** 프롬프트 + `NSUserTrackingUsageDescription`, **SKAdNetworkItems**(Google 공식 50개), **UMP 동의(GDPR)** 흐름(동의→ATT→SDK init), `web/app-ads.txt`(`pub-5980133283002959`) 코드/설정 완료.
 
+## 🌐 CBCK 캐시 게이트웨이 (새로 추가 — 배포 필요)
+
+CBCK 호출을 최소화하는 캐시 게이트웨이(Cloudflare Worker)를 `server/`에 구현했습니다.
+- [ ] **배포**(당신, Cloudflare 계정 필요): `server/README.md` 절차대로 `wrangler login` → `kv namespace create CAL`(출력 id를 `wrangler.toml`에 반영) → `wrangler deploy`.
+- [ ] 배포 후 **Worker URL을 알려주세요** → 앱을 그 URL의 원격 소스에 연결(현재 보는 연도만 받아 기기 캐시, 실패/미발행 시 번들+엔진 폴백).
+- 참고: 게이트웨이는 호출 완화책일 뿐, 근본적으로는 **CBCK 사용 허가/제휴**가 정답(아래 참조).
+
 ## ⏳ 남은 당신의 몫
 
 - [ ] **AdMob 콘솔에서 동의/개인정보 메시지 생성** — AdMob → 개인정보 보호 및 메시지(Privacy & messaging)에서 **GDPR(유럽) 동의 메시지**(및 원하면 IDFA/ATT 사전 설명 메시지)를 만들어 게시해야 UMP 동의 폼이 실제로 표시됩니다. (코드는 준비됨)
