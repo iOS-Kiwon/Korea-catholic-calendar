@@ -92,7 +92,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
 
   @override
   Widget build(BuildContext context) {
-    final calendarAsync = ref.watch(liturgicalCalendarProvider);
+    // 현재 달에 대해 게이트웨이 데이터까지 반영된 서비스(실패 시 번들+엔진 폴백).
+    final calendarAsync = ref.watch(monthServiceProvider(widget.month));
     return Scaffold(
       body: SafeArea(
         bottom: false, // 하단 인셋은 전역 배너(BottomAdBanner)에서 처리

@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:liturgical_calendar/liturgical_calendar.dart';
 
-/// A parsed authoritative day from the CBCK snapshot.
+/// A parsed authoritative day from the CBCK snapshot / gateway.
 class CbckDay {
   const CbckDay({
     required this.title,
@@ -33,21 +33,40 @@ const _colorByName = {
 LiturgicalColor _color(String? name) =>
     _colorByName[name] ?? LiturgicalColor.green;
 
-/// Serves liturgical days, preferring the authoritative CBCK snapshot and
-/// falling back to the computed engine for dates the snapshot does not cover.
+String _pad2(int n) => n.toString().padLeft(2, '0');
+
+/// Serves liturgical days, preferring authoritative CBCK data (bundled snapshot
+/// and/or fetched from the gateway) and falling back to the computed engine.
 ///
-/// This is where the official data (exact 명칭·전례색·특별 주일·성경 구절 참조·
-/// 매일미사 링크) is layered over the engine's structural output (전례 시기·주차·
-/// 독서 주기·의무 축일), giving one enriched [LiturgicalDay].
+/// CBCK data can be merged in per month at runtime ([merge]); [hasMonth] lets
+/// callers avoid re-fetching a month that is already loaded.
 class CalendarService {
   CalendarService({required this.engine, Map<String, CbckDay>? cbck})
-    : _cbck = cbck ?? const {};
+    : _cbck = {...?cbck} {
+    _recomputeMonths();
+  }
 
   final LiturgicalCalendar engine;
   final Map<String, CbckDay> _cbck;
+  final Set<String> _months = {}; // 'YYYY-MM' loaded
 
-  /// Whether the authoritative snapshot covers [date].
-  bool hasAuthoritative(DateTime date) => _cbck.containsKey(_key(date));
+  void _recomputeMonths() {
+    _months.clear();
+    for (final k in _cbck.keys) {
+      _months.add(k.substring(0, 7));
+    }
+  }
+
+  /// Whether authoritative data for [year]/[month] is already loaded.
+  bool hasMonth(int year, int month) =>
+      _months.contains('$year-${_pad2(month)}');
+
+  /// Merges additional authoritative days (e.g. fetched from the gateway).
+  void merge(Map<String, CbckDay> more) {
+    if (more.isEmpty) return;
+    _cbck.addAll(more);
+    _recomputeMonths();
+  }
 
   LiturgicalDay day(DateTime date) {
     final base = engine.day(date);
@@ -72,15 +91,19 @@ class CalendarService {
 
   static String _key(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-'
-      '${d.month.toString().padLeft(2, '0')}-'
-      '${d.day.toString().padLeft(2, '0')}';
+      '${_pad2(d.month)}-${_pad2(d.day)}';
 
-  /// Parses the `cbck_days.json` snapshot into a date-keyed map.
+  /// Parses the bundled `cbck_days.json` snapshot into a date-keyed map.
   static Map<String, CbckDay> parseSnapshot(String jsonStr) {
     final doc = jsonDecode(jsonStr) as Map<String, dynamic>;
-    final days = (doc['days'] as List).cast<Map<String, dynamic>>();
+    return parseDays(doc['days'] as List? ?? const []);
+  }
+
+  /// Parses a `days` array (bundled snapshot or gateway response) into a map.
+  static Map<String, CbckDay> parseDays(List<dynamic> days) {
     final map = <String, CbckDay>{};
-    for (final d in days) {
+    for (final raw in days) {
+      final d = raw as Map<String, dynamic>;
       final alternatives = [
         for (final a in (d['alternatives'] as List? ?? const []))
           Celebration(

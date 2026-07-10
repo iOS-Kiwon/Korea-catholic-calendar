@@ -10,7 +10,7 @@ void main() {
     final d = service.day(DateTime(2026, 7, 15));
     expect(d.title, '연중 제15주간 수요일'); // computed
     expect(d.scriptureReadings, isEmpty);
-    expect(service.hasAuthoritative(DateTime(2026, 7, 15)), isFalse);
+    expect(service.hasMonth(2026, 7), isFalse);
   });
 
   test('prefers the CBCK snapshot, enriching title/color/readings/special', () {
