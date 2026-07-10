@@ -4,8 +4,8 @@ import '../../../../core/date/year_month.dart';
 
 const weekdayLabels = ['주일', '월', '화', '수', '목', '금', '토'];
 
-/// Liturgical-color month header: season/color label + big month title + nav.
-/// Adapts between a wide (title left, nav right) and compact (centered) layout.
+/// 전례색 헤더: `‹ 2026년 7월 ›` (양옆 이전/다음 달) + 시기·색 부제.
+/// 월 제목을 누르면 [onTapTitle](연/월 선택 팝업)이 호출된다.
 class MonthHeader extends StatelessWidget {
   const MonthHeader({
     super.key,
@@ -15,9 +15,7 @@ class MonthHeader extends StatelessWidget {
     required this.compact,
     required this.onPrevMonth,
     required this.onNextMonth,
-    required this.onPrevYear,
-    required this.onNextYear,
-    required this.onToday,
+    required this.onTapTitle,
   });
 
   final YearMonth month;
@@ -26,124 +24,74 @@ class MonthHeader extends StatelessWidget {
   final bool compact;
   final VoidCallback onPrevMonth;
   final VoidCallback onNextMonth;
-  final VoidCallback onPrevYear;
-  final VoidCallback onNextYear;
-  final VoidCallback onToday;
+  final VoidCallback onTapTitle;
 
   @override
   Widget build(BuildContext context) {
     final onColor = _readableOn(color);
+    final t = Theme.of(context).textTheme;
     return Container(
       color: color,
-      padding: EdgeInsets.fromLTRB(
-        compact ? 12 : 28,
-        compact ? 12 : 24,
-        compact ? 12 : 28,
-        compact ? 14 : 24,
+      padding: compact
+          ? const EdgeInsets.fromLTRB(8, 10, 8, 12)
+          : const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              _chevron('‹', onColor, onPrevMonth, '이전 달'),
+              Expanded(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: onTapTitle,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Text(
+                      '${month.year}년 ${month.month}월',
+                      textAlign: TextAlign.center,
+                      style: (compact ? t.titleLarge : t.headlineSmall)
+                          ?.copyWith(
+                            color: onColor,
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                  ),
+                ),
+              ),
+              _chevron('›', onColor, onNextMonth, '다음 달'),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            seasonText,
+            style: t.labelMedium?.copyWith(
+              color: onColor.withValues(alpha: 0.85),
+            ),
+          ),
+        ],
       ),
-      child: compact ? _compact(context, onColor) : _wide(context, onColor),
     );
   }
 
-  Widget _wide(BuildContext context, Color onColor) {
-    final t = Theme.of(context).textTheme;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                seasonText,
-                style: t.titleSmall?.copyWith(
-                  color: onColor.withValues(alpha: 0.85),
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                '${month.year}년 ${month.month}월',
-                style: t.headlineMedium?.copyWith(
-                  color: onColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
-        _navButton('«', onColor, onPrevYear, '이전 해'),
-        _navButton('‹', onColor, onPrevMonth, '이전 달'),
-        _navButton('오늘', onColor, onToday, '오늘', wide: true),
-        _navButton('›', onColor, onNextMonth, '다음 달'),
-        _navButton('»', onColor, onNextYear, '다음 해'),
-      ],
-    );
-  }
-
-  Widget _compact(BuildContext context, Color onColor) {
-    final t = Theme.of(context).textTheme;
-    return Row(
-      children: [
-        _navButton('«', onColor, onPrevYear, '이전 해'),
-        _navButton('‹', onColor, onPrevMonth, '이전 달'),
-        Expanded(
-          child: Column(
-            children: [
-              Text(
-                '${month.year}년 ${month.month}월',
-                style: t.titleLarge?.copyWith(
-                  color: onColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                seasonText,
-                style: t.labelMedium?.copyWith(
-                  color: onColor.withValues(alpha: 0.85),
-                ),
-              ),
-            ],
-          ),
-        ),
-        _navButton('›', onColor, onNextMonth, '다음 달'),
-        _navButton('»', onColor, onNextYear, '다음 해'),
-      ],
-    );
-  }
-
-  Widget _navButton(
-    String label,
-    Color onColor,
-    VoidCallback onTap,
-    String tip, {
-    bool wide = false,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 3),
-      child: Tooltip(
-        message: tip,
-        child: Material(
-          color: onColor.withValues(alpha: 0.16),
+  Widget _chevron(String label, Color onColor, VoidCallback onTap, String tip) {
+    return Tooltip(
+      message: tip,
+      child: Material(
+        color: onColor.withValues(alpha: 0.10), // 더 연한 버튼 배경
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
           borderRadius: BorderRadius.circular(10),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(10),
-            onTap: onTap,
-            child: Container(
-              constraints: BoxConstraints(
-                minWidth: wide ? 52 : 38,
-                minHeight: 38,
-              ),
-              alignment: Alignment.center,
-              padding: EdgeInsets.symmetric(horizontal: wide ? 12 : 0),
-              child: Text(
-                label,
-                style: TextStyle(
-                  color: onColor,
-                  fontWeight: FontWeight.w600,
-                  fontSize: wide ? 14 : 18,
-                ),
+          onTap: onTap,
+          child: Container(
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            alignment: Alignment.center,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: onColor,
+                fontWeight: FontWeight.w600,
+                fontSize: 20,
               ),
             ),
           ),
