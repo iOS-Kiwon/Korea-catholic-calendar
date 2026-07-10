@@ -61,13 +61,9 @@ class MonthGrid extends StatelessWidget {
       children: [for (var c = 0; c < 7; c++) Expanded(child: cellAt(r, c))],
     );
 
+    // 두 레이아웃 모두 행을 균등하게 채운다(부모 높이에 맞춰 늘어남 → 오버플로 방지).
     return Column(
-      children: [
-        for (var r = 0; r < rows; r++)
-          compact
-              ? SizedBox(height: 52, child: rowAt(r))
-              : Expanded(child: rowAt(r)),
-      ],
+      children: [for (var r = 0; r < rows; r++) Expanded(child: rowAt(r))],
     );
   }
 }

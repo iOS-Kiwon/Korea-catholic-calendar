@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:liturgical_calendar/liturgical_calendar.dart';
 
 import '../../../../app/theme/liturgical_colors.dart';
 import '../../../../core/date/year_month.dart';
@@ -9,15 +8,17 @@ import '../../application/calendar_providers.dart';
 import '../../data/calendar_service.dart';
 import '../season_style.dart';
 import '../widgets/day_detail_view.dart';
-import '../widgets/day_summary_card.dart';
+import '../widgets/day_info_bar.dart';
 import '../widgets/legend.dart';
 import '../widgets/month_grid.dart';
 import '../widgets/month_header.dart';
+import '../widgets/month_year_picker.dart';
+import '../widgets/today_button.dart';
 
 String monthPath(YearMonth ym) =>
     '/${ym.year}/${ym.month.toString().padLeft(2, '0')}';
 
-/// Width at/above which the "wide" (named-cell card) layout is used.
+/// Width at/above which the "wide" (web/desktop) layout is used.
 const _wideBreakpoint = 720.0;
 
 class CalendarPage extends ConsumerStatefulWidget {
@@ -33,13 +34,8 @@ class CalendarPage extends ConsumerStatefulWidget {
 class _CalendarPageState extends ConsumerState<CalendarPage> {
   DateTime? _selected;
 
-  // Accumulated horizontal drag distance for the swipe gesture.
   double _dragDx = 0;
-
-  // 스와이프로 인정할 최소 이동 거리(px). 미스탭(짧은 튐)은 무시.
   static const _swipeDistance = 72.0;
-
-  // 짧더라도 아주 빠른 플릭은 허용하되, 최소한의 이동은 있어야 함.
   static const _flickVelocity = 700.0;
   static const _flickMinDistance = 28.0;
 
@@ -52,14 +48,13 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   @override
   void didUpdateWidget(CalendarPage old) {
     super.didUpdateWidget(old);
-    if (old.month != widget.month) _selected = null; // reset on month change
+    if (old.month != widget.month) _selected = null;
   }
 
   bool _inMonth(DateTime d) =>
       d.year == widget.month.year && d.month == widget.month.month;
 
-  /// The day whose detail/summary is shown: explicit selection, else today (if
-  /// visible), else the first of the month.
+  /// 하단 정보/그리드 강조가 가리키는 날: 선택한 날, 없으면 오늘(그 달에 있으면), 없으면 1일.
   DateTime get _focusDate {
     if (_selected != null) return _selected!;
     final today = DateTime.now();
@@ -74,8 +69,18 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     _goMonth(YearMonth.of(now));
   }
 
-  /// 좌→우 스와이프(오른쪽으로) → 다음 달, 우→좌 스와이프 → 이전 달.
-  /// 속도가 아니라 실제 이동 거리를 기준으로 판정해 미스탭을 걸러낸다.
+  Future<void> _openPicker() async {
+    final result = await showMonthYearPicker(context, widget.month);
+    if (result != null && mounted) _goMonth(result);
+  }
+
+  void _addParish() {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('본당 일정 추가 기능은 준비 중입니다.')));
+  }
+
+  /// 좌→우 스와이프 → 다음 달, 우→좌 → 이전 달 (이동 거리 기준).
   void _onSwipeEnd(DragEndDetails details) {
     final dx = _dragDx;
     final v = details.primaryVelocity ?? 0;
@@ -83,20 +88,15 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
         dx.abs() >= _swipeDistance ||
         (v.abs() >= _flickVelocity && dx.abs() >= _flickMinDistance);
     if (!isSwipe) return;
-    if (dx > 0) {
-      _goMonth(widget.month.next); // 좌→우
-    } else {
-      _goMonth(widget.month.previous); // 우→좌
-    }
+    _goMonth(dx > 0 ? widget.month.next : widget.month.previous);
   }
 
   @override
   Widget build(BuildContext context) {
-    // 현재 달에 대해 게이트웨이 데이터까지 반영된 서비스(실패 시 번들+엔진 폴백).
     final calendarAsync = ref.watch(monthServiceProvider(widget.month));
     return Scaffold(
       body: SafeArea(
-        bottom: false, // 하단 인셋은 전역 배너(BottomAdBanner)에서 처리
+        bottom: false,
         child: calendarAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('전례력을 불러오지 못했습니다.\n$e')),
@@ -117,51 +117,50 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     );
   }
 
-  // Header season label/color derived from the middle of the month.
-  ({String text, LiturgicalColor color}) _headerStyle(CalendarService s) {
+  MonthHeader _header(CalendarService s, {required bool compact}) {
     final mid = s.day(DateTime(widget.month.year, widget.month.month, 15));
     final color = seasonColor(mid.season);
-    return (
-      text: '${seasonLabel(mid.season)} · ${LiturgicalColors.label(color)}',
-      color: color,
-    );
-  }
-
-  MonthHeader _header(CalendarService s, {required bool compact}) {
-    final h = _headerStyle(s);
     return MonthHeader(
       month: widget.month,
-      seasonText: h.text,
-      color: context.liturgical.of(h.color),
+      seasonText:
+          '${seasonLabel(mid.season)} · ${LiturgicalColors.label(color)}',
+      color: context.liturgical.of(color),
       compact: compact,
       onPrevMonth: () => _goMonth(widget.month.previous),
       onNextMonth: () => _goMonth(widget.month.next),
-      onPrevYear: () =>
-          _goMonth(YearMonth(widget.month.year - 1, widget.month.month)),
-      onNextYear: () =>
-          _goMonth(YearMonth(widget.month.year + 1, widget.month.month)),
-      onToday: _goToday,
+      onTapTitle: _openPicker,
     );
   }
+
+  Widget _todayButton() => Align(
+    alignment: Alignment.centerLeft,
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      child: TodayButton(onPressed: _goToday),
+    ),
+  );
 
   MonthGrid _grid(CalendarService s, {required bool compact}) => MonthGrid(
     calendar: s,
     month: widget.month,
     today: DateTime.now(),
-    // 모바일은 하단 요약 카드가 가리키는 날(_focusDate)을 그리드에도 표시.
-    selectedDate: compact ? _focusDate : _selected,
+    selectedDate: _focusDate, // 오늘=검정 원, 선택=연회색 원
     compact: compact,
-    onSelectDay: (date) {
-      setState(() => _selected = date);
-      if (!compact) _openDetail(s, date); // wide: tap opens dialog
-    },
+    onSelectDay: (date) => setState(() => _selected = date),
   );
 
-  // --- wide layout: a floating rounded card (header + legend + grid) ---
+  DayInfoBar _infoBar(CalendarService s, {required bool compact}) => DayInfoBar(
+    day: s.day(_focusDate),
+    onTapDetail: () =>
+        compact ? _openDetailSheet(s, _focusDate) : _openDetail(s, _focusDate),
+    onAddParish: _addParish,
+  );
+
+  // --- wide (web/desktop) ---
   Widget _wide(CalendarService s) {
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1120, maxHeight: 900),
+        constraints: const BoxConstraints(maxWidth: 1120, maxHeight: 940),
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Card(
@@ -173,9 +172,10 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
             child: Column(
               children: [
                 _header(s, compact: false),
+                _todayButton(),
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
                     child: Column(
                       children: [
                         const Align(
@@ -188,6 +188,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                     ),
                   ),
                 ),
+                _infoBar(s, compact: false),
               ],
             ),
           ),
@@ -196,32 +197,23 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     );
   }
 
-  // --- narrow layout: header + compact grid + bottom summary card ---
+  // --- narrow (phone) ---
   Widget _narrow(CalendarService s) {
-    final focus = _focusDate;
     return Column(
       children: [
         _header(s, compact: true),
-        const SizedBox(height: 8),
-        TextButton.icon(
-          onPressed: _goToday,
-          icon: const Icon(Icons.today, size: 18),
-          label: const Text('오늘로 이동'),
+        _todayButton(),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 8),
+          child: WeekdayRow(),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Column(
-            children: [const WeekdayRow(), _grid(s, compact: true)],
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: _grid(s, compact: true),
           ),
         ),
-        const Spacer(),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-          child: DaySummaryCard(
-            day: s.day(focus),
-            onTap: () => _openDetailSheet(s, focus),
-          ),
-        ),
+        _infoBar(s, compact: true),
       ],
     );
   }

@@ -4,6 +4,9 @@ import 'package:liturgical_calendar/liturgical_calendar.dart';
 import '../../../../app/theme/liturgical_colors.dart';
 import '../season_style.dart';
 
+const _todayFill = Color(0xFF121212); // 오늘: 검정 원
+const _selectedFill = Color(0xFFE4E4E4); // 선택: 연한 회색 원
+
 Color _numberColor(BuildContext c, DateTime d, bool inMonth) {
   final theme = Theme.of(c);
   if (!inMonth) return theme.disabledColor;
@@ -12,8 +15,49 @@ Color _numberColor(BuildContext c, DateTime d, bool inMonth) {
   return theme.colorScheme.onSurface;
 }
 
-/// Wide (desktop/tablet) day cell: a colored top bar + date + celebration name,
-/// with an "오늘" pill for today. Plain ferials show only the number.
+/// 날짜 숫자. 오늘/선택일 때만 원형 배경을 채운다.
+class DayNumber extends StatelessWidget {
+  const DayNumber({
+    super.key,
+    required this.date,
+    required this.inCurrentMonth,
+    required this.isToday,
+    required this.isSelected,
+    this.size = 34,
+  });
+
+  final DateTime date;
+  final bool inCurrentMonth;
+  final bool isToday;
+  final bool isSelected;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final bg = isToday
+        ? _todayFill
+        : (isSelected ? _selectedFill : Colors.transparent);
+    final fg = isToday
+        ? Colors.white
+        : _numberColor(context, date, inCurrentMonth);
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+      child: Text(
+        '${date.day}',
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: fg,
+          fontWeight: isToday ? FontWeight.bold : FontWeight.w500,
+        ),
+      ),
+    );
+  }
+}
+
+/// Wide (desktop/web) day cell: colored top bar + date circle + celebration name.
 class DayCell extends StatelessWidget {
   const DayCell({
     super.key,
@@ -42,10 +86,8 @@ class DayCell extends StatelessWidget {
         decoration: BoxDecoration(
           color: theme.colorScheme.surface,
           border: Border.all(
-            color: isSelected
-                ? theme.colorScheme.primary
-                : theme.dividerColor.withValues(alpha: 0.25),
-            width: isSelected ? 2 : 0.5,
+            color: theme.dividerColor.withValues(alpha: 0.2),
+            width: 0.5,
           ),
         ),
         child: Column(
@@ -54,33 +96,19 @@ class DayCell extends StatelessWidget {
             Container(height: 3, color: notable ? accent : Colors.transparent),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 6, 6, 6),
+                padding: const EdgeInsets.fromLTRB(6, 4, 6, 6),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Text(
-                          '${day.date.day}',
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            color: _numberColor(
-                              context,
-                              day.date,
-                              inCurrentMonth,
-                            ),
-                            fontWeight: isToday
-                                ? FontWeight.bold
-                                : FontWeight.w600,
-                          ),
-                        ),
-                        if (isToday) ...[
-                          const SizedBox(width: 6),
-                          _TodayPill(color: theme.colorScheme.primary),
-                        ],
-                      ],
+                    DayNumber(
+                      date: day.date,
+                      inCurrentMonth: inCurrentMonth,
+                      isToday: isToday,
+                      isSelected: isSelected,
+                      size: 28,
                     ),
                     if (notable) ...[
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       Expanded(
                         child: Text(
                           day.title,
@@ -104,31 +132,7 @@ class DayCell extends StatelessWidget {
   }
 }
 
-class _TodayPill extends StatelessWidget {
-  const _TodayPill({required this.color});
-  final Color color;
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: const Text(
-        '오늘',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}
-
-/// Compact (phone) day cell: date number with a small liturgical-color dot;
-/// today is a filled circle, the selected day an outlined ring.
+/// Compact (phone) day cell: date circle + a small liturgical-color dot below.
 class CompactDayCell extends StatelessWidget {
   const CompactDayCell({
     super.key,
@@ -147,13 +151,8 @@ class CompactDayCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final notable = inCurrentMonth && isNotableDay(day);
     final accent = context.liturgical.of(day.color);
-
-    final numColor = isToday
-        ? Colors.white
-        : _numberColor(context, day.date, inCurrentMonth);
 
     return InkWell(
       onTap: onTap,
@@ -161,24 +160,11 @@ class CompactDayCell extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            width: 34,
-            height: 34,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isToday ? theme.colorScheme.primary : null,
-              border: (isSelected && !isToday)
-                  ? Border.all(color: theme.colorScheme.primary, width: 1.5)
-                  : null,
-            ),
-            child: Text(
-              '${day.date.day}',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: numColor,
-                fontWeight: isToday ? FontWeight.bold : FontWeight.w500,
-              ),
-            ),
+          DayNumber(
+            date: day.date,
+            inCurrentMonth: inCurrentMonth,
+            isToday: isToday,
+            isSelected: isSelected,
           ),
           const SizedBox(height: 3),
           Container(
