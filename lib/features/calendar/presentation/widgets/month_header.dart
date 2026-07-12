@@ -117,7 +117,7 @@ class WeekdayRow extends StatelessWidget {
               child: Text(
                 weekdayLabels[i],
                 textAlign: TextAlign.center,
-                style: theme.textTheme.labelMedium?.copyWith(
+                style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: i == 0
                       ? const Color(0xFFC62828)

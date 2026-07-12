@@ -5,7 +5,7 @@ import '../../../../app/theme/liturgical_colors.dart';
 import '../season_style.dart';
 
 const _todayFill = Color(0xFF121212); // 오늘: 검정 원
-const _selectedFill = Color(0xFFE4E4E4); // 선택: 연한 회색 원
+const _selectedFill = Color(0xFFD6D6D6); // 선택: 회색 원
 
 Color _numberColor(BuildContext c, DateTime d, bool inMonth) {
   final theme = Theme.of(c);
@@ -48,7 +48,7 @@ class DayNumber extends StatelessWidget {
       decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
       child: Text(
         '${date.day}',
-        style: theme.textTheme.bodyMedium?.copyWith(
+        style: theme.textTheme.bodyLarge?.copyWith(
           color: fg,
           fontWeight: isToday ? FontWeight.bold : FontWeight.w500,
         ),
@@ -114,7 +114,7 @@ class DayCell extends StatelessWidget {
                           day.title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelSmall?.copyWith(
+                          style: theme.textTheme.labelMedium?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                             height: 1.2,
                           ),
@@ -158,8 +158,9 @@ class CompactDayCell extends StatelessWidget {
       onTap: onTap,
       customBorder: const CircleBorder(),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
+          const SizedBox(height: 4),
           DayNumber(
             date: day.date,
             inCurrentMonth: inCurrentMonth,

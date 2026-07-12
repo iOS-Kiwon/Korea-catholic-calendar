@@ -5,18 +5,12 @@ import '../../../../app/theme/liturgical_colors.dart';
 
 const _weekdayFull = ['일', '월', '화', '수', '목', '금', '토'];
 
-/// 달력 하단 고정 정보영역: 얇은 구분선 + 날짜 + ●(전례색) 축일 + 본당 일정 추가.
+/// 달력 하단 고정 정보영역: 얇은 구분선 + 날짜 + ●(전례색) 축일.
 class DayInfoBar extends StatelessWidget {
-  const DayInfoBar({
-    super.key,
-    required this.day,
-    required this.onTapDetail,
-    required this.onAddParish,
-  });
+  const DayInfoBar({super.key, required this.day, required this.onTapDetail});
 
   final LiturgicalDay day;
   final VoidCallback onTapDetail; // 축일 영역 탭 → 상세
-  final VoidCallback onAddParish; // 본당 일정 추가
 
   @override
   Widget build(BuildContext context) {
@@ -73,52 +67,10 @@ class DayInfoBar extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
-              _ParishButton(onPressed: onAddParish),
             ],
           ),
         ),
       ],
-    );
-  }
-}
-
-class _ParishButton extends StatelessWidget {
-  const _ParishButton({required this.onPressed});
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      color: Colors.transparent,
-      shape: StadiumBorder(
-        side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.5)),
-      ),
-      child: InkWell(
-        customBorder: const StadiumBorder(),
-        onTap: onPressed,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.add,
-                size: 16,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: 5),
-              Text(
-                '본당 일정 추가',
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

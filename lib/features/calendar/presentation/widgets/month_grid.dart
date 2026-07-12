@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../../../core/date/year_month.dart';
@@ -61,9 +63,21 @@ class MonthGrid extends StatelessWidget {
       children: [for (var c = 0; c < 7; c++) Expanded(child: cellAt(r, c))],
     );
 
-    // 두 레이아웃 모두 행을 균등하게 채운다(부모 높이에 맞춰 늘어남 → 오버플로 방지).
-    return Column(
-      children: [for (var r = 0; r < rows; r++) Expanded(child: rowAt(r))],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final desiredRowHeight = compact ? 58.0 : 92.0;
+        final rowHeight = constraints.maxHeight.isFinite
+            ? math.min(desiredRowHeight, constraints.maxHeight / rows)
+            : desiredRowHeight;
+
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            for (var r = 0; r < rows; r++)
+              SizedBox(height: rowHeight, child: rowAt(r)),
+          ],
+        );
+      },
     );
   }
 }

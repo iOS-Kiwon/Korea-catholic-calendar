@@ -74,12 +74,6 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     if (result != null && mounted) _goMonth(result);
   }
 
-  void _addParish() {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('본당 일정 추가 기능은 준비 중입니다.')));
-  }
-
   /// 좌→우 스와이프 → 다음 달, 우→좌 → 이전 달 (이동 거리 기준).
   void _onSwipeEnd(DragEndDetails details) {
     final dx = _dragDx;
@@ -153,7 +147,6 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     day: s.day(_focusDate),
     onTapDetail: () =>
         compact ? _openDetailSheet(s, _focusDate) : _openDetail(s, _focusDate),
-    onAddParish: _addParish,
   );
 
   // --- wide (web/desktop) ---
