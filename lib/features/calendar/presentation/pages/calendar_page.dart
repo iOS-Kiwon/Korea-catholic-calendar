@@ -127,7 +127,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   }
 
   Widget _todayButton() => Align(
-    alignment: Alignment.centerLeft,
+    alignment: Alignment.centerRight,
     child: Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
       child: TodayButton(onPressed: _goToday),
