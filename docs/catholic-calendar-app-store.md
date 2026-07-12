@@ -48,7 +48,7 @@
 [이런 분께 추천합니다]
 - 매일의 축일과 기념일을 간편하게 확인하고 싶은 신자
 - 미사 전례 시기와 전례색을 미리 살펴보고 싶은 분
-- 주일·평일 독서 주기와 성경 구절을 한곳에서 보고 싶은 분
+- 주일·평일 독서 주기와 성경 독서 참조를 한곳에서 보고 싶은 분
 - 한국 고유 전례력이 반영된 달력이 필요한 분
 
 [주요 기능]
@@ -58,7 +58,7 @@
 - 백색, 적색, 녹색, 자색 등 날짜별 전례색 표시
 - 가해·나해·다해 주일 독서 주기 안내
 - 홀수해·짝수해 평일 독서 주기 안내
-- 날짜별 성경 독서 구절과 특별한 전례일 정보 제공
+- 날짜별 성경 독서 참조와 특별한 전례일 정보 제공
 - 선택 기념일과 한국 고유 전례력 여부 확인
 - 이전·다음 달과 연도 이동, 오늘 날짜로 빠른 이동
 - 날짜를 선택해 상세 정보 확인
@@ -67,8 +67,8 @@
 [사용 방법]
 1. 월간 달력에서 축일과 전례색을 확인합니다.
 2. 원하는 날짜를 선택합니다.
-3. 전례 시기, 축일 등급, 독서 주기와 성경 구절을 확인합니다.
-4. 필요한 경우 매일미사 링크를 눌러 전문을 확인합니다.
+3. 전례 시기, 축일 등급, 독서 주기와 성경 독서 참조를 확인합니다.
+4. 필요한 경우 매일미사 링크를 열어 전문 페이지를 확인합니다.
 
 [안내]
 매일미사 전문 링크를 열려면 인터넷 연결이 필요합니다.
@@ -136,10 +136,10 @@ then select a date for detailed liturgical information.
 1. Open the monthly calendar to see celebrations and liturgical colors.
 2. Select a date.
 3. Review its season, rank, reading cycle, and Scripture references.
-4. When available, open the Daily Mass link to read the full text.
+4. When available, open the Daily Mass link to view the full-text page.
 
 [Notes]
-An internet connection is required to open external Daily Mass pages.
+An internet connection is required to open Daily Mass pages.
 This is an unofficial informational tool and is not an official app of
 the Catholic Bishops' Conference of Korea.
 For definitive liturgical and Mass information, follow the guidance
@@ -162,10 +162,10 @@ catholic,calendar,liturgy,feast,memorial,mass,scripture,lectionary,korea,church,
 | 항목 | 값 |
 |---|---|
 | ITSAppUsesNonExemptEncryption | false로 등록 필요 (현재 Info.plist에 키 없음) |
-| NSUserTrackingUsageDescription | 회원님께 더 적절한 광고를 제공하기 위해 기기의 광고 식별자를 사용합니다. |
+| NSUserTrackingUsageDescription | 더 유용한 정보를 제공하기 위해 기기의 광고 식별자를 사용합니다. |
 | 광고 명시 | 설명에 "작은 배너 광고" 한 줄 명기 |
 | 추적 동의 | iOS에서 ATT 권한 요청 및 UMP 동의 절차 사용 |
-| 외부 링크 | 매일미사 전문 페이지를 외부 브라우저로 열 수 있음 |
+| 외부 링크 | 매일미사 전문 페이지를 인앱 브라우저로 열고, 실패 시 외부 브라우저로 열 수 있음 |
 | 종교 콘텐츠 | 가톨릭 전례력 정보 제공 |
 | 공식 앱 오인 방지 | 한국천주교주교회의 공식 앱이 아닌 비공식 정보 도구임을 설명에 명시 |
 | 검증 불가 표현 | "최고", "1위", "유일한" 등 사용 금지 |
