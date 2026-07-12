@@ -229,9 +229,13 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => FractionallySizedBox(
-        heightFactor: 0.8,
-        child: DayDetailView(day: s.day(date)),
+      builder: (_) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.8,
+        minChildSize: 0.25,
+        maxChildSize: 0.95,
+        builder: (context, scrollController) =>
+            DayDetailView(day: s.day(date), scrollController: scrollController),
       ),
     );
   }
