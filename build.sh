@@ -50,9 +50,11 @@ remember_release_output_dir() {
 
   local dir="$1"
   local existing
-  for existing in "${RELEASE_OUTPUT_DIRS[@]}"; do
-    [ "$existing" = "$dir" ] && return
-  done
+  if [ "${#RELEASE_OUTPUT_DIRS[@]}" -gt 0 ]; then
+    for existing in "${RELEASE_OUTPUT_DIRS[@]}"; do
+      [ "$existing" = "$dir" ] && return
+    done
+  fi
   RELEASE_OUTPUT_DIRS+=("$dir")
 }
 
