@@ -74,7 +74,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     if (result != null && mounted) _goMonth(result);
   }
 
-  /// 좌→우 스와이프 → 다음 달, 우→좌 → 이전 달 (이동 거리 기준).
+  /// 좌→우 스와이프 → 이전 달, 우→좌 → 다음 달 (이동 거리 기준).
   void _onSwipeEnd(DragEndDetails details) {
     final dx = _dragDx;
     final v = details.primaryVelocity ?? 0;
@@ -82,7 +82,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
         dx.abs() >= _swipeDistance ||
         (v.abs() >= _flickVelocity && dx.abs() >= _flickMinDistance);
     if (!isSwipe) return;
-    _goMonth(dx > 0 ? widget.month.next : widget.month.previous);
+    _goMonth(dx > 0 ? widget.month.previous : widget.month.next);
   }
 
   @override
