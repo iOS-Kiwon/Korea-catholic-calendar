@@ -15,6 +15,7 @@
 #   ./run.sh <deviceId>         # 특정 기기 (flutter devices 로 ID 확인)
 #
 # 모드 변경:  MODE=debug ./run.sh ios   (release[기본] | debug | profile)
+# 참고: iOS 시뮬레이터는 release 실행을 지원하지 않아 자동으로 debug 모드로 전환됩니다.
 # Android 에뮬레이터 지정: ANDROID_AVD=Medium_Phone_API_36.1 ./run.sh android simulator
 #
 # 참고: 물리 iOS 기기는 flutter run(디버거 실행)이 구형 iOS+최신 Xcode 조합에서
@@ -197,6 +198,10 @@ launch() { # $1 = device id, $2 = label
       err "설치 실패 — 아이폰 잠금 해제 후 재시도하세요."
     fi
   else
+    if [[ "$plat" == ios* && "$emu" == "true" && "$MODE" == "release" ]]; then
+      warn "iOS 시뮬레이터는 release 실행을 지원하지 않아 debug 모드로 전환합니다."
+      MODE=debug
+    fi
     info "$label 실행 (mode=$MODE, device=$id)"
     flutter run --"$MODE" -d "$id"
   fi
