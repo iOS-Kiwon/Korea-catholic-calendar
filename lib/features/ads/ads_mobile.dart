@@ -8,7 +8,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 bool get _adsSupported => Platform.isAndroid || Platform.isIOS;
 
-const bool adsEnabled = bool.fromEnvironment('ADS_ENABLED');
+const bool adsEnabled = bool.fromEnvironment('ADS_ENABLED', defaultValue: true);
 
 /// Sets up ads on mobile in the required order:
 /// 1) UMP consent (EEA/GDPR), 2) iOS App Tracking Transparency, 3) SDK init.

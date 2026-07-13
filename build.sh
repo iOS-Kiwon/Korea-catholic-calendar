@@ -24,7 +24,7 @@ cd "$(dirname "$0")"
 TARGET="${1:-all}"
 MODE="${2:-test}"
 RELEASE=0
-BUILD_DEFINES=(--dart-define=ADS_ENABLED=false)
+BUILD_DEFINES=(--dart-define=ADS_ENABLED=true)
 ANDROID_VERSION_FILE="android/release_version.properties"
 IOS_VERSION_FILE="ios/release_version.properties"
 ANDROID_BUILD_ARGS=()
@@ -237,7 +237,6 @@ prompt_release_versions() {
 
 if [ "$MODE" = "release" ]; then
   RELEASE=1
-  BUILD_DEFINES=(--dart-define=ADS_ENABLED=true)
 elif [ "$MODE" != "test" ]; then
   err "알 수 없는 옵션: '$MODE'"
   usage

@@ -14,7 +14,7 @@
 
 ```bash
 ./build.sh              # Android + iOS 스크린샷/테스트 빌드
-./build.sh android      # Android AAB (광고 OFF, 버전 입력 없음)
+./build.sh android      # Android AAB (광고 ON, 버전 입력 없음)
 ./build.sh ios          # iOS no-codesign
 ./build.sh aab          # Android AAB만
 ./run.sh                          # 연결된 첫 기기에서 실행 (release → DEBUG 없음)
@@ -27,8 +27,11 @@ MODE=debug ./run.sh ios simulator # 모드 변경 (release[기본] | debug | pro
 ANDROID_AVD=Medium_Phone_API_36.1 ./run.sh android simulator # 특정 Android AVD 지정
 ```
 
+모든 모바일 빌드는 광고 ON(`ADS_ENABLED=true`)입니다. debug/profile 실행은 AdMob 정책에
+맞춰 Google 테스트 광고 단위를 사용하고, release 빌드만 실 광고 단위를 사용합니다.
+
 출시 빌드는 `release` 옵션을 붙입니다. 앱 버전과 빌드번호를 입력하면
-플랫폼별 버전 파일을 갱신한 뒤 광고 ON(`ADS_ENABLED=true`)으로 심사용 산출물을 빌드합니다.
+플랫폼별 버전 파일을 갱신한 뒤 심사용 산출물을 빌드합니다.
 Android와 iOS는 서로 다른 버전을 사용할 수 있습니다.
 
 ```bash
