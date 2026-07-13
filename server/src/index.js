@@ -7,7 +7,7 @@
 //  - "월 단위"로만 요청(브라우저가 하던 작은 창과 유사). 한 번에 1년/여러 해를
 //    통째로 긁지 않는다 → 요청 1건당 CBCK 호출은 최대 1회, 응답도 작다.
 //  - 이미 캐시된 달은 CBCK를 다시 부르지 않는다.
-//  - cron 프리워밍도 "가까운 몇 개월"만, 정중한 간격(sleep)으로.
+//  - cron 프리워밍은 매시간 1개월만, 마지막 저장 월 다음부터 순차적으로 진행한다.
 //  - 실제 웹사이트와 동일한 헤더/User-Agent로 호출.
 //
 // 엔드포인트:  GET /v1/calendar/:year/:month  →  { year, month, available, source?, days? }
@@ -41,8 +41,8 @@ const CORS = {
   'content-type': 'application/json; charset=utf-8',
 };
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const pad2 = (n) => String(n).padStart(2, '0');
+const monthKey = (year, month) => `cal:${year}-${pad2(month)}`;
 
 const stripTags = (s) => s.replace(/<[^>]*>/g, '').replace(/ /g, ' ').trim();
 const tagColor = (seg) => {
@@ -97,12 +97,58 @@ async function fetchMonthFromCbck(year, month) {
 const json = (body, extra) =>
   new Response(JSON.stringify(body), { headers: { ...CORS, ...(extra || {}) } });
 
-const TTL_OK = 60 * 60 * 24 * 30; // 발행 데이터 30일
 const TTL_NEG = 60 * 60 * 24; // 미발행 재시도 1일
+const LAST_CACHED_MONTH_KEY = 'meta:last_cached_month';
+
+const formatMonth = ({ year, month }) => `${year}-${pad2(month)}`;
+
+function parseMonth(value) {
+  const m = String(value || '').match(/^(\d{4})-(\d{2})$/);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  if (month < 1 || month > 12) return null;
+  return { year, month };
+}
+
+function compareMonth(a, b) {
+  return (a.year - b.year) || (a.month - b.month);
+}
+
+function nextMonth({ year, month }) {
+  return month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 };
+}
+
+function monthFromKstTime(time) {
+  const kst = new Date(time + (9 * 60 * 60 * 1000));
+  return { year: kst.getUTCFullYear(), month: kst.getUTCMonth() + 1 };
+}
+
+async function getLatestStoredMonth(env) {
+  let latest = parseMonth(await env.CAL.get(LAST_CACHED_MONTH_KEY));
+  let cursor;
+  do {
+    const page = await env.CAL.list({ prefix: 'cal:', cursor });
+    for (const item of page.keys) {
+      const parsed = parseMonth(item.name.slice('cal:'.length));
+      if (parsed && (!latest || compareMonth(parsed, latest) > 0)) latest = parsed;
+    }
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+  return latest;
+}
+
+async function rememberStoredMonth(env, year, month) {
+  const next = { year, month };
+  const latest = parseMonth(await env.CAL.get(LAST_CACHED_MONTH_KEY));
+  if (!latest || compareMonth(next, latest) > 0) {
+    await env.CAL.put(LAST_CACHED_MONTH_KEY, formatMonth(next));
+  }
+}
 
 async function handleMonth(year, month, env) {
   if (month < 1 || month > 12) return json({ error: 'bad month' }, { status: 400 });
-  const key = `cal:${year}-${pad2(month)}`;
+  const key = monthKey(year, month);
 
   const cached = await env.CAL.get(key);
   if (cached) return new Response(cached, { headers: { ...CORS, 'x-cache': 'HIT' } });
@@ -124,7 +170,8 @@ async function handleMonth(year, month, env) {
   }
 
   const body = JSON.stringify({ year, month, available: true, source: 'cbck', days });
-  await env.CAL.put(key, body, { expirationTtl: TTL_OK });
+  await env.CAL.put(key, body);
+  await rememberStoredMonth(env, year, month);
   return new Response(body, { headers: { ...CORS, 'x-cache': 'MISS' } });
 }
 
@@ -142,30 +189,30 @@ export default {
     return new Response('Not found', { status: 404 });
   },
 
-  // 매일: 가까운 몇 개월만, 이미 캐시된 달은 건너뛰고, 정중한 간격으로 프리워밍.
+  // 매시간: 마지막 저장 월 다음부터 1개월만 프리워밍한다.
   async scheduled(event, env) {
-    const d = new Date(event.scheduledTime);
-    let y = d.getUTCFullYear();
-    let mo = d.getUTCMonth() + 1;
-    for (let i = 0; i < 4; i++) {
-      const key = `cal:${y}-${pad2(mo)}`;
-      if (!(await env.CAL.get(key))) {
-        try {
-          const days = await fetchMonthFromCbck(y, mo);
-          if (days.length) {
-            await env.CAL.put(
-              key,
-              JSON.stringify({ year: y, month: mo, available: true, source: 'cbck', days }),
-              { expirationTtl: TTL_OK },
-            );
-          }
-        } catch (_) {
-          /* 다음 실행에서 재시도 */
-        }
-        await sleep(1200); // CBCK에 정중한 간격
+    const latest = await getLatestStoredMonth(env);
+    const base = latest || monthFromKstTime(event.scheduledTime);
+    const target = latest ? nextMonth(base) : base;
+    const { year, month } = target;
+    const key = monthKey(year, month);
+
+    if (await env.CAL.get(key)) {
+      await rememberStoredMonth(env, year, month);
+      return;
+    }
+
+    try {
+      const days = await fetchMonthFromCbck(year, month);
+      if (days.length) {
+        await env.CAL.put(
+          key,
+          JSON.stringify({ year, month, available: true, source: 'cbck', days }),
+        );
+        await rememberStoredMonth(env, year, month);
       }
-      mo += 1;
-      if (mo > 12) { mo = 1; y += 1; }
+    } catch (_) {
+      /* 다음 실행에서 재시도 */
     }
   },
 };

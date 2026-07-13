@@ -56,9 +56,10 @@ String _weekdayCycleLabel(WeekdayCycle c) =>
 /// Reusable content body for a single day's liturgical detail. Presentation-
 /// agnostic: used in a side pane, a full-screen route and a bottom sheet.
 class DayDetailView extends StatelessWidget {
-  const DayDetailView({super.key, required this.day});
+  const DayDetailView({super.key, required this.day, this.scrollController});
 
   final LiturgicalDay day;
+  final ScrollController? scrollController;
 
   @override
   Widget build(BuildContext context) {
@@ -70,6 +71,7 @@ class DayDetailView extends StatelessWidget {
         : _seasonLabel(day.season);
 
     return ListView(
+      controller: scrollController,
       padding: const EdgeInsets.all(20),
       children: [
         Text(
@@ -120,10 +122,7 @@ class DayDetailView extends StatelessWidget {
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
-                onPressed: () => launchUrl(
-                  Uri.parse(day.sourceUrl!),
-                  mode: LaunchMode.externalApplication,
-                ),
+                onPressed: () => _openSourceUrl(day.sourceUrl!),
                 icon: const Icon(Icons.open_in_new, size: 18),
                 label: const Text('매일미사에서 전문 보기'),
               ),
@@ -151,6 +150,14 @@ class DayDetailView extends StatelessWidget {
         ],
       ],
     );
+  }
+}
+
+Future<void> _openSourceUrl(String url) async {
+  final uri = Uri.parse(url);
+  final openedInApp = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+  if (!openedInApp) {
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 }
 

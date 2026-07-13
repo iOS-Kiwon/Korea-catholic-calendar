@@ -30,6 +30,7 @@ class MonthHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final onColor = _readableOn(color);
     final t = Theme.of(context).textTheme;
+    final titleStyle = compact ? t.titleLarge : t.headlineSmall;
     return Container(
       color: color,
       padding: compact
@@ -50,11 +51,11 @@ class MonthHeader extends StatelessWidget {
                     child: Text(
                       '${month.year}년 ${month.month}월',
                       textAlign: TextAlign.center,
-                      style: (compact ? t.titleLarge : t.headlineSmall)
-                          ?.copyWith(
-                            color: onColor,
-                            fontWeight: FontWeight.bold,
-                          ),
+                      style: titleStyle?.copyWith(
+                        color: onColor,
+                        fontSize: (titleStyle.fontSize ?? 24) + 1,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
@@ -67,6 +68,7 @@ class MonthHeader extends StatelessWidget {
             seasonText,
             style: t.labelMedium?.copyWith(
               color: onColor.withValues(alpha: 0.85),
+              fontSize: (t.labelMedium?.fontSize ?? 12) + 2,
             ),
           ),
         ],
@@ -117,7 +119,7 @@ class WeekdayRow extends StatelessWidget {
               child: Text(
                 weekdayLabels[i],
                 textAlign: TextAlign.center,
-                style: theme.textTheme.labelMedium?.copyWith(
+                style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: i == 0
                       ? const Color(0xFFC62828)

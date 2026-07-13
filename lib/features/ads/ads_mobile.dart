@@ -111,8 +111,10 @@ class _BottomAdBannerState extends State<BottomAdBanner> {
   @override
   Widget build(BuildContext context) {
     if (!_adsSupported) return const SizedBox.shrink();
-    // SafeArea(top:false) always reserves the bottom inset so page content is
-    // never under the home indicator, whether or not the ad has loaded.
+    final bannerHeight = AdSize.banner.height.toDouble();
+
+    // SafeArea(top:false) keeps the ad just above the home indicator. Reserve
+    // banner height before load so the calendar layout always has an ad slot.
     return SafeArea(
       top: false,
       child: (_loaded && _ad != null)
@@ -127,7 +129,7 @@ class _BottomAdBannerState extends State<BottomAdBanner> {
                 ),
               ),
             )
-          : const SizedBox.shrink(),
+          : SizedBox(height: bannerHeight, width: double.infinity),
     );
   }
 }

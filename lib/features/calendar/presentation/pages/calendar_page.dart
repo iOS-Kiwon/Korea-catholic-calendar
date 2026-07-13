@@ -74,13 +74,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     if (result != null && mounted) _goMonth(result);
   }
 
-  void _addParish() {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('본당 일정 추가 기능은 준비 중입니다.')));
-  }
-
-  /// 좌→우 스와이프 → 다음 달, 우→좌 → 이전 달 (이동 거리 기준).
+  /// 좌→우 스와이프 → 이전 달, 우→좌 → 다음 달 (이동 거리 기준).
   void _onSwipeEnd(DragEndDetails details) {
     final dx = _dragDx;
     final v = details.primaryVelocity ?? 0;
@@ -88,7 +82,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
         dx.abs() >= _swipeDistance ||
         (v.abs() >= _flickVelocity && dx.abs() >= _flickMinDistance);
     if (!isSwipe) return;
-    _goMonth(dx > 0 ? widget.month.next : widget.month.previous);
+    _goMonth(dx > 0 ? widget.month.previous : widget.month.next);
   }
 
   @override
@@ -133,7 +127,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   }
 
   Widget _todayButton() => Align(
-    alignment: Alignment.centerLeft,
+    alignment: Alignment.centerRight,
     child: Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
       child: TodayButton(onPressed: _goToday),
@@ -153,7 +147,6 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     day: s.day(_focusDate),
     onTapDetail: () =>
         compact ? _openDetailSheet(s, _focusDate) : _openDetail(s, _focusDate),
-    onAddParish: _addParish,
   );
 
   // --- wide (web/desktop) ---
@@ -236,9 +229,13 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => FractionallySizedBox(
-        heightFactor: 0.8,
-        child: DayDetailView(day: s.day(date)),
+      builder: (_) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.8,
+        minChildSize: 0.25,
+        maxChildSize: 0.95,
+        builder: (context, scrollController) =>
+            DayDetailView(day: s.day(date), scrollController: scrollController),
       ),
     );
   }
