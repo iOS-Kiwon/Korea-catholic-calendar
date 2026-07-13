@@ -59,8 +59,8 @@ remember_release_output_dir() {
 }
 
 open_release_output_dirs() {
-  [ "$RELEASE" -eq 1 ] || return
-  [ "${#RELEASE_OUTPUT_DIRS[@]}" -gt 0 ] || return
+  [ "$RELEASE" -eq 1 ] || return 0
+  [ "${#RELEASE_OUTPUT_DIRS[@]}" -gt 0 ] || return 0
 
   if [ "$(uname)" != "Darwin" ] || ! command -v open >/dev/null 2>&1; then
     warn "Finder를 열 수 없는 환경입니다. 산출물 위치: ${RELEASE_OUTPUT_DIRS[*]}"
@@ -267,10 +267,16 @@ build_android_aab() {
   fi
   require_android_release_signing || return
   info "Android App Bundle (.aab) 빌드…"
-  if flutter build appbundle --release "${BUILD_DEFINES[@]}" "${ANDROID_BUILD_ARGS[@]}"; then
-    info "→ build/app/outputs/bundle/release/app-release.aab"
-    remember_release_output_dir "build/app/outputs/bundle/release"
-  else err "App Bundle 빌드 실패"; FAIL=1; fi
+  if [ "$RELEASE" -eq 1 ]; then
+    if flutter build appbundle --release "${BUILD_DEFINES[@]}" "${ANDROID_BUILD_ARGS[@]}"; then
+      info "→ build/app/outputs/bundle/release/app-release.aab"
+      remember_release_output_dir "build/app/outputs/bundle/release"
+    else err "App Bundle 빌드 실패"; FAIL=1; fi
+  else
+    if flutter build appbundle --release "${BUILD_DEFINES[@]}"; then
+      info "→ build/app/outputs/bundle/release/app-release.aab"
+    else err "App Bundle 빌드 실패"; FAIL=1; fi
+  fi
 }
 
 build_android() {

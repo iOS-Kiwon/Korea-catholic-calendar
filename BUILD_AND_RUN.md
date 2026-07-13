@@ -14,7 +14,7 @@
 
 ```bash
 ./build.sh              # Android + iOS 스크린샷/테스트 빌드
-./build.sh android      # Android AAB
+./build.sh android      # Android AAB (광고 OFF, 버전 입력 없음)
 ./build.sh ios          # iOS no-codesign
 ./build.sh aab          # Android AAB만
 ./run.sh                          # 연결된 첫 기기에서 실행 (release → DEBUG 없음)
@@ -67,8 +67,8 @@ flutter pub get
 ```
 
 ### iOS 준비물
-- **Xcode** (설치됨).
-- **CocoaPods** — 현재 미설치. 플러그인(url_launcher 등) 사용에 필수:
+- **Xcode**.
+- **CocoaPods** — 플러그인(url_launcher 등) 사용에 필수:
   ```bash
   sudo gem install cocoapods       # 또는: brew install cocoapods
   cd ios && pod install && cd ..   # 최초/플러그인 변경 시
@@ -76,7 +76,7 @@ flutter pub get
 - 실기기 배포용 서명: Xcode에서 **Apple Developer 팀** 지정 (아래 iOS 섹션 참고).
 
 ### Android 준비물
-- **Android Studio + Android SDK** — 현재 미설치. 설치 후:
+- **Android Studio + Android SDK**. 최초 1회:
   ```bash
   flutter doctor --android-licenses   # 라이선스 동의
   # SDK가 커스텀 경로면: flutter config --android-sdk <경로>
@@ -103,8 +103,10 @@ flutter pub get
 ```bash
 open -a Simulator                 # 시뮬레이터 실행
 flutter devices                   # 시뮬레이터 ID 확인
-flutter run -d "<시뮬레이터ID>"     # 실행 (배너 없이: 뒤에 --release)
+./run.sh ios simulator            # iOS 시뮬레이터는 자동으로 debug 모드 실행
 ```
+Flutter는 iOS 시뮬레이터의 release 실행을 지원하지 않습니다. `run.sh`는 기본 모드가
+release여도 iOS 시뮬레이터에서는 자동으로 debug 모드로 전환합니다.
 
 ### 실기기(iPhone)에서 실행
 1. 케이블 연결(또는 동일 Wi‑Fi) + 기기에서 **개발자 모드** 활성화.
@@ -156,6 +158,12 @@ ANDROID_AVD=Medium_Phone_API_36.1 ./run.sh android simulator
 ```bash
 ./build.sh aab release
 # 산출물: build/app/outputs/bundle/release/app-release.aab
+```
+
+심사용이 아닌 확인용 AAB만 만들 때는 버전 입력 없이 아래 명령을 사용합니다.
+
+```bash
+./build.sh android
 ```
 
 > ⚠️ **릴리스 서명**: `./build.sh ... release`는 `android/key.properties`와 릴리스 keystore가
