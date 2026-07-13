@@ -19,8 +19,10 @@ class _CatholicCalendarAppState extends State<CatholicCalendarApp> {
   @override
   void initState() {
     super.initState();
-    // Consent → ATT → Mobile Ads SDK, after the first frame (no-op off mobile).
-    WidgetsBinding.instance.addPostFrameCallback((_) => initAds());
+    if (adsEnabled) {
+      // Consent → ATT → Mobile Ads SDK, after the first frame (no-op off mobile).
+      WidgetsBinding.instance.addPostFrameCallback((_) => initAds());
+    }
   }
 
   @override
@@ -35,7 +37,7 @@ class _CatholicCalendarAppState extends State<CatholicCalendarApp> {
       builder: (context, child) => Column(
         children: [
           Expanded(child: child ?? const SizedBox.shrink()),
-          const BottomAdBanner(),
+          if (adsEnabled) const BottomAdBanner(),
         ],
       ),
       locale: const Locale('ko'),

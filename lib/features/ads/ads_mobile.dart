@@ -8,12 +8,15 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 bool get _adsSupported => Platform.isAndroid || Platform.isIOS;
 
+const bool adsEnabled = bool.fromEnvironment('ADS_ENABLED');
+
 /// Sets up ads on mobile in the required order:
 /// 1) UMP consent (EEA/GDPR), 2) iOS App Tracking Transparency, 3) SDK init.
 ///
 /// Call after the first frame (UI/activity must exist for the consent form and
 /// the ATT prompt). No-op off mobile.
 Future<void> initAds() async {
+  if (!adsEnabled) return;
   if (!_adsSupported) return;
   await _gatherConsent();
   await _requestAtt();
@@ -80,7 +83,7 @@ class _BottomAdBannerState extends State<BottomAdBanner> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_started && _adsSupported) {
+    if (!_started && adsEnabled && _adsSupported) {
       _started = true;
       _load();
     }
@@ -110,6 +113,7 @@ class _BottomAdBannerState extends State<BottomAdBanner> {
 
   @override
   Widget build(BuildContext context) {
+    if (!adsEnabled) return const SizedBox.shrink();
     if (!_adsSupported) return const SizedBox.shrink();
     final bannerHeight = AdSize.banner.height.toDouble();
 
