@@ -189,7 +189,9 @@ export default {
     return new Response('Not found', { status: 404 });
   },
 
-  // 매시간: 마지막 저장 월 다음부터 1개월만 프리워밍한다.
+  // 매시간: 마지막 저장 월 다음 1개월만 프리워밍한다.
+  // 미발행(2027+ 등) 프런티어 달은 네거티브 마커(TTL_NEG) 동안 재조회를 건너뛰어,
+  // 없는 데이터를 매시간 반복 호출하지 않는다(발행 감지용으로 TTL마다 1회만 확인).
   async scheduled(event, env) {
     const latest = await getLatestStoredMonth(env);
     const base = latest || monthFromKstTime(event.scheduledTime);
@@ -202,6 +204,9 @@ export default {
       return;
     }
 
+    // 최근 미발행으로 확인된 달이면 CBCK를 다시 부르지 않고 대기.
+    if (await env.CAL.get(`neg:${key}`)) return;
+
     try {
       const days = await fetchMonthFromCbck(year, month);
       if (days.length) {
@@ -210,9 +215,12 @@ export default {
           JSON.stringify({ year, month, available: true, source: 'cbck', days }),
         );
         await rememberStoredMonth(env, year, month);
+      } else {
+        // 아직 미발행 → 네거티브 마커로 다음 TTL까지 반복 호출 방지.
+        await env.CAL.put(`neg:${key}`, '1', { expirationTtl: TTL_NEG });
       }
     } catch (_) {
-      /* 다음 실행에서 재시도 */
+      /* 다음 실행에서 재시도(마커 없음) */
     }
   },
 };
