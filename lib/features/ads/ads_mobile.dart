@@ -66,7 +66,7 @@ String get _bannerAdUnitId {
   final isIOS = Platform.isIOS;
   if (kReleaseMode) {
     return isIOS
-        ? 'ca-app-pub-5980133283002959/3997553939' // iOS 실 배너
+        ? 'ca-app-pub-5980133283002959/5415157947' // iOS 실 배너
         : 'ca-app-pub-5980133283002959/6029655050'; // Android 실 배너
   }
   return isIOS
