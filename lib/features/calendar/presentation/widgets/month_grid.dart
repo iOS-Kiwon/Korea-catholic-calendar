@@ -65,10 +65,12 @@ class MonthGrid extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final desiredRowHeight = compact ? 58.0 : 92.0;
+        final defaultRowHeight = compact ? 58.0 : 92.0;
         final rowHeight = constraints.maxHeight.isFinite
-            ? math.min(desiredRowHeight, constraints.maxHeight / rows)
-            : desiredRowHeight;
+            ? compact
+                  ? math.min(defaultRowHeight, constraints.maxHeight / rows)
+                  : constraints.maxHeight / rows
+            : defaultRowHeight;
 
         return Column(
           mainAxisAlignment: MainAxisAlignment.start,
