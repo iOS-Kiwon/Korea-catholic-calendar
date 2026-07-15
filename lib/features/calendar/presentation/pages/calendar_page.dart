@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/liturgical_colors.dart';
 import '../../../../core/date/year_month.dart';
+import '../../../ads/ads.dart';
 import '../../application/calendar_providers.dart';
 import '../../data/calendar_service.dart';
 import '../season_style.dart';
@@ -87,25 +88,33 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
 
   @override
   Widget build(BuildContext context) {
-    final calendarAsync = ref.watch(monthServiceProvider(widget.month));
+    final calendarAsync = ref.watch(calendarControllerProvider);
     return Scaffold(
       body: SafeArea(
-        bottom: false,
+        bottom: !adsEnabled,
         child: calendarAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('전례력을 불러오지 못했습니다.\n$e')),
-          data: (service) => LayoutBuilder(
-            builder: (context, constraints) {
-              final wide = constraints.maxWidth >= _wideBreakpoint;
-              return GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onHorizontalDragStart: (_) => _dragDx = 0,
-                onHorizontalDragUpdate: (d) => _dragDx += d.delta.dx,
-                onHorizontalDragEnd: _onSwipeEnd,
-                child: wide ? _wide(service) : _narrow(service),
-              );
-            },
-          ),
+          data: (service) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              ref
+                  .read(calendarControllerProvider.notifier)
+                  .preloadAround(widget.month);
+            });
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final wide = constraints.maxWidth >= _wideBreakpoint;
+                return GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onHorizontalDragStart: (_) => _dragDx = 0,
+                  onHorizontalDragUpdate: (d) => _dragDx += d.delta.dx,
+                  onHorizontalDragEnd: _onSwipeEnd,
+                  child: wide ? _wide(service) : _narrow(service),
+                );
+              },
+            );
+          },
         ),
       ),
     );

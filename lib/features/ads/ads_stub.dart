@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 
+const bool adsEnabled = false;
+
 /// No-op ad support for platforms without AdMob (web/desktop).
 Future<void> initAds() async {}
 

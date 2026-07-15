@@ -21,6 +21,62 @@ final liturgicalCalendarProvider = FutureProvider<CalendarService>((ref) {
   return ref.watch(calendarDataRepositoryProvider).load();
 });
 
+/// Calendar service that renders immediately from the bundled snapshot +
+/// computed engine, then enriches months from the gateway in the background.
+final calendarControllerProvider =
+    AsyncNotifierProvider<CalendarController, CalendarService>(
+      CalendarController.new,
+    );
+
+class CalendarController extends AsyncNotifier<CalendarService> {
+  final Set<String> _loading = {};
+  final Set<String> _unavailable = {};
+
+  @override
+  Future<CalendarService> build() {
+    return ref.watch(liturgicalCalendarProvider.future);
+  }
+
+  Future<void> preloadAround(YearMonth month) async {
+    await Future.wait([
+      ensureMonth(month),
+      ensureMonth(month.previous),
+      ensureMonth(month.next),
+    ]);
+  }
+
+  Future<void> ensureMonth(YearMonth month) async {
+    final key = month.toString();
+    final service = state.hasValue ? state.requireValue : null;
+    if (service == null ||
+        service.hasMonth(month.year, month.month) ||
+        _loading.contains(key) ||
+        _unavailable.contains(key)) {
+      return;
+    }
+
+    _loading.add(key);
+    try {
+      final more = await ref
+          .read(remoteCalendarSourceProvider)
+          .fetchMonth(month.year, month.month);
+      if (more == null || more.isEmpty) {
+        _unavailable.add(key);
+        return;
+      }
+      service.merge(more);
+      state = AsyncData(service);
+    } catch (_) {
+      _unavailable.add(key);
+    } finally {
+      _loading.remove(key);
+    }
+  }
+}
+
+/// Legacy provider kept for tests/older call sites. Prefer
+/// [calendarControllerProvider] for UI so navigation never waits on the network.
+///
 /// The service enriched with authoritative data for a specific month.
 ///
 /// If the month is not already loaded (bundled), it is fetched once from the
