@@ -135,7 +135,6 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
       onPrevMonth: () => _goMonth(widget.month.previous),
       onNextMonth: () => _goMonth(widget.month.next),
       onTapTitle: _openPicker,
-      onSupportTap: () => showSupportSheet(context),
     );
   }
 
@@ -158,6 +157,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
 
   DayInfoBar _infoBar(CalendarService s, {required bool compact}) => DayInfoBar(
     day: s.day(_focusDate),
+    onSupportTap: () => showSupportSheet(context),
     onTapDetail: () =>
         compact ? _openDetailSheet(s, _focusDate) : _openDetail(s, _focusDate),
   );
