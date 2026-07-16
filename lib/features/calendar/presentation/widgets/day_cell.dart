@@ -4,14 +4,11 @@ import 'package:liturgical_calendar/liturgical_calendar.dart';
 import '../../../../app/theme/liturgical_colors.dart';
 import '../season_style.dart';
 
-const _todayFill = Color(0xFF121212); // 오늘: 검정 원
-const _selectedFill = Color(0xFFD6D6D6); // 선택: 회색 원
-
 Color _numberColor(BuildContext c, DateTime d, bool inMonth) {
   final theme = Theme.of(c);
   if (!inMonth) return theme.disabledColor;
-  if (d.weekday == DateTime.sunday) return const Color(0xFFC62828);
-  if (d.weekday == DateTime.saturday) return const Color(0xFF1565C0);
+  if (d.weekday == DateTime.sunday) return const Color(0xFFFF6B6B);
+  if (d.weekday == DateTime.saturday) return const Color(0xFF64B5F6);
   return theme.colorScheme.onSurface;
 }
 
@@ -36,10 +33,12 @@ class DayNumber extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final bg = isToday
-        ? _todayFill
-        : (isSelected ? _selectedFill : Colors.transparent);
+        ? theme.colorScheme.onSurface
+        : (isSelected
+              ? theme.colorScheme.surfaceContainerHighest
+              : Colors.transparent);
     final fg = isToday
-        ? Colors.white
+        ? theme.colorScheme.surface
         : _numberColor(context, date, inCurrentMonth);
     return Container(
       width: size,

@@ -8,22 +8,21 @@ class TodayButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Material(
       color: Colors.transparent,
       shape: StadiumBorder(
-        side: BorderSide(
-          color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
-        ),
+        side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.5)),
       ),
       child: InkWell(
         customBorder: const StadiumBorder(),
         onTap: onPressed,
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
           child: Text(
             '오늘',
             style: TextStyle(
-              color: Color(0xFF121212),
+              color: theme.colorScheme.onSurface,
               fontSize: 15,
               fontWeight: FontWeight.w600,
             ),

@@ -123,9 +123,9 @@ class WeekdayRow extends StatelessWidget {
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: i == 0
-                      ? const Color(0xFFC62828)
+                      ? const Color(0xFFFF6B6B)
                       : i == 6
-                      ? const Color(0xFF1565C0)
+                      ? const Color(0xFF64B5F6)
                       : theme.colorScheme.onSurfaceVariant,
                 ),
               ),

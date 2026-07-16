@@ -50,7 +50,7 @@ Widget _wrap(Widget child) => ProviderScope(
       const NoopCategoryLogService(),
     ),
   ],
-  child: MaterialApp(theme: AppTheme.light(), home: child),
+  child: MaterialApp(theme: AppTheme.dark(), home: child),
 );
 
 void main() {

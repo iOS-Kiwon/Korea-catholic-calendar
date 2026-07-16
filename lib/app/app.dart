@@ -30,8 +30,8 @@ class _CatholicCalendarAppState extends State<CatholicCalendarApp> {
     return MaterialApp.router(
       title: '가톨릭 달력',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      themeMode: ThemeMode.light, // 다크 모드 미지원 — 항상 라이트 테마
+      theme: AppTheme.dark(),
+      themeMode: ThemeMode.dark,
       routerConfig: _router,
       // 모든 화면 하단(SafeArea.bottom 바로 위)에 배너 광고 배치.
       builder: (context, child) => Column(

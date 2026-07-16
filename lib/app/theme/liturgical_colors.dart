@@ -18,20 +18,20 @@ class LiturgicalColors extends ThemeExtension<LiturgicalColors> {
     required this.black,
   });
 
-  final Color white; // 백색 (gold-tinted so it is visible)
+  final Color white; // 백색
   final Color red; // 홍색
   final Color green; // 녹색
   final Color violet; // 자색
   final Color rose; // 장미색
   final Color black; // 흑색
 
-  static const light = LiturgicalColors(
-    white: Color(0xFFB59410),
-    red: Color(0xFFC62828),
-    green: Color(0xFF2E7D32),
-    violet: Color(0xFF6A1B9A),
-    rose: Color(0xFFD81B60),
-    black: Color(0xFF455A64),
+  static const dark = LiturgicalColors(
+    white: Color(0xFFFFFFFF),
+    red: Color(0xFFE53935),
+    green: Color(0xFF43A047),
+    violet: Color(0xFF8E5AD7),
+    rose: Color(0xFFF06292),
+    black: Color(0xFF000000),
   );
 
   Color of(LiturgicalColor c) {

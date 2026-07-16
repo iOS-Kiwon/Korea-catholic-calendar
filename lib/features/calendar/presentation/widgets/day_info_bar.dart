@@ -60,7 +60,7 @@ class DayInfoBar extends ConsumerWidget {
               Text(
                 '${d.month}월 ${d.day}일 $weekday요일',
                 style: theme.textTheme.titleMedium?.copyWith(
-                  color: const Color(0xFF121212),
+                  color: theme.colorScheme.onSurface,
                   fontWeight: FontWeight.w600,
                 ),
               ),

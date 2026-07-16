@@ -169,7 +169,9 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     return FloatingActionButton(
       heroTag: null,
       backgroundColor: color,
-      foregroundColor: Colors.white,
+      foregroundColor: color.computeLuminance() > 0.55
+          ? Colors.black87
+          : Colors.white,
       tooltip: '일정 추가',
       onPressed: () => showEventEditor(context, date: _focusDate),
       child: const Icon(Icons.add),
