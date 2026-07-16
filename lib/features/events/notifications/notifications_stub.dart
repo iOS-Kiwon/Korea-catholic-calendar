@@ -10,5 +10,11 @@ class _NoopNotificationService implements NotificationService {
   Future<void> init() async {}
 
   @override
+  Future<bool> areNotificationsEnabled() async => false;
+
+  @override
+  Future<void> openNotificationSettings() async {}
+
+  @override
   Future<void> sync(Map<String, List<CalendarEvent>> events) async {}
 }

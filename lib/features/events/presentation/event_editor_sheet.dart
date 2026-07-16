@@ -39,31 +39,43 @@ class _EventEditorSheet extends ConsumerStatefulWidget {
   ConsumerState<_EventEditorSheet> createState() => _EventEditorSheetState();
 }
 
-class _EventEditorSheetState extends ConsumerState<_EventEditorSheet> {
+class _EventEditorSheetState extends ConsumerState<_EventEditorSheet>
+    with WidgetsBindingObserver {
   late final TextEditingController _memo;
   late DateTime _date;
   TimeOfDay? _time; // null = 종일(all-day)
   late bool _notify;
   String? _selectedCategoryId;
   bool _categoryError = false;
+  bool? _systemNotificationsEnabled;
 
   bool get _isEditing => widget.existing != null;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final e = widget.existing;
     _memo = TextEditingController(text: e?.memo ?? '');
     _date = e != null ? parseEventDate(e.date) : _dateOnly(widget.date);
     _time = _parseTime(e?.time);
     _notify = e?.notify ?? true;
     _selectedCategoryId = e?.categoryId;
+    _refreshNotificationPermission();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _memo.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshNotificationPermission();
+    }
   }
 
   static DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
@@ -81,7 +93,9 @@ class _EventEditorSheetState extends ConsumerState<_EventEditorSheet> {
   /// to the event's own snapshot when editing (so a category selection always
   /// renders even for legacy/edge data).
   EventCategory? _resolveSelected(List<EventCategory> live) {
-    if (_selectedCategoryId == null || _selectedCategoryId!.isEmpty) return null;
+    if (_selectedCategoryId == null || _selectedCategoryId!.isEmpty) {
+      return null;
+    }
     for (final c in live) {
       if (c.id == _selectedCategoryId) return c;
     }
@@ -124,6 +138,49 @@ class _EventEditorSheetState extends ConsumerState<_EventEditorSheet> {
     if (picked != null) setState(() => _time = picked);
   }
 
+  Future<void> _refreshNotificationPermission() async {
+    final enabled = await ref
+        .read(notificationServiceProvider)
+        .areNotificationsEnabled();
+    if (!mounted) return;
+    setState(() {
+      _systemNotificationsEnabled = enabled;
+      if (!enabled) _notify = false;
+    });
+  }
+
+  Future<void> _toggleNotifications(bool value) async {
+    if (!value) {
+      setState(() => _notify = false);
+      return;
+    }
+
+    final service = ref.read(notificationServiceProvider);
+    final enabled = await service.areNotificationsEnabled();
+    if (!mounted) return;
+    if (!enabled) {
+      setState(() {
+        _systemNotificationsEnabled = false;
+        _notify = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('시스템 알림이 꺼져 있어 앱 알림 설정으로 이동합니다.')),
+      );
+      await service.openNotificationSettings();
+      return;
+    }
+
+    setState(() {
+      _systemNotificationsEnabled = true;
+      _notify = true;
+    });
+  }
+
+  String _reminderHelpText() {
+    final dayOfTime = _time == null ? '오전 9:00' : _time!.format(context);
+    return '알림은 전날 오후 9:00, 당일 $dayOfTime에 보냅니다. 이미 지난 시간의 알림은 예약하지 않습니다.';
+  }
+
   Future<void> _save(List<EventCategory> categories) async {
     final category = _resolveSelected(categories);
     if (category == null) {
@@ -132,10 +189,12 @@ class _EventEditorSheetState extends ConsumerState<_EventEditorSheet> {
     }
 
     final memo = _memo.text.trim();
-    final time =
-        _time == null ? null : '${_two(_time!.hour)}:${_two(_time!.minute)}';
+    final time = _time == null
+        ? null
+        : '${_two(_time!.hour)}:${_two(_time!.minute)}';
     final event = CalendarEvent(
-      id: widget.existing?.id ??
+      id:
+          widget.existing?.id ??
           DateTime.now().microsecondsSinceEpoch.toString(),
       date: eventDateKey(_date),
       categoryId: category.id,
@@ -143,7 +202,7 @@ class _EventEditorSheetState extends ConsumerState<_EventEditorSheet> {
       categoryColor: category.color,
       memo: memo.isEmpty ? null : memo,
       time: time,
-      notify: _notify,
+      notify: _systemNotificationsEnabled == false ? false : _notify,
     );
 
     final store = ref.read(eventStoreProvider.notifier);
@@ -266,9 +325,13 @@ class _EventEditorSheetState extends ConsumerState<_EventEditorSheet> {
               contentPadding: EdgeInsets.zero,
               secondary: const Icon(Icons.notifications_outlined),
               title: const Text('알림'),
-              subtitle: const Text('전날 저녁·당일에 알림'),
-              value: _notify,
-              onChanged: (v) => setState(() => _notify = v),
+              subtitle: Text(
+                _systemNotificationsEnabled == false
+                    ? '${_reminderHelpText()}\n시스템 알림이 꺼져 있어 알림을 보낼 수 없습니다.'
+                    : _reminderHelpText(),
+              ),
+              value: _systemNotificationsEnabled == false ? false : _notify,
+              onChanged: _toggleNotifications,
             ),
             const SizedBox(height: 12),
 

@@ -10,6 +10,12 @@ abstract class NotificationService {
   /// Safe to call more than once.
   Future<void> init();
 
+  /// Whether the app can currently display notifications.
+  Future<bool> areNotificationsEnabled();
+
+  /// Opens this app's system notification/settings screen when available.
+  Future<void> openNotificationSettings();
+
   /// Reconciles all scheduled reminders with [events]: cancels everything and
   /// re-schedules future reminders (day-before 21:00 + day-of). Called on
   /// startup and after every add/update/delete so the OS schedule always

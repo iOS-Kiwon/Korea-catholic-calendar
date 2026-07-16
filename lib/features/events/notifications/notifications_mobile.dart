@@ -1,6 +1,7 @@
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_10y.dart' as tzdata;
@@ -24,6 +25,7 @@ const _dayBeforeHour = 21;
 const _channelId = 'personal_events';
 const _channelName = '일정 알림';
 const _channelDescription = '내가 추가한 개인 일정 알림';
+const _settingsChannel = MethodChannel('com.sidore.catholiccalendar/settings');
 
 bool get _supported => Platform.isAndroid || Platform.isIOS;
 
@@ -35,6 +37,11 @@ class _LocalNotificationService implements NotificationService {
 
   @override
   Future<void> init() async {
+    await _ensureReady();
+    await _requestPermissions();
+  }
+
+  Future<void> _ensureReady() async {
     if (!_supported || _ready) return;
     tzdata.initializeTimeZones();
     try {
@@ -59,7 +66,6 @@ class _LocalNotificationService implements NotificationService {
         iOS: darwinInit,
       ),
     );
-    await _requestPermissions();
     _ready = true;
   }
 
@@ -80,9 +86,42 @@ class _LocalNotificationService implements NotificationService {
   }
 
   @override
+  Future<bool> areNotificationsEnabled() async {
+    if (!_supported) return false;
+    if (!_ready) await _ensureReady();
+    if (Platform.isAndroid) {
+      return await _plugin
+              .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin
+              >()
+              ?.areNotificationsEnabled() ??
+          false;
+    }
+    if (Platform.isIOS) {
+      final permissions = await _plugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >()
+          ?.checkPermissions();
+      return permissions?.isEnabled ?? false;
+    }
+    return false;
+  }
+
+  @override
+  Future<void> openNotificationSettings() async {
+    if (!_supported) return;
+    try {
+      await _settingsChannel.invokeMethod<void>('openNotificationSettings');
+    } catch (e) {
+      if (kDebugMode) debugPrint('Failed to open notification settings: $e');
+    }
+  }
+
+  @override
   Future<void> sync(Map<String, List<CalendarEvent>> events) async {
     if (!_supported) return;
-    if (!_ready) await init();
+    if (!_ready) await _ensureReady();
 
     await _plugin.cancelAll();
 
@@ -95,6 +134,10 @@ class _LocalNotificationService implements NotificationService {
       }
     }
     reminders.sort((a, b) => a.when.compareTo(b.when));
+    if (reminders.isEmpty) return;
+
+    await _requestPermissions();
+    if (!await areNotificationsEnabled()) return;
 
     const details = NotificationDetails(
       android: AndroidNotificationDetails(

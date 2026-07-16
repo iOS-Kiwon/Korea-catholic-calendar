@@ -9,6 +9,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 class _FakeNotifications implements NotificationService {
   @override
   Future<void> init() async {}
+
+  @override
+  Future<bool> areNotificationsEnabled() async => true;
+
+  @override
+  Future<void> openNotificationSettings() async {}
+
   @override
   Future<void> sync(Map<String, List<CalendarEvent>> events) async {}
 }
@@ -72,25 +79,31 @@ void main() {
     expect(after[1].id, categories[0].id);
   });
 
-  test('inUseCategoryIdsProvider reflects events (for delete-blocking)', () async {
-    final c = _container();
-    final cat = (await c.read(categoriesProvider.future)).first;
-    await c.read(eventStoreProvider.future);
+  test(
+    'inUseCategoryIdsProvider reflects events (for delete-blocking)',
+    () async {
+      final c = _container();
+      final cat = (await c.read(categoriesProvider.future)).first;
+      await c.read(eventStoreProvider.future);
 
-    expect(c.read(inUseCategoryIdsProvider), isEmpty);
+      expect(c.read(inUseCategoryIdsProvider), isEmpty);
 
-    await c.read(eventStoreProvider.notifier).add(_eventFor(cat));
-    expect(c.read(inUseCategoryIdsProvider), contains(cat.id));
-  });
+      await c.read(eventStoreProvider.notifier).add(_eventFor(cat));
+      expect(c.read(inUseCategoryIdsProvider), contains(cat.id));
+    },
+  );
 
-  test('replaceAll with an empty list does not re-seed on next build', () async {
-    final c = _container();
-    await c.read(categoriesProvider.future);
-    await c.read(categoriesProvider.notifier).replaceAll(const []);
-    expect(await c.read(categoriesProvider.future), isEmpty);
+  test(
+    'replaceAll with an empty list does not re-seed on next build',
+    () async {
+      final c = _container();
+      await c.read(categoriesProvider.future);
+      await c.read(categoriesProvider.notifier).replaceAll(const []);
+      expect(await c.read(categoriesProvider.future), isEmpty);
 
-    // A fresh container over the same (mock) prefs must stay empty.
-    final c2 = _container();
-    expect(await c2.read(categoriesProvider.future), isEmpty);
-  });
+      // A fresh container over the same (mock) prefs must stay empty.
+      final c2 = _container();
+      expect(await c2.read(categoriesProvider.future), isEmpty);
+    },
+  );
 }

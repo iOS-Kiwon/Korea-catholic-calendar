@@ -24,6 +24,12 @@ class _FakeNotifications implements NotificationService {
   Future<void> init() async {}
 
   @override
+  Future<bool> areNotificationsEnabled() async => true;
+
+  @override
+  Future<void> openNotificationSettings() async {}
+
+  @override
   Future<void> sync(Map<String, List<CalendarEvent>> events) async {}
 }
 
