@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/theme/liturgical_colors.dart';
 import '../../../../core/date/year_month.dart';
 import '../../../ads/ads.dart';
+import '../../../events/presentation/event_editor_sheet.dart';
 import '../../application/calendar_providers.dart';
 import '../../data/calendar_service.dart';
 import '../season_style.dart';
@@ -159,6 +160,20 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
         compact ? _openDetailSheet(s, _focusDate) : _openDetail(s, _focusDate),
   );
 
+  /// 일정 추가 플로팅 버튼. 색상 = 현재 월의 전례색(연중=녹색 등).
+  Widget _addEventFab(CalendarService s) {
+    final mid = s.day(DateTime(widget.month.year, widget.month.month, 15));
+    final color = context.liturgical.of(seasonColor(mid.season));
+    return FloatingActionButton(
+      heroTag: null,
+      backgroundColor: color,
+      foregroundColor: Colors.white,
+      tooltip: '일정 추가',
+      onPressed: () => showEventEditor(context, date: _focusDate),
+      child: const Icon(Icons.add),
+    );
+  }
+
   // --- wide (web/desktop) ---
   Widget _wide(CalendarService s) {
     final size = MediaQuery.sizeOf(context);
@@ -184,18 +199,27 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                 _header(s, compact: false),
                 _todayButton(),
                 Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-                    child: Column(
-                      children: [
-                        const Align(
-                          alignment: Alignment.centerLeft,
-                          child: Legend(),
+                  child: Stack(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                        child: Column(
+                          children: [
+                            const Align(
+                              alignment: Alignment.centerLeft,
+                              child: Legend(),
+                            ),
+                            const WeekdayRow(),
+                            Expanded(child: _grid(s, compact: false)),
+                          ],
                         ),
-                        const WeekdayRow(),
-                        Expanded(child: _grid(s, compact: false)),
-                      ],
-                    ),
+                      ),
+                      Positioned(
+                        right: 28,
+                        bottom: 20,
+                        child: _addEventFab(s),
+                      ),
+                    ],
                   ),
                 ),
                 _infoBar(s, compact: false),
@@ -218,9 +242,14 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
           child: WeekdayRow(),
         ),
         Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: _grid(s, compact: true),
+          child: Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: _grid(s, compact: true),
+              ),
+              Positioned(right: 16, bottom: 16, child: _addEventFab(s)),
+            ],
           ),
         ),
         _infoBar(s, compact: true),

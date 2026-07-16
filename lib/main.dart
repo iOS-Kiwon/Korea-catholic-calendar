@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 
 import 'app/app.dart';
+import 'core/firebase/firebase_bootstrap.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await FirebaseBootstrap.init();
   // Clean web URLs (/2026/07) instead of hash-based routing.
   if (kIsWeb) {
     usePathUrlStrategy();
