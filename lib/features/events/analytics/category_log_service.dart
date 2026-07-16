@@ -24,7 +24,7 @@ class FirestoreCategoryLogService implements CategoryLogService {
     required int color,
   }) async {
     final trimmed = name.trim();
-    if (trimmed.isEmpty || Firebase.apps.isEmpty) return;
+    if (!kReleaseMode || trimmed.isEmpty || Firebase.apps.isEmpty) return;
 
     try {
       final packageInfo = await PackageInfo.fromPlatform();

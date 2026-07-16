@@ -10,16 +10,20 @@ class FirebaseBootstrap {
   static bool get enabled => _enabled;
 
   static Future<void> init() async {
+    if (!kReleaseMode) {
+      _enabled = false;
+      if (kDebugMode) {
+        debugPrint('Firebase disabled outside release builds.');
+      }
+      return;
+    }
+
     try {
       await Firebase.initializeApp();
       if (!kIsWeb) {
         await FirebaseAppCheck.instance.activate(
-          providerAndroid: kDebugMode
-              ? const AndroidDebugProvider()
-              : const AndroidPlayIntegrityProvider(),
-          providerApple: kDebugMode
-              ? const AppleDebugProvider()
-              : const AppleAppAttestWithDeviceCheckFallbackProvider(),
+          providerAndroid: const AndroidPlayIntegrityProvider(),
+          providerApple: const AppleAppAttestWithDeviceCheckFallbackProvider(),
         );
       }
       _enabled = true;
