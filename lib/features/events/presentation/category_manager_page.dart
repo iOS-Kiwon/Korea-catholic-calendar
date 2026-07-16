@@ -5,70 +5,117 @@ import '../application/category_providers.dart';
 import '../model/category_palette.dart';
 import '../model/event_category.dart';
 
-/// Opens the category management screen.
-Future<void> openCategoryManager(BuildContext context) {
-  return Navigator.of(context).push(
-    MaterialPageRoute<void>(builder: (_) => const CategoryManagerPage()),
+/// Opens the "카테고리" screen and returns the id of the category the user
+/// picked, or null if they backed out without picking.
+Future<String?> pickCategory(BuildContext context) {
+  return Navigator.of(context).push<String>(
+    MaterialPageRoute<String>(builder: (_) => const CategoryPickerPage()),
   );
 }
 
-/// Add/edit/delete/reorder the user's event categories.
-class CategoryManagerPage extends ConsumerWidget {
-  const CategoryManagerPage({super.key});
+/// The "카테고리" screen. Two modes:
+/// - **선택**(default): tap a category → returns it to the previous screen.
+///   App bar shows a ⚙ button (→ edit mode) and a FAB to add.
+/// - **편집**: each row gets rename/delete/move affordances; the ⚙ becomes a
+///   저장 button. Edits are held locally and committed on 저장.
+class CategoryPickerPage extends ConsumerStatefulWidget {
+  const CategoryPickerPage({super.key});
 
-  Future<void> _delete(
-    BuildContext context,
-    WidgetRef ref,
-    EventCategory category, {
-    required bool inUse,
-  }) async {
-    final messenger = ScaffoldMessenger.of(context);
+  @override
+  ConsumerState<CategoryPickerPage> createState() => _CategoryPickerPageState();
+}
+
+class _CategoryPickerPageState extends ConsumerState<CategoryPickerPage> {
+  bool _editing = false;
+  List<EventCategory> _draft = const [];
+
+  void _enterEdit(List<EventCategory> current) {
+    setState(() {
+      _editing = true;
+      _draft = [...current];
+    });
+  }
+
+  Future<void> _save() async {
+    final draft = [..._draft];
+    await ref.read(categoriesProvider.notifier).replaceAll(draft);
+    if (mounted) {
+      setState(() {
+        _editing = false;
+        _draft = const [];
+      });
+    }
+  }
+
+  Future<void> _add() async {
+    final result = await showCategoryFormSheet(context);
+    if (result != null) {
+      await ref.read(categoriesProvider.notifier).add(result.name, result.color);
+    }
+  }
+
+  Future<void> _renameInDraft(EventCategory c) async {
+    final result = await showCategoryFormSheet(context, existing: c);
+    if (result == null) return;
+    setState(() {
+      final i = _draft.indexWhere((x) => x.id == c.id);
+      if (i != -1) {
+        _draft[i] = c.copyWith(name: result.name, color: result.color);
+      }
+    });
+  }
+
+  void _deleteInDraft(EventCategory c, {required bool inUse}) {
     if (inUse) {
-      messenger.showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('사용 중인 카테고리는 삭제할 수 없습니다. 먼저 해당 일정을 정리하세요.'),
         ),
       );
       return;
     }
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('카테고리 삭제'),
-        content: Text("'${category.name}' 카테고리를 삭제할까요?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('삭제'),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) {
-      await ref.read(categoriesProvider.notifier).delete(category.id);
-    }
+    setState(() => _draft.removeWhere((x) => x.id == c.id));
+  }
+
+  void _reorderInDraft(int oldIndex, int newIndex) {
+    setState(() {
+      final item = _draft.removeAt(oldIndex);
+      _draft.insert(newIndex, item);
+    });
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final categoriesAsync = ref.watch(categoriesProvider);
     final inUseIds = ref.watch(inUseCategoryIdsProvider);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('카테고리 관리')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => showCategoryEditor(context),
-        icon: const Icon(Icons.add),
-        label: const Text('카테고리 추가'),
+      appBar: AppBar(
+        title: const Text('카테고리'),
+        actions: [
+          if (categoriesAsync.hasValue)
+            _editing
+                ? TextButton(onPressed: _save, child: const Text('저장'))
+                : IconButton(
+                    icon: const Icon(Icons.settings_outlined),
+                    tooltip: '편집',
+                    onPressed: () => _enterEdit(categoriesAsync.value!),
+                  ),
+        ],
       ),
+      floatingActionButton: _editing
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _add,
+              icon: const Icon(Icons.add),
+              label: const Text('카테고리 추가'),
+            ),
       body: categoriesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('불러오지 못했습니다.\n$e')),
         data: (categories) {
-          if (categories.isEmpty) {
+          final list = _editing ? _draft : categories;
+          if (list.isEmpty) {
             return const Center(
               child: Padding(
                 padding: EdgeInsets.all(32),
@@ -79,47 +126,66 @@ class CategoryManagerPage extends ConsumerWidget {
               ),
             );
           }
-          return ReorderableListView.builder(
-            padding: const EdgeInsets.only(bottom: 88),
-            itemCount: categories.length,
-            onReorderItem: (oldIndex, newIndex) => ref
-                .read(categoriesProvider.notifier)
-                .reorder(oldIndex, newIndex),
-            itemBuilder: (context, i) {
-              final c = categories[i];
-              final inUse = inUseIds.contains(c.id);
-              return ListTile(
-                key: ValueKey(c.id),
-                leading: _Swatch(color: Color(c.color)),
-                title: Text(c.name),
-                subtitle: inUse ? const Text('사용 중') : null,
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline),
-                      tooltip: '삭제',
-                      color: inUse
-                          ? Theme.of(context).disabledColor
-                          : null,
-                      onPressed: () =>
-                          _delete(context, ref, c, inUse: inUse),
-                    ),
-                    ReorderableDragStartListener(
-                      index: i,
-                      child: const Padding(
-                        padding: EdgeInsets.only(left: 4, right: 8),
-                        child: Icon(Icons.drag_handle),
-                      ),
-                    ),
-                  ],
-                ),
-                onTap: () => showCategoryEditor(context, existing: c),
-              );
-            },
-          );
+          return _editing
+              ? _buildEditList(list, inUseIds)
+              : _buildSelectList(list);
         },
       ),
+    );
+  }
+
+  Widget _buildSelectList(List<EventCategory> categories) {
+    return ListView.builder(
+      itemCount: categories.length,
+      itemBuilder: (context, i) {
+        final c = categories[i];
+        return ListTile(
+          leading: _Swatch(color: Color(c.color)),
+          title: Text(c.name),
+          onTap: () => Navigator.of(context).pop(c.id),
+        );
+      },
+    );
+  }
+
+  Widget _buildEditList(List<EventCategory> categories, Set<String> inUseIds) {
+    return ReorderableListView.builder(
+      padding: const EdgeInsets.only(bottom: 24),
+      itemCount: categories.length,
+      onReorderItem: _reorderInDraft,
+      itemBuilder: (context, i) {
+        final c = categories[i];
+        final inUse = inUseIds.contains(c.id);
+        return ListTile(
+          key: ValueKey(c.id),
+          leading: _Swatch(color: Color(c.color)),
+          title: Text(c.name),
+          subtitle: inUse ? const Text('사용 중') : null,
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.edit_outlined),
+                tooltip: '이름/색 수정',
+                onPressed: () => _renameInDraft(c),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline),
+                tooltip: '삭제',
+                color: inUse ? Theme.of(context).disabledColor : null,
+                onPressed: () => _deleteInDraft(c, inUse: inUse),
+              ),
+              ReorderableDragStartListener(
+                index: i,
+                child: const Padding(
+                  padding: EdgeInsets.only(left: 4, right: 8),
+                  child: Icon(Icons.drag_handle),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -140,7 +206,10 @@ class _Swatch extends StatelessWidget {
         color: color,
         shape: BoxShape.circle,
         border: selected
-            ? Border.all(color: Theme.of(context).colorScheme.onSurface, width: 3)
+            ? Border.all(
+                color: Theme.of(context).colorScheme.onSurface,
+                width: 3,
+              )
             : null,
       ),
       child: selected
@@ -150,31 +219,30 @@ class _Swatch extends StatelessWidget {
   }
 }
 
-/// Opens the add/edit category sheet. Returns the created/edited category id,
-/// or null if cancelled.
-Future<String?> showCategoryEditor(
+/// Collects a category name + color. Returns the entered values (no
+/// persistence) or null if cancelled.
+Future<({String name, int color})?> showCategoryFormSheet(
   BuildContext context, {
   EventCategory? existing,
 }) {
-  return showModalBottomSheet<String>(
+  return showModalBottomSheet<({String name, int color})>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) => _CategoryEditorSheet(existing: existing),
+    builder: (_) => _CategoryFormSheet(existing: existing),
   );
 }
 
-class _CategoryEditorSheet extends ConsumerStatefulWidget {
-  const _CategoryEditorSheet({this.existing});
+class _CategoryFormSheet extends StatefulWidget {
+  const _CategoryFormSheet({this.existing});
 
   final EventCategory? existing;
 
   @override
-  ConsumerState<_CategoryEditorSheet> createState() =>
-      _CategoryEditorSheetState();
+  State<_CategoryFormSheet> createState() => _CategoryFormSheetState();
 }
 
-class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
+class _CategoryFormSheetState extends State<_CategoryFormSheet> {
   late final TextEditingController _name;
   late int _color;
   bool _nameError = false;
@@ -194,22 +262,13 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
     super.dispose();
   }
 
-  Future<void> _save() async {
+  void _submit() {
     final name = _name.text.trim();
     if (name.isEmpty) {
       setState(() => _nameError = true);
       return;
     }
-    final notifier = ref.read(categoriesProvider.notifier);
-    String id;
-    if (_isEditing) {
-      id = widget.existing!.id;
-      await notifier.edit(id, name: name, color: _color);
-    } else {
-      final created = await notifier.add(name, _color);
-      id = created.id;
-    }
-    if (mounted) Navigator.of(context).pop(id);
+    Navigator.of(context).pop((name: name, color: _color));
   }
 
   @override
@@ -231,17 +290,16 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
           TextField(
             controller: _name,
             autofocus: true,
-            textCapitalization: TextCapitalization.sentences,
             decoration: InputDecoration(
               labelText: '이름',
-              hintText: '예: 본당 행사, 성당 청소',
+              hintText: '예: 본당 행사, 전례',
               errorText: _nameError ? '이름을 입력하세요' : null,
               prefixIcon: const Icon(Icons.label_outline),
             ),
             onChanged: (_) {
               if (_nameError) setState(() => _nameError = false);
             },
-            onSubmitted: (_) => _save(),
+            onSubmitted: (_) => _submit(),
           ),
           const SizedBox(height: 16),
           Align(
@@ -256,13 +314,17 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
               for (final c in kCategoryColors)
                 GestureDetector(
                   onTap: () => setState(() => _color = c),
-                  child: _Swatch(color: Color(c), size: 34, selected: c == _color),
+                  child: _Swatch(
+                    color: Color(c),
+                    size: 34,
+                    selected: c == _color,
+                  ),
                 ),
             ],
           ),
           const SizedBox(height: 20),
           FilledButton(
-            onPressed: _save,
+            onPressed: _submit,
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
               child: Text(_isEditing ? '저장' : '추가'),

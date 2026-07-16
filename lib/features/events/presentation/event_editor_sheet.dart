@@ -77,21 +77,33 @@ class _EventEditorSheetState extends ConsumerState<_EventEditorSheet> {
     );
   }
 
-  /// The selectable categories: the live list, plus (when editing an event
-  /// whose category was deleted) the event's own snapshot so it stays visible.
-  List<EventCategory> _options(List<EventCategory> live) {
+  /// Resolves the currently selected category from the live list, falling back
+  /// to the event's own snapshot when editing (so a category selection always
+  /// renders even for legacy/edge data).
+  EventCategory? _resolveSelected(List<EventCategory> live) {
+    if (_selectedCategoryId == null || _selectedCategoryId!.isEmpty) return null;
+    for (final c in live) {
+      if (c.id == _selectedCategoryId) return c;
+    }
     final e = widget.existing;
-    if (e == null || e.categoryId.isEmpty) return live;
-    final present = live.any((c) => c.id == e.categoryId);
-    if (present) return live;
-    return [
-      EventCategory(
+    if (e != null && e.categoryId == _selectedCategoryId) {
+      return EventCategory(
         id: e.categoryId,
         name: e.categoryName,
         color: e.categoryColor,
-      ),
-      ...live,
-    ];
+      );
+    }
+    return null;
+  }
+
+  Future<void> _openCategoryPicker() async {
+    final id = await pickCategory(context);
+    if (id != null) {
+      setState(() {
+        _selectedCategoryId = id;
+        _categoryError = false;
+      });
+    }
   }
 
   Future<void> _pickDate() async {
@@ -112,19 +124,8 @@ class _EventEditorSheetState extends ConsumerState<_EventEditorSheet> {
     if (picked != null) setState(() => _time = picked);
   }
 
-  Future<void> _addCategoryInline() async {
-    final newId = await showCategoryEditor(context);
-    if (newId != null) setState(() => _selectedCategoryId = newId);
-  }
-
-  Future<void> _save(List<EventCategory> options) async {
-    EventCategory? category;
-    for (final c in options) {
-      if (c.id == _selectedCategoryId) {
-        category = c;
-        break;
-      }
-    }
+  Future<void> _save(List<EventCategory> categories) async {
+    final category = _resolveSelected(categories);
     if (category == null) {
       setState(() => _categoryError = true);
       return;
@@ -167,7 +168,7 @@ class _EventEditorSheetState extends ConsumerState<_EventEditorSheet> {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     final allDay = _time == null;
     final categories = ref.watch(categoriesProvider).value ?? const [];
-    final options = _options(categories);
+    final selected = _resolveSelected(categories);
 
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 4, 20, 20 + bottomInset),
@@ -202,63 +203,28 @@ class _EventEditorSheetState extends ConsumerState<_EventEditorSheet> {
               onTap: _pickDate,
             ),
 
-            // 카테고리 (필수) - 제목을 직접 입력하지 않고 카테고리를 선택.
-            Row(
-              children: [
-                Text('카테고리', style: theme.textTheme.titleSmall),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: () => openCategoryManager(context),
-                  icon: const Icon(Icons.settings_outlined, size: 16),
-                  label: const Text('관리'),
-                ),
-              ],
-            ),
-            if (options.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: OutlinedButton.icon(
-                  onPressed: _addCategoryInline,
-                  icon: const Icon(Icons.add),
-                  label: const Text('카테고리 추가'),
-                ),
-              )
-            else
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: [
-                  for (final c in options)
-                    ChoiceChip(
-                      label: Text(c.name),
-                      selected: c.id == _selectedCategoryId,
-                      avatar: CircleAvatar(
-                        backgroundColor: Color(c.color),
-                        radius: 8,
+            // 카테고리 (필수) - 제목을 직접 입력하지 않고, 탭 → 카테고리 화면에서 선택.
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: selected != null
+                  ? CircleAvatar(
+                      backgroundColor: Color(selected.color),
+                      radius: 13,
+                    )
+                  : const Icon(Icons.label_outline),
+              title: Text(selected?.name ?? '카테고리를 선택하세요'),
+              subtitle: _categoryError
+                  ? Text(
+                      '카테고리를 선택하세요',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.error,
                       ),
-                      onSelected: (_) => setState(() {
-                        _selectedCategoryId = c.id;
-                        _categoryError = false;
-                      }),
-                    ),
-                  ActionChip(
-                    avatar: const Icon(Icons.add, size: 18),
-                    label: const Text('추가'),
-                    onPressed: _addCategoryInline,
-                  ),
-                ],
-              ),
-            if (_categoryError)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  '카테고리를 선택하세요',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.error,
-                  ),
-                ),
-              ),
-            const SizedBox(height: 12),
+                    )
+                  : null,
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _openCategoryPicker,
+            ),
+            const SizedBox(height: 4),
 
             // 메모 (선택)
             TextField(
@@ -307,7 +273,7 @@ class _EventEditorSheetState extends ConsumerState<_EventEditorSheet> {
             const SizedBox(height: 12),
 
             FilledButton(
-              onPressed: () => _save(options),
+              onPressed: () => _save(categories),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Text(_isEditing ? '저장' : '추가'),

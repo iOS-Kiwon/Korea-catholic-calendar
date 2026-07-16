@@ -7,7 +7,8 @@ import '../model/event_category.dart';
 import 'event_providers.dart';
 
 /// The user's ordered event categories (on-device only). Seeds a starter set on
-/// first run; subsequent add/edit/delete/reorder persist immediately.
+/// first run. New categories persist immediately ([add]); edit-mode changes are
+/// committed in one shot ([replaceAll]).
 final categoriesProvider =
     AsyncNotifierProvider<CategoryStore, List<EventCategory>>(
       CategoryStore.new,
@@ -35,6 +36,7 @@ class CategoryStore extends AsyncNotifier<List<EventCategory>> {
     return list;
   }
 
+  /// Adds a new category (immediate persist). Used by the picker's "add".
   Future<EventCategory> add(String name, int color) async {
     final category = EventCategory(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
@@ -45,43 +47,17 @@ class CategoryStore extends AsyncNotifier<List<EventCategory>> {
     return category;
   }
 
-  Future<void> edit(String id, {required String name, required int color}) async {
-    final list = [
-      for (final c in await future)
-        if (c.id == id) c.copyWith(name: name, color: color) else c,
-    ];
-    await _persist(list);
-    // Propagate the rename/recolor into existing events' snapshots.
-    await ref
-        .read(eventStoreProvider.notifier)
-        .applyCategory(EventCategory(id: id, name: name, color: color));
-  }
-
-  /// Deletes a category, but only if no event uses it. Returns false (and does
-  /// nothing) when the category is still in use — the caller should tell the
-  /// user to clear those events first.
-  Future<bool> delete(String id) async {
-    if (await isInUse(id)) return false;
-    await _persist([
-      for (final c in await future)
-        if (c.id != id) c,
-    ]);
-    return true;
-  }
-
-  /// Whether any stored event references this category.
-  Future<bool> isInUse(String id) async {
-    final events = await ref.read(eventStoreProvider.future);
-    return events.values.any((list) => list.any((e) => e.categoryId == id));
-  }
-
-  /// Moves a category. [newIndex] is already adjusted for the removed item
-  /// (called from `ReorderableListView.onReorderItem`).
-  Future<void> reorder(int oldIndex, int newIndex) async {
-    final list = [...await future];
-    final item = list.removeAt(oldIndex);
-    list.insert(newIndex, item);
-    await _persist(list);
+  /// Commits the full edited list at once (rename/recolor/reorder/delete):
+  /// persists it, then propagates any name/color changes into existing events.
+  Future<void> replaceAll(List<EventCategory> next) async {
+    final prev = {for (final c in await future) c.id: c};
+    await _persist(next);
+    for (final c in next) {
+      final old = prev[c.id];
+      if (old != null && (old.name != c.name || old.color != c.color)) {
+        await ref.read(eventStoreProvider.notifier).applyCategory(c);
+      }
+    }
   }
 
   Future<void> _persist(List<EventCategory> list) async {

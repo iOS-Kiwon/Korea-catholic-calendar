@@ -41,17 +41,18 @@ void main() {
     expect(categories.map((e) => e.name), contains('본당 행사'));
   });
 
-  test('renaming a category propagates into existing events', () async {
+  test('replaceAll rename/recolor propagates into existing events', () async {
     final c = _container();
     final categories = await c.read(categoriesProvider.future);
     final cat = categories.first;
 
     await c.read(eventStoreProvider.notifier).add(_eventFor(cat));
-    await c.read(categoriesProvider.notifier).edit(
-      cat.id,
-      name: '본당 대축제',
-      color: 0xFFC62828,
-    );
+
+    final edited = [
+      cat.copyWith(name: '본당 대축제', color: 0xFFC62828),
+      ...categories.skip(1),
+    ];
+    await c.read(categoriesProvider.notifier).replaceAll(edited);
 
     final events = await c.read(eventStoreProvider.future);
     final saved = events['2026-07-16']!.single;
@@ -59,35 +60,33 @@ void main() {
     expect(saved.categoryColor, 0xFFC62828);
   });
 
-  test('deleting an in-use category is blocked', () async {
+  test('replaceAll persists a new order', () async {
+    final c = _container();
+    final categories = await c.read(categoriesProvider.future);
+    final reordered = [categories[1], categories[0], ...categories.skip(2)];
+
+    await c.read(categoriesProvider.notifier).replaceAll(reordered);
+
+    final after = await c.read(categoriesProvider.future);
+    expect(after.first.id, categories[1].id);
+    expect(after[1].id, categories[0].id);
+  });
+
+  test('inUseCategoryIdsProvider reflects events (for delete-blocking)', () async {
     final c = _container();
     final cat = (await c.read(categoriesProvider.future)).first;
+    await c.read(eventStoreProvider.future);
+
+    expect(c.read(inUseCategoryIdsProvider), isEmpty);
 
     await c.read(eventStoreProvider.notifier).add(_eventFor(cat));
-    final deleted = await c.read(categoriesProvider.notifier).delete(cat.id);
-
-    expect(deleted, isFalse);
-    final categories = await c.read(categoriesProvider.future);
-    expect(categories.any((e) => e.id == cat.id), isTrue); // 그대로 유지
+    expect(c.read(inUseCategoryIdsProvider), contains(cat.id));
   });
 
-  test('deleting an unused category succeeds', () async {
+  test('replaceAll with an empty list does not re-seed on next build', () async {
     final c = _container();
-    final cat = (await c.read(categoriesProvider.future)).first;
-
-    final deleted = await c.read(categoriesProvider.notifier).delete(cat.id);
-
-    expect(deleted, isTrue);
-    final categories = await c.read(categoriesProvider.future);
-    expect(categories.any((e) => e.id == cat.id), isFalse);
-  });
-
-  test('deleting all categories does not re-seed on next build', () async {
-    final c = _container();
-    final categories = await c.read(categoriesProvider.future);
-    for (final cat in categories) {
-      await c.read(categoriesProvider.notifier).delete(cat.id);
-    }
+    await c.read(categoriesProvider.future);
+    await c.read(categoriesProvider.notifier).replaceAll(const []);
     expect(await c.read(categoriesProvider.future), isEmpty);
 
     // A fresh container over the same (mock) prefs must stay empty.

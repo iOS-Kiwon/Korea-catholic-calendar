@@ -10,7 +10,8 @@ import 'package:catholic_calendar/features/calendar/presentation/widgets/day_det
 import 'package:catholic_calendar/features/events/application/event_providers.dart';
 import 'package:catholic_calendar/features/events/model/calendar_event.dart';
 import 'package:catholic_calendar/features/events/notifications/notifications.dart';
-import 'package:catholic_calendar/features/events/presentation/category_manager_page.dart';
+import 'package:catholic_calendar/features/events/presentation/category_manager_page.dart'
+    show CategoryPickerPage;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -93,9 +94,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('새 일정'), findsOneWidget);
-    // Title is now chosen from categories (seeded defaults), not typed.
-    expect(find.text('카테고리'), findsOneWidget);
-    expect(find.widgetWithText(ChoiceChip, '본당 행사'), findsOneWidget);
+    // Title is now chosen on the category screen, not typed here.
+    expect(find.text('카테고리를 선택하세요'), findsOneWidget);
   });
 
   testWidgets('day detail lists stored personal events', (tester) async {
@@ -137,9 +137,13 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, '추가'));
     await tester.pumpAndSettle();
 
-    // Pick a seeded category, then save.
-    await tester.tap(find.widgetWithText(ChoiceChip, '전례'));
+    // Open the category screen, tap a seeded category → auto-selected + back.
+    await tester.tap(find.text('카테고리를 선택하세요'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('전례'));
+    await tester.pumpAndSettle();
+
+    // Save the event.
     await tester.tap(find.widgetWithText(FilledButton, '추가'));
     await tester.pumpAndSettle();
 
@@ -148,10 +152,10 @@ void main() {
     expect(find.text('등록된 일정이 없습니다.'), findsNothing);
   });
 
-  testWidgets('category manager lists seeded categories and adds a new one', (
+  testWidgets('category screen lists seeded categories and adds a new one', (
     tester,
   ) async {
-    await tester.pumpWidget(_wrap(const CategoryManagerPage()));
+    await tester.pumpWidget(_wrap(const CategoryPickerPage()));
     await tester.pumpAndSettle();
 
     expect(find.text('본당 행사'), findsOneWidget);
@@ -165,5 +169,32 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('레지오'), findsOneWidget);
+  });
+
+  testWidgets('category screen edit mode deletes an unused category on save', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_wrap(const CategoryPickerPage()));
+    await tester.pumpAndSettle();
+
+    // Enter edit mode via the settings button.
+    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(TextButton, '저장'), findsOneWidget);
+
+    // Delete '기도' (unused) from the draft, then save.
+    final row = find.ancestor(
+      of: find.text('기도'),
+      matching: find.byType(ListTile),
+    );
+    await tester.tap(
+      find.descendant(of: row, matching: find.byIcon(Icons.delete_outline)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, '저장'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('기도'), findsNothing);
+    expect(find.text('본당 행사'), findsOneWidget); // 나머지는 유지
   });
 }
