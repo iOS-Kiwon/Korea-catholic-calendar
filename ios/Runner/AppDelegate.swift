@@ -4,6 +4,8 @@ import UserNotifications
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
+  private var settingsChannel: FlutterMethodChannel?
+
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -19,14 +21,14 @@ import UserNotifications
   }
 
   private func registerSettingsChannel(messenger: FlutterBinaryMessenger) {
-    let settingsChannel = FlutterMethodChannel(
+    settingsChannel = FlutterMethodChannel(
       name: "com.sidore.catholiccalendar/settings",
       binaryMessenger: messenger
     )
-    settingsChannel.setMethodCallHandler { call, result in
+    settingsChannel?.setMethodCallHandler { call, result in
       if call.method == "openNotificationSettings" {
         if let url = URL(string: UIApplication.openSettingsURLString) {
-          UIApplication.shared.open(url)
+          UIApplication.shared.open(url, options: [:])
         }
         result(nil)
       } else {

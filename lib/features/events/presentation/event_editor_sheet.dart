@@ -163,10 +163,11 @@ class _EventEditorSheetState extends ConsumerState<_EventEditorSheet>
         _systemNotificationsEnabled = false;
         _notify = false;
       });
+      await service.openNotificationSettings();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('시스템 알림이 꺼져 있어 앱 알림 설정으로 이동합니다.')),
       );
-      await service.openNotificationSettings();
       return;
     }
 
