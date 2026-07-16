@@ -16,6 +16,7 @@ class MonthHeader extends StatelessWidget {
     required this.onPrevMonth,
     required this.onNextMonth,
     required this.onTapTitle,
+    this.onSupportTap,
   });
 
   final YearMonth month;
@@ -25,6 +26,7 @@ class MonthHeader extends StatelessWidget {
   final VoidCallback onPrevMonth;
   final VoidCallback onNextMonth;
   final VoidCallback onTapTitle;
+  final VoidCallback? onSupportTap;
 
   @override
   Widget build(BuildContext context) {
@@ -60,6 +62,16 @@ class MonthHeader extends StatelessWidget {
                   ),
                 ),
               ),
+              if (onSupportTap != null) ...[
+                const SizedBox(width: 6),
+                _iconButton(
+                  Icons.favorite_border,
+                  onColor,
+                  onSupportTap!,
+                  '나눔으로 응원하기',
+                ),
+              ],
+              const SizedBox(width: 6),
               _chevron('›', onColor, onNextMonth, '다음 달'),
             ],
           ),
@@ -96,6 +108,30 @@ class MonthHeader extends StatelessWidget {
                 fontSize: 20,
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _iconButton(
+    IconData icon,
+    Color onColor,
+    VoidCallback onTap,
+    String tip,
+  ) {
+    return Tooltip(
+      message: tip,
+      child: Material(
+        color: onColor.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: onTap,
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Icon(icon, color: onColor, size: 21),
           ),
         ),
       ),
