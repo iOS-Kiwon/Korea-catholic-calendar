@@ -23,6 +23,7 @@ String monthPath(YearMonth ym) =>
 
 /// Width at/above which the "wide" (web/desktop) layout is used.
 const _wideBreakpoint = 720.0;
+const _tabletMaxLogicalSide = 1400.0;
 
 class CalendarPage extends ConsumerStatefulWidget {
   const CalendarPage({super.key, required this.month, this.initialSelected});
@@ -177,11 +178,18 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
 
   // --- wide (web/desktop) ---
   Widget _wide(CalendarService s) {
+    final size = MediaQuery.sizeOf(context);
+    final tabletLike =
+        size.shortestSide >= 600 && size.longestSide <= _tabletMaxLogicalSide;
+    final outerPadding = tabletLike ? 16.0 : 24.0;
+    final maxWidth = tabletLike ? double.infinity : 1120.0;
+    final maxHeight = tabletLike ? double.infinity : 940.0;
+
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1120, maxHeight: 940),
+        constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(outerPadding),
           child: Card(
             elevation: 3,
             clipBehavior: Clip.antiAlias,
