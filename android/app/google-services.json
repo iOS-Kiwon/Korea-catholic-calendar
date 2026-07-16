@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "802069788540",
+    "project_id": "catholic-calendar-7916b",
+    "storage_bucket": "catholic-calendar-7916b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:802069788540:android:9c69d35e316fd0032f96f9",
+        "android_client_info": {
+          "package_name": "com.sidore.catholiccalendar"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCho_tJ0J9HfpP4KzLqxFCcuoNqEBV3To0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
