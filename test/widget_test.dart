@@ -138,13 +138,13 @@ void main() {
     await tester.pumpAndSettle();
 
     // Pick a seeded category, then save.
-    await tester.tap(find.widgetWithText(ChoiceChip, '성당 청소'));
+    await tester.tap(find.widgetWithText(ChoiceChip, '전례'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, '추가'));
     await tester.pumpAndSettle();
 
     // Back on the detail view, the new event is listed under its category name.
-    expect(find.text('성당 청소'), findsOneWidget);
+    expect(find.text('전례'), findsOneWidget);
     expect(find.text('등록된 일정이 없습니다.'), findsNothing);
   });
 
@@ -155,7 +155,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('본당 행사'), findsOneWidget);
-    expect(find.text('연령회'), findsOneWidget);
+    expect(find.text('교리'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(FloatingActionButton, '카테고리 추가'));
     await tester.pumpAndSettle();

@@ -16,19 +16,26 @@ Future<void> openCategoryManager(BuildContext context) {
 class CategoryManagerPage extends ConsumerWidget {
   const CategoryManagerPage({super.key});
 
-  Future<void> _confirmDelete(
+  Future<void> _delete(
     BuildContext context,
     WidgetRef ref,
-    EventCategory category,
-  ) async {
+    EventCategory category, {
+    required bool inUse,
+  }) async {
+    final messenger = ScaffoldMessenger.of(context);
+    if (inUse) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('사용 중인 카테고리는 삭제할 수 없습니다. 먼저 해당 일정을 정리하세요.'),
+        ),
+      );
+      return;
+    }
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('카테고리 삭제'),
-        content: Text(
-          "'${category.name}' 카테고리를 삭제할까요?\n"
-          '이미 등록된 일정은 그대로 유지됩니다.',
-        ),
+        content: Text("'${category.name}' 카테고리를 삭제할까요?"),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -49,6 +56,7 @@ class CategoryManagerPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final categoriesAsync = ref.watch(categoriesProvider);
+    final inUseIds = ref.watch(inUseCategoryIdsProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('카테고리 관리')),
       floatingActionButton: FloatingActionButton.extended(
@@ -79,17 +87,23 @@ class CategoryManagerPage extends ConsumerWidget {
                 .reorder(oldIndex, newIndex),
             itemBuilder: (context, i) {
               final c = categories[i];
+              final inUse = inUseIds.contains(c.id);
               return ListTile(
                 key: ValueKey(c.id),
                 leading: _Swatch(color: Color(c.color)),
                 title: Text(c.name),
+                subtitle: inUse ? const Text('사용 중') : null,
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
                       icon: const Icon(Icons.delete_outline),
                       tooltip: '삭제',
-                      onPressed: () => _confirmDelete(context, ref, c),
+                      color: inUse
+                          ? Theme.of(context).disabledColor
+                          : null,
+                      onPressed: () =>
+                          _delete(context, ref, c, inUse: inUse),
                     ),
                     ReorderableDragStartListener(
                       index: i,

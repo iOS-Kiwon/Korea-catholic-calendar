@@ -59,21 +59,27 @@ void main() {
     expect(saved.categoryColor, 0xFFC62828);
   });
 
-  test('deleting a category keeps existing events (snapshot preserved)', () async {
+  test('deleting an in-use category is blocked', () async {
     final c = _container();
-    final categories = await c.read(categoriesProvider.future);
-    final cat = categories.first;
-    final originalName = cat.name;
+    final cat = (await c.read(categoriesProvider.future)).first;
 
     await c.read(eventStoreProvider.notifier).add(_eventFor(cat));
-    await c.read(categoriesProvider.notifier).delete(cat.id);
+    final deleted = await c.read(categoriesProvider.notifier).delete(cat.id);
 
-    final remainingCategories = await c.read(categoriesProvider.future);
-    expect(remainingCategories.any((e) => e.id == cat.id), isFalse);
+    expect(deleted, isFalse);
+    final categories = await c.read(categoriesProvider.future);
+    expect(categories.any((e) => e.id == cat.id), isTrue); // 그대로 유지
+  });
 
-    final events = await c.read(eventStoreProvider.future);
-    final saved = events['2026-07-16']!.single;
-    expect(saved.categoryName, originalName); // 이름 보존
+  test('deleting an unused category succeeds', () async {
+    final c = _container();
+    final cat = (await c.read(categoriesProvider.future)).first;
+
+    final deleted = await c.read(categoriesProvider.notifier).delete(cat.id);
+
+    expect(deleted, isTrue);
+    final categories = await c.read(categoriesProvider.future);
+    expect(categories.any((e) => e.id == cat.id), isFalse);
   });
 
   test('deleting all categories does not re-seed on next build', () async {

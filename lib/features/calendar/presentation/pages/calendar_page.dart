@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/theme/liturgical_colors.dart';
 import '../../../../core/date/year_month.dart';
 import '../../../ads/ads.dart';
-import '../../../events/presentation/category_manager_page.dart';
 import '../../../events/presentation/event_editor_sheet.dart';
 import '../../application/calendar_providers.dart';
 import '../../data/calendar_service.dart';
@@ -137,18 +136,11 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     );
   }
 
-  Widget _todayButton() => Padding(
-    padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-    child: Row(
-      children: [
-        IconButton(
-          onPressed: () => openCategoryManager(context),
-          icon: const Icon(Icons.category_outlined),
-          tooltip: '카테고리 관리',
-        ),
-        const Spacer(),
-        TodayButton(onPressed: _goToday),
-      ],
+  Widget _todayButton() => Align(
+    alignment: Alignment.centerRight,
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      child: TodayButton(onPressed: _goToday),
     ),
   );
 

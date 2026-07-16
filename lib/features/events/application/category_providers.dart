@@ -57,12 +57,22 @@ class CategoryStore extends AsyncNotifier<List<EventCategory>> {
         .applyCategory(EventCategory(id: id, name: name, color: color));
   }
 
-  Future<void> delete(String id) async {
+  /// Deletes a category, but only if no event uses it. Returns false (and does
+  /// nothing) when the category is still in use — the caller should tell the
+  /// user to clear those events first.
+  Future<bool> delete(String id) async {
+    if (await isInUse(id)) return false;
     await _persist([
       for (final c in await future)
         if (c.id != id) c,
     ]);
-    // Events keep their snapshot (이름 보존) — no event mutation on delete.
+    return true;
+  }
+
+  /// Whether any stored event references this category.
+  Future<bool> isInUse(String id) async {
+    final events = await ref.read(eventStoreProvider.future);
+    return events.values.any((list) => list.any((e) => e.categoryId == id));
   }
 
   /// Moves a category. [newIndex] is already adjusted for the removed item
@@ -85,4 +95,14 @@ class CategoryStore extends AsyncNotifier<List<EventCategory>> {
 final categoryMapProvider = Provider<Map<String, EventCategory>>((ref) {
   final list = ref.watch(categoriesProvider).value ?? const [];
   return {for (final c in list) c.id: c};
+});
+
+/// The set of category ids currently used by at least one event. Used to block
+/// deletion of in-use categories.
+final inUseCategoryIdsProvider = Provider<Set<String>>((ref) {
+  final events = ref.watch(eventStoreProvider).value ?? const {};
+  return {
+    for (final list in events.values)
+      for (final e in list) e.categoryId,
+  };
 });
