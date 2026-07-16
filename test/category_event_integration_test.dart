@@ -1,5 +1,6 @@
 import 'package:catholic_calendar/features/events/application/category_providers.dart';
 import 'package:catholic_calendar/features/events/application/event_providers.dart';
+import 'package:catholic_calendar/features/events/analytics/category_log_service.dart';
 import 'package:catholic_calendar/features/events/model/calendar_event.dart';
 import 'package:catholic_calendar/features/events/notifications/notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,6 +25,9 @@ ProviderContainer _container() {
   final c = ProviderContainer(
     overrides: [
       notificationServiceProvider.overrideWithValue(_FakeNotifications()),
+      categoryLogServiceProvider.overrideWithValue(
+        const NoopCategoryLogService(),
+      ),
     ],
   );
   addTearDown(c.dispose);

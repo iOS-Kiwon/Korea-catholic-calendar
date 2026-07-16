@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../analytics/category_log_service.dart';
 import '../data/category_repository.dart';
 import '../model/category_palette.dart';
 import '../model/event_category.dart';
@@ -44,6 +47,11 @@ class CategoryStore extends AsyncNotifier<List<EventCategory>> {
       color: color,
     );
     await _persist([...await future, category]);
+    unawaited(
+      ref
+          .read(categoryLogServiceProvider)
+          .logCategoryAdded(name: category.name, color: category.color),
+    );
     return category;
   }
 

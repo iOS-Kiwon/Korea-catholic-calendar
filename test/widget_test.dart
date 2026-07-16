@@ -7,6 +7,7 @@ import 'package:catholic_calendar/features/calendar/data/calendar_service.dart';
 import 'package:catholic_calendar/features/calendar/data/remote_calendar_source.dart';
 import 'package:catholic_calendar/features/calendar/presentation/pages/calendar_page.dart';
 import 'package:catholic_calendar/features/calendar/presentation/widgets/day_detail_view.dart';
+import 'package:catholic_calendar/features/events/analytics/category_log_service.dart';
 import 'package:catholic_calendar/features/events/application/event_providers.dart';
 import 'package:catholic_calendar/features/events/model/calendar_event.dart';
 import 'package:catholic_calendar/features/events/notifications/notifications.dart';
@@ -45,6 +46,9 @@ Widget _wrap(Widget child) => ProviderScope(
       const RemoteCalendarSource(enabled: false),
     ),
     notificationServiceProvider.overrideWithValue(_FakeNotifications()),
+    categoryLogServiceProvider.overrideWithValue(
+      const NoopCategoryLogService(),
+    ),
   ],
   child: MaterialApp(theme: AppTheme.light(), home: child),
 );
