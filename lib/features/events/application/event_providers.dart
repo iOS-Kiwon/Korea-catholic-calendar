@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/event_repository.dart';
 import '../model/calendar_event.dart';
+import '../model/event_category.dart';
 import '../notifications/notifications.dart';
 
 /// The device's [SharedPreferences] instance (loaded once).
@@ -86,6 +87,29 @@ class EventStore extends AsyncNotifier<Map<String, List<CalendarEvent>>> {
       map[event.date] = next;
     }
     await _persistAndSync(map);
+  }
+
+  /// Propagates a category rename/recolor into the snapshot of every event that
+  /// references it, so live category edits reflect in existing events. (Deleted
+  /// categories are left untouched → events keep their last snapshot.)
+  Future<void> applyCategory(EventCategory category) async {
+    final map = await _mutableMap();
+    var changed = false;
+    for (final list in map.values) {
+      for (var i = 0; i < list.length; i++) {
+        final e = list[i];
+        if (e.categoryId == category.id &&
+            (e.categoryName != category.name ||
+                e.categoryColor != category.color)) {
+          list[i] = e.copyWith(
+            categoryName: category.name,
+            categoryColor: category.color,
+          );
+          changed = true;
+        }
+      }
+    }
+    if (changed) await _persistAndSync(map);
   }
 
   /// A deep-enough (per-date list) mutable copy of the current state, waiting

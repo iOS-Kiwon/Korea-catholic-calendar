@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../application/category_providers.dart';
 import '../application/event_providers.dart';
 import '../model/calendar_event.dart';
+import '../model/event_category.dart';
+import 'category_manager_page.dart';
 
 const _weekdays = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -37,12 +40,12 @@ class _EventEditorSheet extends ConsumerStatefulWidget {
 }
 
 class _EventEditorSheetState extends ConsumerState<_EventEditorSheet> {
-  late final TextEditingController _title;
   late final TextEditingController _memo;
   late DateTime _date;
   TimeOfDay? _time; // null = 종일(all-day)
   late bool _notify;
-  bool _titleError = false;
+  String? _selectedCategoryId;
+  bool _categoryError = false;
 
   bool get _isEditing => widget.existing != null;
 
@@ -50,16 +53,15 @@ class _EventEditorSheetState extends ConsumerState<_EventEditorSheet> {
   void initState() {
     super.initState();
     final e = widget.existing;
-    _title = TextEditingController(text: e?.title ?? '');
     _memo = TextEditingController(text: e?.memo ?? '');
     _date = e != null ? parseEventDate(e.date) : _dateOnly(widget.date);
     _time = _parseTime(e?.time);
     _notify = e?.notify ?? true;
+    _selectedCategoryId = e?.categoryId;
   }
 
   @override
   void dispose() {
-    _title.dispose();
     _memo.dispose();
     super.dispose();
   }
@@ -73,6 +75,23 @@ class _EventEditorSheetState extends ConsumerState<_EventEditorSheet> {
       hour: int.tryParse(p[0]) ?? 9,
       minute: p.length > 1 ? (int.tryParse(p[1]) ?? 0) : 0,
     );
+  }
+
+  /// The selectable categories: the live list, plus (when editing an event
+  /// whose category was deleted) the event's own snapshot so it stays visible.
+  List<EventCategory> _options(List<EventCategory> live) {
+    final e = widget.existing;
+    if (e == null || e.categoryId.isEmpty) return live;
+    final present = live.any((c) => c.id == e.categoryId);
+    if (present) return live;
+    return [
+      EventCategory(
+        id: e.categoryId,
+        name: e.categoryName,
+        color: e.categoryColor,
+      ),
+      ...live,
+    ];
   }
 
   Future<void> _pickDate() async {
@@ -93,18 +112,34 @@ class _EventEditorSheetState extends ConsumerState<_EventEditorSheet> {
     if (picked != null) setState(() => _time = picked);
   }
 
-  Future<void> _save() async {
-    final title = _title.text.trim();
-    if (title.isEmpty) {
-      setState(() => _titleError = true);
+  Future<void> _addCategoryInline() async {
+    final newId = await showCategoryEditor(context);
+    if (newId != null) setState(() => _selectedCategoryId = newId);
+  }
+
+  Future<void> _save(List<EventCategory> options) async {
+    EventCategory? category;
+    for (final c in options) {
+      if (c.id == _selectedCategoryId) {
+        category = c;
+        break;
+      }
+    }
+    if (category == null) {
+      setState(() => _categoryError = true);
       return;
     }
+
     final memo = _memo.text.trim();
-    final time = _time == null ? null : '${_two(_time!.hour)}:${_two(_time!.minute)}';
+    final time =
+        _time == null ? null : '${_two(_time!.hour)}:${_two(_time!.minute)}';
     final event = CalendarEvent(
-      id: widget.existing?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
+      id: widget.existing?.id ??
+          DateTime.now().microsecondsSinceEpoch.toString(),
       date: eventDateKey(_date),
-      title: title,
+      categoryId: category.id,
+      categoryName: category.name,
+      categoryColor: category.color,
       memo: memo.isEmpty ? null : memo,
       time: time,
       notify: _notify,
@@ -131,6 +166,8 @@ class _EventEditorSheetState extends ConsumerState<_EventEditorSheet> {
     final theme = Theme.of(context);
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     final allDay = _time == null;
+    final categories = ref.watch(categoriesProvider).value ?? const [];
+    final options = _options(categories);
 
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 4, 20, 20 + bottomInset),
@@ -165,21 +202,62 @@ class _EventEditorSheetState extends ConsumerState<_EventEditorSheet> {
               onTap: _pickDate,
             ),
 
-            // 제목 (필수)
-            TextField(
-              controller: _title,
-              autofocus: !_isEditing,
-              textInputAction: TextInputAction.next,
-              decoration: InputDecoration(
-                labelText: '제목',
-                hintText: '일정 제목',
-                errorText: _titleError ? '제목을 입력하세요' : null,
-                prefixIcon: const Icon(Icons.title),
-              ),
-              onChanged: (_) {
-                if (_titleError) setState(() => _titleError = false);
-              },
+            // 카테고리 (필수) - 제목을 직접 입력하지 않고 카테고리를 선택.
+            Row(
+              children: [
+                Text('카테고리', style: theme.textTheme.titleSmall),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: () => openCategoryManager(context),
+                  icon: const Icon(Icons.settings_outlined, size: 16),
+                  label: const Text('관리'),
+                ),
+              ],
             ),
+            if (options.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: OutlinedButton.icon(
+                  onPressed: _addCategoryInline,
+                  icon: const Icon(Icons.add),
+                  label: const Text('카테고리 추가'),
+                ),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  for (final c in options)
+                    ChoiceChip(
+                      label: Text(c.name),
+                      selected: c.id == _selectedCategoryId,
+                      avatar: CircleAvatar(
+                        backgroundColor: Color(c.color),
+                        radius: 8,
+                      ),
+                      onSelected: (_) => setState(() {
+                        _selectedCategoryId = c.id;
+                        _categoryError = false;
+                      }),
+                    ),
+                  ActionChip(
+                    avatar: const Icon(Icons.add, size: 18),
+                    label: const Text('추가'),
+                    onPressed: _addCategoryInline,
+                  ),
+                ],
+              ),
+            if (_categoryError)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '카테고리를 선택하세요',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
+                ),
+              ),
             const SizedBox(height: 12),
 
             // 메모 (선택)
@@ -229,7 +307,7 @@ class _EventEditorSheetState extends ConsumerState<_EventEditorSheet> {
             const SizedBox(height: 12),
 
             FilledButton(
-              onPressed: _save,
+              onPressed: () => _save(options),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Text(_isEditing ? '저장' : '추가'),

@@ -238,7 +238,7 @@ class _MyEventsSection extends ConsumerWidget {
                 e.notify
                     ? Icons.notifications_active_outlined
                     : Icons.event_note_outlined,
-                color: theme.colorScheme.primary,
+                color: Color(e.categoryColor),
               ),
               title: Text(e.title),
               subtitle: Text(

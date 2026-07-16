@@ -104,10 +104,13 @@ class _EventSummary extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 2),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.event_note_outlined,
-                    size: 16,
-                    color: theme.colorScheme.primary,
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(e.categoryColor),
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Text(

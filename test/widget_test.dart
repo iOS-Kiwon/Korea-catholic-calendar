@@ -10,6 +10,7 @@ import 'package:catholic_calendar/features/calendar/presentation/widgets/day_det
 import 'package:catholic_calendar/features/events/application/event_providers.dart';
 import 'package:catholic_calendar/features/events/model/calendar_event.dart';
 import 'package:catholic_calendar/features/events/notifications/notifications.dart';
+import 'package:catholic_calendar/features/events/presentation/category_manager_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -92,7 +93,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('새 일정'), findsOneWidget);
-    expect(find.text('제목'), findsWidgets);
+    // Title is now chosen from categories (seeded defaults), not typed.
+    expect(find.text('카테고리'), findsOneWidget);
+    expect(find.widgetWithText(ChoiceChip, '본당 행사'), findsOneWidget);
   });
 
   testWidgets('day detail lists stored personal events', (tester) async {
@@ -102,7 +105,9 @@ void main() {
           {
             'id': '1',
             'date': '2026-07-16',
-            'title': '성경 공부',
+            'categoryId': 'c1',
+            'categoryName': '성경 공부',
+            'categoryColor': 0xFF2E7D32,
             'time': '19:30',
             'notify': true,
           },
@@ -118,7 +123,7 @@ void main() {
     expect(find.text('성경 공부'), findsOneWidget);
   });
 
-  testWidgets('adding an event via the editor persists and shows it', (
+  testWidgets('adding an event by picking a category persists and shows it', (
     tester,
   ) async {
     final day = LiturgicalCalendar().day(DateTime(2026, 7, 16));
@@ -132,12 +137,33 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, '추가'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField).first, '아침 미사');
+    // Pick a seeded category, then save.
+    await tester.tap(find.widgetWithText(ChoiceChip, '성당 청소'));
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, '추가'));
     await tester.pumpAndSettle();
 
-    // Back on the detail view, the new event is listed.
-    expect(find.text('아침 미사'), findsOneWidget);
+    // Back on the detail view, the new event is listed under its category name.
+    expect(find.text('성당 청소'), findsOneWidget);
     expect(find.text('등록된 일정이 없습니다.'), findsNothing);
+  });
+
+  testWidgets('category manager lists seeded categories and adds a new one', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_wrap(const CategoryManagerPage()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('본당 행사'), findsOneWidget);
+    expect(find.text('연령회'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FloatingActionButton, '카테고리 추가'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).first, '레지오');
+    await tester.tap(find.widgetWithText(FilledButton, '추가'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('레지오'), findsOneWidget);
   });
 }
