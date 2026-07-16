@@ -1,14 +1,17 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/date/year_month.dart';
+import '../../../events/application/event_providers.dart';
+import '../../../events/model/calendar_event.dart';
 import '../../data/calendar_service.dart';
 import 'day_cell.dart';
 
 /// A monthly grid. Weeks start on Sunday; adjacent-month days are shown muted.
 /// [compact] switches between the phone (dot) cells and the wide (named) cells.
-class MonthGrid extends StatelessWidget {
+class MonthGrid extends ConsumerWidget {
   const MonthGrid({
     super.key,
     required this.calendar,
@@ -30,7 +33,8 @@ class MonthGrid extends StatelessWidget {
       a.year == b.year && a.month == b.month && a.day == b.day;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final eventDates = ref.watch(datesWithEventsProvider);
     final first = DateTime(month.year, month.month, 1);
     final leading = first.weekday % 7; // Sunday = 0
     final rows = (leading + month.daysInMonth + 6) ~/ 7;
@@ -42,12 +46,14 @@ class MonthGrid extends StatelessWidget {
       final inMonth = date.month == month.month;
       final isToday = _sameDay(date, today);
       final isSelected = selectedDate != null && _sameDay(date, selectedDate!);
+      final hasEvent = eventDates.contains(eventDateKey(date));
       return compact
           ? CompactDayCell(
               day: day,
               inCurrentMonth: inMonth,
               isToday: isToday,
               isSelected: isSelected,
+              hasEvent: hasEvent,
               onTap: () => onSelectDay(date),
             )
           : DayCell(
@@ -55,6 +61,7 @@ class MonthGrid extends StatelessWidget {
               inCurrentMonth: inMonth,
               isToday: isToday,
               isSelected: isSelected,
+              hasEvent: hasEvent,
               onTap: () => onSelectDay(date),
             );
     }

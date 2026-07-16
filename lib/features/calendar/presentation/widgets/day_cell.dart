@@ -57,6 +57,28 @@ class DayNumber extends StatelessWidget {
   }
 }
 
+/// A small marker shown on days that have a personal event, distinct from the
+/// liturgical color dots (app-primary, at the number's top-right corner).
+class EventDot extends StatelessWidget {
+  const EventDot({super.key, this.size = 7});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: theme.colorScheme.primary,
+        border: Border.all(color: theme.colorScheme.surface, width: 1),
+      ),
+    );
+  }
+}
+
 /// Wide (desktop/web) day cell: colored top bar + date circle + celebration name.
 class DayCell extends StatelessWidget {
   const DayCell({
@@ -66,6 +88,7 @@ class DayCell extends StatelessWidget {
     required this.isToday,
     required this.isSelected,
     required this.onTap,
+    this.hasEvent = false,
   });
 
   final LiturgicalDay day;
@@ -73,6 +96,7 @@ class DayCell extends StatelessWidget {
   final bool isToday;
   final bool isSelected;
   final VoidCallback onTap;
+  final bool hasEvent;
 
   @override
   Widget build(BuildContext context) {
@@ -100,12 +124,19 @@ class DayCell extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    DayNumber(
-                      date: day.date,
-                      inCurrentMonth: inCurrentMonth,
-                      isToday: isToday,
-                      isSelected: isSelected,
-                      size: 28,
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        DayNumber(
+                          date: day.date,
+                          inCurrentMonth: inCurrentMonth,
+                          isToday: isToday,
+                          isSelected: isSelected,
+                          size: 28,
+                        ),
+                        if (hasEvent)
+                          const Positioned(right: 0, top: 0, child: EventDot()),
+                      ],
                     ),
                     if (notable) ...[
                       const SizedBox(height: 2),
@@ -141,6 +172,7 @@ class CompactDayCell extends StatelessWidget {
     required this.isToday,
     required this.isSelected,
     required this.onTap,
+    this.hasEvent = false,
   });
 
   final LiturgicalDay day;
@@ -148,6 +180,7 @@ class CompactDayCell extends StatelessWidget {
   final bool isToday;
   final bool isSelected;
   final VoidCallback onTap;
+  final bool hasEvent;
 
   @override
   Widget build(BuildContext context) {
@@ -161,11 +194,18 @@ class CompactDayCell extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
           const SizedBox(height: 4),
-          DayNumber(
-            date: day.date,
-            inCurrentMonth: inCurrentMonth,
-            isToday: isToday,
-            isSelected: isSelected,
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              DayNumber(
+                date: day.date,
+                inCurrentMonth: inCurrentMonth,
+                isToday: isToday,
+                isSelected: isSelected,
+              ),
+              if (hasEvent)
+                const Positioned(right: 0, top: 0, child: EventDot()),
+            ],
           ),
           const SizedBox(height: 3),
           Container(

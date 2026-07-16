@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:liturgical_calendar/liturgical_calendar.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/theme/liturgical_colors.dart';
+import '../../../events/application/event_providers.dart';
+import '../../../events/model/calendar_event.dart';
+import '../../../events/presentation/event_editor_sheet.dart';
 import 'liturgical_color_badge.dart';
 import 'month_header.dart' show weekdayLabels;
 
@@ -55,16 +59,17 @@ String _weekdayCycleLabel(WeekdayCycle c) =>
 
 /// Reusable content body for a single day's liturgical detail. Presentation-
 /// agnostic: used in a side pane, a full-screen route and a bottom sheet.
-class DayDetailView extends StatelessWidget {
+class DayDetailView extends ConsumerWidget {
   const DayDetailView({super.key, required this.day, this.scrollController});
 
   final LiturgicalDay day;
   final ScrollController? scrollController;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final d = day.date;
+    final events = ref.watch(eventsForDateProvider(d));
     final weekday = weekdayLabels[d.weekday % 7];
     final seasonText = day.seasonWeek != null
         ? '${_seasonLabel(day.season)} 제${day.seasonWeek}주간'
@@ -103,6 +108,8 @@ class DayDetailView extends StatelessWidget {
               _Chip(label: day.specialDay!),
           ],
         ),
+        const Divider(height: 32),
+        _MyEventsSection(date: d, events: events),
         const Divider(height: 32),
         _InfoRow(label: '주일 독서', value: _sundayCycleLabel(day.sundayCycle)),
         _InfoRow(label: '평일 독서', value: _weekdayCycleLabel(day.weekdayCycle)),
@@ -158,6 +165,100 @@ Future<void> _openSourceUrl(String url) async {
   final openedInApp = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
   if (!openedInApp) {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+}
+
+/// "내 일정" section inside the day detail: list + add/edit/delete.
+class _MyEventsSection extends ConsumerWidget {
+  const _MyEventsSection({required this.date, required this.events});
+
+  final DateTime date;
+  final List<CalendarEvent> events;
+
+  Future<void> _confirmDelete(
+    BuildContext context,
+    WidgetRef ref,
+    CalendarEvent event,
+  ) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('일정 삭제'),
+        content: Text("'${event.title}' 일정을 삭제할까요?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await ref.read(eventStoreProvider.notifier).delete(event);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text('내 일정', style: theme.textTheme.titleSmall),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: () => showEventEditor(context, date: date),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('추가'),
+            ),
+          ],
+        ),
+        if (events.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Text(
+              '등록된 일정이 없습니다.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          )
+        else
+          for (final e in events)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              leading: Icon(
+                e.notify
+                    ? Icons.notifications_active_outlined
+                    : Icons.event_note_outlined,
+                color: theme.colorScheme.primary,
+              ),
+              title: Text(e.title),
+              subtitle: Text(
+                [
+                  e.isAllDay ? '종일' : e.time!,
+                  if (e.memo != null && e.memo!.isNotEmpty) e.memo!,
+                ].join(' · '),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.delete_outline),
+                tooltip: '삭제',
+                onPressed: () => _confirmDelete(context, ref, e),
+              ),
+              onTap: () =>
+                  showEventEditor(context, date: date, existing: e),
+            ),
+      ],
+    );
   }
 }
 
