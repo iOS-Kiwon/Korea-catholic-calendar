@@ -1,0 +1,15 @@
+{
+  "name": "catholic-calendar-cache",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "CBCK 전례력 캐시 게이트웨이 (Cloudflare Worker)",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^3.90.0"
+  }
+}
