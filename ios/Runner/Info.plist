@@ -26,6 +26,17 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.sidore.catholiccalendar</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>catholiccalendar</string>
+			</array>
+		</dict>
+	</array>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-5980133283002959~9692360017</string>
 	<key>LSRequiresIPhoneOS</key>

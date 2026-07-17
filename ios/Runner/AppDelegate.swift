@@ -1,12 +1,14 @@
 import Flutter
 import UIKit
 import UserNotifications
+import WidgetKit
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private var settingsChannel: FlutterMethodChannel?
   private var personalBackupChannel: FlutterMethodChannel?
   private let personalBackupKey = "personalDataSnapshotV1"
+  private var widgetSnapshotChannel: FlutterMethodChannel?
 
   override func application(
     _ application: UIApplication,
@@ -22,6 +24,7 @@ import UserNotifications
     let messenger = engineBridge.applicationRegistrar.messenger()
     registerSettingsChannel(messenger: messenger)
     registerPersonalBackupChannel(messenger: messenger)
+    registerWidgetSnapshotChannel(messenger: messenger)
   }
 
   private func registerSettingsChannel(messenger: FlutterBinaryMessenger) {
@@ -85,6 +88,29 @@ import UserNotifications
       default:
         result(FlutterMethodNotImplemented)
       }
+    }
+  }
+  private func registerWidgetSnapshotChannel(messenger: FlutterBinaryMessenger) {
+    widgetSnapshotChannel = FlutterMethodChannel(
+      name: "com.sidore.catholiccalendar/widget_snapshot",
+      binaryMessenger: messenger
+    )
+    widgetSnapshotChannel?.setMethodCallHandler { call, result in
+      guard call.method == "sync" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      guard let payload = call.arguments as? String else {
+        result(FlutterError(code: "invalid_payload", message: "Expected JSON string", details: nil))
+        return
+      }
+      let defaults = UserDefaults(suiteName: "group.com.sidore.catholiccalendar")
+      defaults?.set(payload, forKey: "widget_snapshot")
+      defaults?.synchronize()
+      if #available(iOS 14.0, *) {
+        WidgetCenter.shared.reloadTimelines(ofKind: "TodayWidget")
+      }
+      result(nil)
     }
   }
 }
