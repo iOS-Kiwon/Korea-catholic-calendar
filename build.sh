@@ -154,33 +154,26 @@ write_release_version() {
   perl -0pi -e "s/^appVersion=.*\$/appVersion=$app_version/m; s/^buildNumber=.*\$/buildNumber=$build_number/m" "$file"
 }
 
-version_lt() {
+version_code() {
   local IFS=.
-  local -a left right
-  read -r -a left <<< "$1"
-  read -r -a right <<< "$2"
-
-  for i in 0 1 2; do
-    local a="${left[$i]:-0}"
-    local b="${right[$i]:-0}"
-    if ((10#$a < 10#$b)); then return 0; fi
-    if ((10#$a > 10#$b)); then return 1; fi
-  done
-  return 1
+  local -a parts
+  read -r -a parts <<< "$1"
+  printf "%d\n" $((10#${parts[0]} * 1000000 + 10#${parts[1]} * 1000 + 10#${parts[2]}))
 }
 
 prompt_release_version() {
-  local platform file current current_name current_number next_name next_number same_answer
+  local platform file current current_name current_number current_code next_name next_number next_code same_answer
   platform="$1"
   file="$2"
   current="$(read_release_version "$file")"
   current_name="${current%%+*}"
   current_number="${current#*+}"
+  current_code="$(version_code "$current_name")"
 
   while true; do
     printf "%s 앱 버전 입력 (현재 %s, 예: 1.2.3): " "$platform" "$current_name"
     read -r next_name
-    printf "%s 빌드번호 입력 (현재 %s, 예: 42): " "$platform" "$current_number"
+    printf "%s 빌드번호 입력 (현재 %s, 앱 버전 올림 시 0부터 가능, 예: 42): " "$platform" "$current_number"
     read -r next_number
 
     if [[ ! "$next_name" =~ ^[0-9]+(\.[0-9]+){2}$ ]]; then
@@ -191,11 +184,12 @@ prompt_release_version() {
       warn "$platform 빌드번호는 0 이상의 정수여야 합니다."
       continue
     fi
-    if version_lt "$next_name" "$current_name"; then
+    next_code="$(version_code "$next_name")"
+    if ((next_code < current_code)); then
       warn "입력한 $platform 앱 버전($next_name)이 현재 버전($current_name)보다 낮습니다. 다시 입력하세요."
       continue
     fi
-    if ((10#$next_number < 10#$current_number)); then
+    if ((next_code == current_code && 10#$next_number < 10#$current_number)); then
       warn "입력한 $platform 빌드번호($next_number)가 현재 빌드번호($current_number)보다 낮습니다. 다시 입력하세요."
       continue
     fi

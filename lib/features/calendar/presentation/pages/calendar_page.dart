@@ -6,6 +6,7 @@ import '../../../../app/theme/liturgical_colors.dart';
 import '../../../../core/date/year_month.dart';
 import '../../../ads/ads.dart';
 import '../../../events/presentation/event_editor_sheet.dart';
+import '../../../support/presentation/support_sheet.dart';
 import '../../application/calendar_providers.dart';
 import '../../data/calendar_service.dart';
 import '../season_style.dart';
@@ -156,6 +157,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
 
   DayInfoBar _infoBar(CalendarService s, {required bool compact}) => DayInfoBar(
     day: s.day(_focusDate),
+    onSupportTap: () => showSupportSheet(context),
     onTapDetail: () =>
         compact ? _openDetailSheet(s, _focusDate) : _openDetail(s, _focusDate),
   );
@@ -214,11 +216,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                           ],
                         ),
                       ),
-                      Positioned(
-                        right: 28,
-                        bottom: 20,
-                        child: _addEventFab(s),
-                      ),
+                      Positioned(right: 28, bottom: 20, child: _addEventFab(s)),
                     ],
                   ),
                 ),

@@ -12,10 +12,16 @@ const _maxEventRows = 2;
 
 /// 달력 하단 고정 정보영역: 얇은 구분선 + 날짜 + 기념/전례명 + 그날의 내 일정 요약.
 class DayInfoBar extends ConsumerWidget {
-  const DayInfoBar({super.key, required this.day, required this.onTapDetail});
+  const DayInfoBar({
+    super.key,
+    required this.day,
+    required this.onTapDetail,
+    this.onSupportTap,
+  });
 
   final LiturgicalDay day;
   final VoidCallback onTapDetail; // 축일/일정 영역 탭 → 상세
+  final VoidCallback? onSupportTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -23,6 +29,10 @@ class DayInfoBar extends ConsumerWidget {
     final d = day.date;
     final weekday = _weekdayFull[d.weekday % 7];
     final events = ref.watch(eventsForDateProvider(d));
+    final showSupportInvite =
+        onSupportTap != null &&
+        (day.celebration.rank == Rank.solemnity ||
+            day.celebration.rank == Rank.feastOfTheLord);
     final memorials = [
       _MemorialLine(title: day.title, color: day.color),
       for (final m in day.optionalMemorials)
@@ -43,6 +53,10 @@ class DayInfoBar extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (showSupportInvite) ...[
+                _SupportInviteRow(onTap: onSupportTap!),
+                const SizedBox(height: 10),
+              ],
               Text(
                 '${d.month}월 ${d.day}일 $weekday요일',
                 style: theme.textTheme.titleMedium?.copyWith(
@@ -95,10 +109,7 @@ class _EventSummary extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Divider(
-            height: 12,
-            color: theme.dividerColor.withValues(alpha: 0.3),
-          ),
+          Divider(height: 12, color: theme.dividerColor.withValues(alpha: 0.3)),
           for (final e in shown)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
@@ -142,6 +153,52 @@ class _EventSummary extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _SupportInviteRow extends StatelessWidget {
+  const _SupportInviteRow({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.primaryContainer.withValues(alpha: 0.55),
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '오늘의 기쁨을 나눠요',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onPrimaryContainer,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Tooltip(
+                message: '나눔으로 응원하기',
+                child: IconButton(
+                  onPressed: onTap,
+                  icon: const Icon(Icons.favorite_border),
+                  color: theme.colorScheme.primary,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -60,6 +60,7 @@ class MonthHeader extends StatelessWidget {
                   ),
                 ),
               ),
+              const SizedBox(width: 6),
               _chevron('›', onColor, onNextMonth, '다음 달'),
             ],
           ),
