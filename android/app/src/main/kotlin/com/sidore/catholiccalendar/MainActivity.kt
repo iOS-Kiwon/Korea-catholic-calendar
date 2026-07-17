@@ -66,10 +66,15 @@ class MainActivity : FlutterActivity() {
             .apply()
 
         val manager = AppWidgetManager.getInstance(this)
-        val component = ComponentName(this, TodayWidgetProvider::class.java)
-        val ids = manager.getAppWidgetIds(component)
-        if (ids.isNotEmpty()) {
-            TodayWidgetProvider.updateWidgets(this, manager, ids)
+        val components = listOf(
+            ComponentName(this, TodayWidgetTwoByTwoProvider::class.java),
+            ComponentName(this, TodayWidgetFourByFourProvider::class.java)
+        )
+        for (component in components) {
+            val ids = manager.getAppWidgetIds(component)
+            if (ids.isNotEmpty()) {
+                TodayWidgetProvider.updateWidgets(this, manager, ids)
+            }
         }
     }
 }

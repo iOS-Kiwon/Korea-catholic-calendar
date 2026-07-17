@@ -2,5 +2,9 @@
 <resources>
     <string name="app_name">가톨릭 달력</string>
     <string name="today_widget_name">오늘의 전례</string>
+    <string name="today_widget_2x2_name">오늘의 전례 2x2</string>
+    <string name="today_widget_4x4_name">월간 전례력 4x4</string>
     <string name="today_widget_description">오늘 날짜와 가톨릭 달력 바로가기를 보여줍니다.</string>
+    <string name="today_widget_2x2_description">오늘 날짜, 전례력, 개인일정을 보여줍니다.</string>
+    <string name="today_widget_4x4_description">이번 달 전례력 달력을 보여줍니다.</string>
 </resources>

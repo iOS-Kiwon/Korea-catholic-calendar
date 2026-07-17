@@ -101,7 +101,7 @@ struct SmallTodayWidgetView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 5) {
             Text(today.dateLabel)
                 .font(.system(size: 21, weight: .bold))
                 .foregroundStyle(.primary)
@@ -125,8 +125,8 @@ struct SmallTodayWidgetView: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 5)
     }
 }
 
@@ -137,10 +137,11 @@ struct MonthWidgetView: View {
     let month: MonthSnapshot
 
     var body: some View {
-        VStack(spacing: 5) {
+        VStack(spacing: 2) {
             Text(month.title)
                 .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(.primary)
+                .frame(height: 21)
                 .frame(maxWidth: .infinity)
 
             LazyVGrid(columns: columns, spacing: 0) {
@@ -148,7 +149,7 @@ struct MonthWidgetView: View {
                     Text(weekday)
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(.secondary)
-                        .frame(height: 18)
+                        .frame(height: 15)
                 }
             }
 
@@ -158,9 +159,9 @@ struct MonthWidgetView: View {
                 }
             }
         }
-        .padding(.horizontal, 9)
-        .padding(.top, 10)
-        .padding(.bottom, 8)
+        .padding(.horizontal, 3)
+        .padding(.top, 4)
+        .padding(.bottom, 3)
     }
 }
 
@@ -189,9 +190,9 @@ struct MonthDayCell: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity, minHeight: 19, alignment: .top)
         }
-        .padding(.horizontal, 1)
-        .padding(.top, 2)
-        .frame(height: 42, alignment: .top)
+        .padding(.horizontal, 0.5)
+        .padding(.top, 1)
+        .frame(height: 43, alignment: .top)
         .background(day.isToday ? Color(red: 1.0, green: 0.88, blue: 0.66) : .clear)
     }
 
@@ -215,6 +216,7 @@ struct TodayWidget: Widget {
         .configurationDisplayName("가톨릭 달력")
         .description("오늘의 전례와 이번 달 달력을 보여줍니다.")
         .supportedFamilies([.systemSmall, .systemLarge])
+        .contentMarginsDisabled()
     }
 }
 

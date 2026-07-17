@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import org.json.JSONArray
@@ -15,7 +16,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class TodayWidgetProvider : AppWidgetProvider() {
+open class TodayWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -59,27 +60,33 @@ class TodayWidgetProvider : AppWidgetProvider() {
             val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
             val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
             val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT)
-            val large = minWidth >= 250 && minHeight >= 250
+            val mode = widgetMode(minWidth, minHeight)
 
-            val views = if (large) {
-                buildLargeViews(context, snapshot)
-            } else {
-                buildSmallViews(context, snapshot)
+            val views = when (mode) {
+                WidgetMode.Tiny -> buildSmallViews(context, snapshot, mode)
+                WidgetMode.WideShort -> buildSmallViews(context, snapshot, mode)
+                WidgetMode.Compact -> buildSmallViews(context, snapshot, mode)
+                WidgetMode.Calendar -> buildLargeViews(context, snapshot)
             }
 
             views.setOnClickPendingIntent(R.id.today_widget_root, openAppIntent(context))
             return views
         }
 
-        private fun buildSmallViews(context: Context, snapshot: JSONObject): RemoteViews {
+        private fun buildSmallViews(
+            context: Context,
+            snapshot: JSONObject,
+            mode: WidgetMode
+        ): RemoteViews {
             val today = snapshot.optJSONObject("today") ?: JSONObject()
             val views = RemoteViews(context.packageName, R.layout.today_widget_small)
             val eventTitle = today.optString("eventTitle")
             val extraCount = today.optInt("extraEventCount")
 
+            applySmallMode(context, views, mode)
             views.setTextViewText(
                 R.id.today_widget_date,
-                today.optString("dateLabel", fallbackDateLabel())
+                dateLabelForMode(today.optString("dateLabel", fallbackDateLabel()), mode)
             )
             views.setTextViewText(
                 R.id.today_widget_liturgy,
@@ -89,7 +96,7 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 R.id.today_widget_liturgy,
                 liturgicalColor(today.optString("liturgicalColor"))
             )
-            if (eventTitle.isBlank()) {
+            if (eventTitle.isBlank() || mode == WidgetMode.Tiny) {
                 views.setViewVisibility(R.id.today_widget_event, View.GONE)
             } else {
                 views.setViewVisibility(R.id.today_widget_event, View.VISIBLE)
@@ -99,6 +106,47 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 )
             }
             return views
+        }
+
+        private fun applySmallMode(context: Context, views: RemoteViews, mode: WidgetMode) {
+            when (mode) {
+                WidgetMode.Tiny -> {
+                    views.setTextViewTextSize(R.id.today_widget_date, TypedValue.COMPLEX_UNIT_SP, 18f)
+                    views.setTextViewTextSize(R.id.today_widget_liturgy, TypedValue.COMPLEX_UNIT_SP, 12f)
+                    views.setViewPadding(
+                        R.id.today_widget_root,
+                        dp(context, 4),
+                        dp(context, 4),
+                        dp(context, 4),
+                        dp(context, 4)
+                    )
+                }
+                WidgetMode.WideShort -> {
+                    views.setTextViewTextSize(R.id.today_widget_date, TypedValue.COMPLEX_UNIT_SP, 19f)
+                    views.setTextViewTextSize(R.id.today_widget_liturgy, TypedValue.COMPLEX_UNIT_SP, 13f)
+                    views.setTextViewTextSize(R.id.today_widget_event, TypedValue.COMPLEX_UNIT_SP, 12f)
+                    views.setViewPadding(
+                        R.id.today_widget_root,
+                        dp(context, 6),
+                        dp(context, 5),
+                        dp(context, 6),
+                        dp(context, 5)
+                    )
+                }
+                WidgetMode.Compact -> {
+                    views.setTextViewTextSize(R.id.today_widget_date, TypedValue.COMPLEX_UNIT_SP, 24f)
+                    views.setTextViewTextSize(R.id.today_widget_liturgy, TypedValue.COMPLEX_UNIT_SP, 15f)
+                    views.setTextViewTextSize(R.id.today_widget_event, TypedValue.COMPLEX_UNIT_SP, 13f)
+                    views.setViewPadding(
+                        R.id.today_widget_root,
+                        dp(context, 6),
+                        dp(context, 6),
+                        dp(context, 6),
+                        dp(context, 6)
+                    )
+                }
+                WidgetMode.Calendar -> Unit
+            }
         }
 
         private fun buildLargeViews(context: Context, snapshot: JSONObject): RemoteViews {
@@ -178,6 +226,19 @@ class TodayWidgetProvider : AppWidgetProvider() {
         private fun fallbackDateLabel(): String =
             SimpleDateFormat("M/d EEEE", Locale.KOREAN).format(Date())
 
+        private fun dateLabelForMode(dateLabel: String, mode: WidgetMode): String =
+            if (mode == WidgetMode.Tiny) dateLabel.substringBefore(' ') else dateLabel
+
+        private fun dp(context: Context, value: Int): Int =
+            (value * context.resources.displayMetrics.density).toInt()
+
+        private fun widgetMode(minWidth: Int, minHeight: Int): WidgetMode {
+            if (minWidth >= 250 && minHeight >= 250) return WidgetMode.Calendar
+            if (minWidth >= 110 && minHeight >= 110) return WidgetMode.Compact
+            if (minWidth >= 110) return WidgetMode.WideShort
+            return WidgetMode.Tiny
+        }
+
         private fun dayNumberColor(weekday: Int, inMonth: Boolean, isToday: Boolean): Int {
             if (isToday) return Color.rgb(218, 72, 28)
             if (!inMonth) return Color.rgb(178, 172, 185)
@@ -195,5 +256,12 @@ class TodayWidgetProvider : AppWidgetProvider() {
                 "black" -> Color.rgb(29, 27, 32)
                 else -> Color.rgb(46, 125, 50)
             }
+
+        private enum class WidgetMode {
+            Tiny,
+            WideShort,
+            Compact,
+            Calendar
+        }
     }
 }
