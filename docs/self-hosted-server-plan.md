@@ -141,9 +141,25 @@ Cloudflare Tunnel
 
 ## 앱 API 초안
 
+공개 API 기본 경로:
+
+```text
+https://api.sidore.org/kcc/v1/{service}
+```
+
+- `kcc`: Korea Catholic Calendar 서비스 식별자
+- `v1`: API 버전. 응답 구조나 인증 방식이 깨지는 변경이 생기면 `v2`를 새로 둔다.
+- `{service}`: API 성격별 서비스 이름
+
+서비스 이름 초안:
+
+- `/calendar`: 전례력/달력 공용 데이터
+- `/health`: 서버 상태 확인
+- `/user`: 향후 예약. 사용자 개인 일정/메모 저장용으로는 사용하지 않는다.
+
 전례력:
 
-- `GET /v1/calendar/:year/:month`
+- `GET /kcc/v1/calendar/:year/:month`
   - 자체 DB에 있으면 `source: "server-db"`
   - Cloudflare Worker에서 가져와 저장했으면 `source: "cloudflare"`
   - 미발행/실패 시 `available:false`
@@ -153,6 +169,7 @@ Cloudflare Tunnel
 - 자체 서버에는 만들지 않는다.
 - 앱 내부에서 iCloud/Google 계정의 앱 전용 저장소와 동기화한다.
 - 서버 API에는 사용자 일정/메모/카테고리 업로드 엔드포인트를 두지 않는다.
+- `/kcc/v1/user` 계열은 향후 앱 계정/설정 같은 비개인 일정 기능이 필요할 때까지 예약만 해둔다.
 
 이 구조를 유지하면 자체 서버가 사용자 개인 일정/메모의 보관자가 되지 않는다. 개인정보 처리 범위와
 보안 책임이 줄어들고, 관리자 페이지에서도 사용자 개인 데이터를 다루지 않게 된다.
@@ -364,8 +381,8 @@ Google 계정의 앱 전용 저장소다.
 
 - Mac mini에 Docker Compose 기반 서버 구성
 - PostgreSQL 추가
-- `GET /health` 구현
-- `GET /v1/calendar/:year/:month` 구현
+- `GET /kcc/v1/health` 구현
+- `GET /kcc/v1/calendar/:year/:month` 구현
 - DB miss 시 기존 Cloudflare Worker로 조회 후 DB 저장
 
 ### 2단계: 관리자 페이지 MVP

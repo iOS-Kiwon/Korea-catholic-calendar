@@ -6,6 +6,7 @@ const appEnv = process.env.APP_ENV || 'development';
 const workerBaseUrl =
   process.env.CLOUDFLARE_WORKER_BASE_URL ||
   'https://catholic-calendar.sidore.workers.dev';
+const apiPrefix = '/kcc/v1';
 
 const startedAt = new Date();
 
@@ -32,7 +33,7 @@ function calendarUrl(year, month) {
 }
 
 function parseCalendarPath(pathname) {
-  const match = pathname.match(/^\/v1\/calendar\/(\d{4})\/(\d{1,2})$/);
+  const match = pathname.match(/^\/kcc\/v1\/calendar\/(\d{4})\/(\d{1,2})$/);
   if (!match) return null;
   const year = Number(match[1]);
   const month = Number(match[2]);
@@ -83,11 +84,15 @@ async function handleRequest(req, res) {
     return;
   }
 
-  if (url.pathname === '/health' && req.method === 'GET') {
+  if (
+    (url.pathname === `${apiPrefix}/health` || url.pathname === '/health') &&
+    req.method === 'GET'
+  ) {
     sendJson(res, 200, {
       ok: true,
       service: 'catholic-calendar-server-app',
       env: appEnv,
+      apiPrefix,
       startedAt: startedAt.toISOString(),
       uptimeSeconds: Math.floor(process.uptime()),
     });
