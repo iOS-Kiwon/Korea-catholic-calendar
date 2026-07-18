@@ -30,6 +30,36 @@ ANDROID_AVD=Medium_Phone_API_36.1 ./run.sh android simulator # 특정 Android AV
 모든 모바일 빌드는 광고 ON(`ADS_ENABLED=true`)입니다. debug/profile 실행은 AdMob 정책에
 맞춰 Google 테스트 광고 단위를 사용하고, release 빌드만 실 광고 단위를 사용합니다.
 
+### 원격 API 주소 전환
+
+앱은 기본적으로 자체 서버 API를 사용합니다.
+
+```text
+https://api.sidore.org/kcc/v1
+```
+
+로컬 Mac mini API 서버나 개발 서버로 바꿔 테스트하려면 `KCC_API_BASE_URL`을
+`--dart-define`으로 주입합니다.
+
+```bash
+flutter run \
+  --dart-define=KCC_API_BASE_URL=http://127.0.0.1:18080/kcc/v1
+```
+
+실제 기기에서 Mac mini의 로컬 서버를 볼 때는 `127.0.0.1` 대신 Mac mini의 LAN IP를 사용합니다.
+
+```bash
+flutter run \
+  --dart-define=KCC_API_BASE_URL=http://192.168.0.10:18080/kcc/v1
+```
+
+운영 API를 명시적으로 지정하려면:
+
+```bash
+flutter run \
+  --dart-define=KCC_API_BASE_URL=https://api.sidore.org/kcc/v1
+```
+
 출시 빌드는 `release` 옵션을 붙입니다. 앱 버전과 빌드번호를 입력하면
 플랫폼별 버전 파일을 갱신한 뒤 심사용 산출물을 빌드합니다.
 Android와 iOS는 서로 다른 버전을 사용할 수 있습니다.

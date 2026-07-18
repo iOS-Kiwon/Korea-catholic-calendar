@@ -10,7 +10,7 @@ final calendarDataRepositoryProvider = Provider<CalendarDataRepository>(
   (ref) => const CalendarDataRepository(),
 );
 
-/// The caching gateway client (Cloudflare Worker).
+/// The self-hosted KCC API client.
 final remoteCalendarSourceProvider = Provider<RemoteCalendarSource>(
   (ref) => const RemoteCalendarSource(),
 );
