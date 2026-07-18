@@ -139,6 +139,8 @@ replay_pid*
 
 # Self-hosted server local configuration
 ops/.env
+ops/launchd/*.plist
+!ops/launchd/*.plist.example
 backups/
 
 ### macOS ###
