@@ -8,7 +8,7 @@ services:
       - db
     restart: unless-stopped
     ports:
-      - "127.0.0.1:${API_PORT:-8080}:8080"
+      - "127.0.0.1:${HOST_API_PORT:-8080}:${API_PORT:-8080}"
 
   db:
     image: postgres:16-alpine
