@@ -1,0 +1,13 @@
+{
+  "name": "catholic-calendar-server-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mac mini self-hosted API server for Catholic Calendar",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

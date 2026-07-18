@@ -7,9 +7,33 @@
 이 문서는 서버 지식이 많지 않아도 Mac mini에서 자체 서버와 백오피스 웹사이트를 빌드, 설정, 실행,
 재시작, 자동 기동할 수 있도록 하기 위한 운영 가이드 초안이다.
 
-현재 저장소에는 Flutter 앱과 Cloudflare Worker 캐시 게이트웨이는 있으나, Mac mini에서 구동할 자체
-서버와 백오피스 코드는 아직 없다. 따라서 이 문서는 앞으로 구현할 서버/백오피스의 권장 구조와
-자동화 스크립트 기준을 먼저 정한다.
+현재 저장소에는 Flutter 앱, Cloudflare Worker 캐시 게이트웨이, Mac mini에서 구동할 자체 API 서버
+뼈대가 있다. 백오피스 코드는 아직 없으므로, 이 문서는 현재 구현된 API 서버 운영 방법과 앞으로
+추가할 백오피스/DB 캐시의 권장 구조를 함께 정리한다.
+
+## 현재 구현 상태
+
+1단계 구현으로 Mac mini용 자체 API 서버 뼈대와 운영 스크립트가 추가되었다.
+
+현재 포함된 것:
+
+- `server-app/`: Node.js 기반 자체 API 서버
+- `GET /health`: 서버 상태 확인
+- `GET /v1/calendar/:year/:month`: 기존 Cloudflare Worker로 전례력 조회 프록시
+- `ops/docker-compose.yml`: API 서버와 PostgreSQL 컨테이너 구성
+- `ops/.env.example`: 운영 설정 예시
+- `scripts/server-*.sh`: 빌드, 시작, 중지, 재시작, 상태 확인, 로그, 백업 스크립트
+
+아직 포함되지 않은 것:
+
+- 백오피스 웹사이트
+- 자체 DB 전례력 캐시 저장/조회
+- 관리자 로그인/권한
+- Cloudflare Tunnel 실제 설정
+- launchd 실제 설치 파일
+
+현재 단계에서는 API 서버가 DB를 사용하지 않고 Cloudflare Worker 프록시 역할만 한다. DB 캐시와
+백오피스는 다음 단계에서 붙인다.
 
 ## 전제
 
@@ -106,7 +130,7 @@ BACKUP_DIR=/var/backups/catholic-calendar
 
 ## Docker Compose 구성 초안
 
-아래는 향후 `ops/docker-compose.yml`에 둘 수 있는 구조 예시다.
+최종적으로는 아래처럼 `api`, `backoffice`, `db`를 함께 운영하는 구조를 목표로 한다.
 
 ```yaml
 services:
@@ -143,6 +167,9 @@ services:
 volumes:
   postgres-data:
 ```
+
+현재 `ops/docker-compose.yml`에는 1단계 범위에 맞춰 `api`와 `db`만 들어 있다. 백오피스가 구현되면
+`backoffice` 서비스를 추가한다.
 
 중요한 점:
 
@@ -182,6 +209,8 @@ test -f ops/.env || {
 docker compose -f ops/docker-compose.yml --env-file ops/.env build
 ```
 
+현재 저장소에는 이 흐름을 실행하는 `scripts/server-build.sh`가 추가되어 있다.
+
 ## 서버 구동/실행
 
 예상 명령:
@@ -210,6 +239,8 @@ docker compose -f ops/docker-compose.yml ps
 curl -fsS http://127.0.0.1:8080/health
 ```
 
+현재 저장소에는 이 흐름을 실행하는 `scripts/server-start.sh`가 추가되어 있다.
+
 ## 서버 중지
 
 예상 명령:
@@ -227,6 +258,8 @@ cd "$(dirname "$0")/.."
 
 docker compose -f ops/docker-compose.yml --env-file ops/.env down
 ```
+
+현재 저장소에는 이 흐름을 실행하는 `scripts/server-stop.sh`가 추가되어 있다.
 
 주의:
 
@@ -252,6 +285,8 @@ docker compose -f ops/docker-compose.yml --env-file ops/.env up -d --build
 docker compose -f ops/docker-compose.yml ps
 curl -fsS http://127.0.0.1:8080/health
 ```
+
+현재 저장소에는 이 흐름을 실행하는 `scripts/server-restart.sh`가 추가되어 있다.
 
 ## 상태 확인
 
@@ -281,6 +316,8 @@ curl -fsS http://127.0.0.1:8080/health
 df -h
 ```
 
+현재 저장소에는 이 흐름을 실행하는 `scripts/server-status.sh`가 추가되어 있다.
+
 ## 로그 확인
 
 예상 명령:
@@ -302,6 +339,8 @@ cd "$(dirname "$0")/.."
 SERVICE="${1:-}"
 docker compose -f ops/docker-compose.yml logs -f --tail=200 $SERVICE
 ```
+
+현재 저장소에는 이 흐름을 실행하는 `scripts/server-logs.sh`가 추가되어 있다.
 
 ## Mac mini 재부팅 후 자동 실행
 
@@ -475,10 +514,31 @@ docker compose -f ops/docker-compose.yml exec -T db \
 
 보완할 점:
 
-- 실제 구현에서는 `ops/.env`를 읽어 `POSTGRES_USER`, `POSTGRES_DB`를 가져온다.
+- 현재 `scripts/server-backup.sh`는 `ops/.env`를 읽어 `POSTGRES_USER`, `POSTGRES_DB`를 가져온다.
 - 백업 파일은 암호화한다.
 - Mac mini 내부 디스크 외부에도 복사한다.
 - 복구 테스트를 정기적으로 한다.
+
+## 1단계 검증 기록
+
+개발 환경에는 Docker가 설치되어 있지 않아 Docker Compose 실행까지는 검증하지 못했다.
+
+검증한 것:
+
+- shell 스크립트 문법 검사: `bash -n scripts/server-*.sh`
+- API 서버 JS 문법 검사: `node --check server-app/src/index.js`
+- API 서버 로컬 기동
+- `GET /health` 응답 확인
+- `GET /v1/calendar/2026/7`이 Cloudflare Worker 응답을 프록시하는 것 확인
+
+Mac mini에서 추가로 확인해야 할 것:
+
+- Docker 설치 및 실행
+- `cp ops/.env.example ops/.env`
+- `./scripts/server-build.sh`
+- `./scripts/server-start.sh`
+- `./scripts/server-status.sh`
+- `./scripts/server-backup.sh`
 
 ## 배포/업데이트 절차
 

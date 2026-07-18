@@ -137,6 +137,10 @@ coverage/
 hs_err_pid*
 replay_pid*
 
+# Self-hosted server local configuration
+ops/.env
+backups/
+
 ### macOS ###
 # General
 .DS_Store
