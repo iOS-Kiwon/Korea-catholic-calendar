@@ -147,6 +147,12 @@ Cloudflare Tunnel
 https://api.sidore.org/kcc/v1/{service}
 ```
 
+백오피스 기본 경로:
+
+```text
+https://admin.sidore.org/kcc
+```
+
 - `kcc`: Korea Catholic Calendar 서비스 식별자
 - `v1`: API 버전. 응답 구조나 인증 방식이 깨지는 변경이 생기면 `v2`를 새로 둔다.
 - `{service}`: API 성격별 서비스 이름

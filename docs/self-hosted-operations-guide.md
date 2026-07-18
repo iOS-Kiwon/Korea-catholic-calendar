@@ -108,7 +108,7 @@ APP_ENV=production
 API_PORT=8080
 BACKOFFICE_PORT=3000
 PUBLIC_API_BASE_URL=https://api.sidore.org/kcc/v1
-BACKOFFICE_BASE_URL=https://admin.example.com
+BACKOFFICE_BASE_URL=https://admin.sidore.org/kcc
 
 POSTGRES_DB=catholic_calendar
 POSTGRES_USER=catholic_calendar
@@ -458,7 +458,7 @@ wait_for_docker
 백오피스 설정 예시:
 
 ```bash
-BACKOFFICE_BASE_URL=https://admin.example.com
+BACKOFFICE_BASE_URL=https://admin.sidore.org/kcc
 BACKOFFICE_PORT=3000
 API_INTERNAL_BASE_URL=http://api:8080
 ADMIN_SESSION_SECRET=change-this-long-random-secret
@@ -477,14 +477,15 @@ ADMIN_SESSION_SECRET=change-this-long-random-secret
 
 ```text
 api.sidore.org      -> http://127.0.0.1:8080
-admin.example.com   -> http://127.0.0.1:3000
+admin.sidore.org    -> http://127.0.0.1:3000
 ```
 
 권장 정책:
 
-- `admin.example.com`은 Cloudflare Access로 보호
+- `admin.sidore.org/kcc`는 Cloudflare Access로 보호
 - `api.sidore.org`는 공개하되 Rate Limit 적용
 - 관리자 페이지와 API 서버를 같은 origin에 섞지 않는다.
+- 백오피스 앱은 `/kcc` base path에서 동작하도록 빌드/라우팅 설정을 둔다.
 
 Cloudflare Tunnel 자체도 Mac mini 재부팅 후 자동 실행되어야 한다. `cloudflared service install` 또는
 launchd 기반 자동 시작을 사용한다.
