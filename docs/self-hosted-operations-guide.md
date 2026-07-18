@@ -492,6 +492,129 @@ admin.sidore.org    -> http://127.0.0.1:3000
 Cloudflare Tunnel 자체도 Mac mini 재부팅 후 자동 실행되어야 한다. `cloudflared service install` 또는
 launchd 기반 자동 시작을 사용한다.
 
+### 실제 적용된 KCC API Tunnel 설정
+
+Mac mini에서는 기존 `wishingnote` 터널에 `api.sidore.org` ingress를 추가했다. 설정 파일 위치:
+
+```bash
+/etc/cloudflared/config.yml
+```
+
+KCC API에 필요한 ingress 항목:
+
+```yaml
+ingress:
+  # KCC API
+- hostname: api.sidore.org
+  service: http://localhost:18080
+
+  # 기존 서비스들...
+
+  # 기본 fallback
+- service: http_status:404
+```
+
+주의:
+
+- `api.sidore.org` 항목은 반드시 fallback인 `http_status:404`보다 위에 있어야 한다.
+- `api.sidore.org`의 Cloudflare DNS는 Tunnel 대상 `wishingnote`로 연결한다.
+- Cloudflare UI에서 `api.sidore.org`가 타입 `터널`, 대상 `wishingnote`, 프록시됨으로 보이면 정상이다.
+- `cloudflared tunnel route dns wishingnote api.sidore.org`가 현재 계정의 다른 zone 아래에
+  `api.sidore.org.wishingnote.net` 같은 레코드를 만들 수 있으므로, `sidore.org` zone에서는
+  Cloudflare Dashboard에서 직접 Tunnel DNS를 확인하는 편이 안전하다.
+
+설정 문법 확인:
+
+```bash
+cloudflared tunnel --config /etc/cloudflared/config.yml ingress validate
+```
+
+### cloudflared LaunchDaemon 설정
+
+`sudo cloudflared service install`만 실행하면 macOS LaunchDaemon의 `ProgramArguments`가
+`/opt/homebrew/bin/cloudflared` 하나만 들어갈 수 있다. 이 상태에서는 터널 이름을 몰라 다음 로그를
+반복하며 실행에 실패한다.
+
+```text
+Use `cloudflared tunnel run` to start tunnel wishingnote
+```
+
+`/Library/LaunchDaemons/com.cloudflare.cloudflared.plist`의 `ProgramArguments`는 다음처럼 터널 실행
+인자를 명시해야 한다.
+
+```xml
+<key>ProgramArguments</key>
+<array>
+  <string>/opt/homebrew/bin/cloudflared</string>
+  <string>tunnel</string>
+  <string>--config</string>
+  <string>/etc/cloudflared/config.yml</string>
+  <string>run</string>
+  <string>wishingnote</string>
+</array>
+```
+
+plist 수정 후 권한은 root daemon 규칙에 맞춘다.
+
+```bash
+sudo chown root:wheel /Library/LaunchDaemons/com.cloudflare.cloudflared.plist
+sudo chmod 644 /Library/LaunchDaemons/com.cloudflare.cloudflared.plist
+plutil -lint /Library/LaunchDaemons/com.cloudflare.cloudflared.plist
+```
+
+최신 macOS에서는 `launchctl load`보다 `bootstrap/kickstart`를 사용한다.
+
+```bash
+sudo launchctl bootout system /Library/LaunchDaemons/com.cloudflare.cloudflared.plist 2>/dev/null || true
+sudo launchctl bootstrap system /Library/LaunchDaemons/com.cloudflare.cloudflared.plist
+sudo launchctl kickstart -k system/com.cloudflare.cloudflared
+```
+
+정상 실행 확인:
+
+```bash
+ps aux | grep cloudflared | grep -v grep
+sudo launchctl print system/com.cloudflare.cloudflared | head -80
+```
+
+정상 프로세스 예:
+
+```text
+/opt/homebrew/bin/cloudflared tunnel --config /etc/cloudflared/config.yml run wishingnote
+```
+
+외부 API 확인:
+
+```bash
+curl -fsS https://api.sidore.org/kcc/v1/health
+curl -fsS https://api.sidore.org/kcc/v1/calendar/2026/7 | head
+```
+
+### Mac mini DNS 주의사항
+
+Mac mini에서 `dig api.sidore.org`는 성공하지만 `curl`/Python이 `Could not resolve host` 또는
+`nodename nor servname provided`로 실패하면 macOS 시스템 DNS resolver 문제일 수 있다.
+
+실제 운영 중 Ethernet DNS를 Cloudflare DNS로 변경해 해결했다.
+
+```bash
+sudo networksetup -setdnsservers "Ethernet" 1.1.1.1 1.0.0.1
+sudo dscacheutil -flushcache
+sudo killall -HUP mDNSResponder
+```
+
+확인:
+
+```bash
+networksetup -getdnsservers "Ethernet"
+scutil --dns | head -40
+curl -4 -v https://api.sidore.org/kcc/v1/health
+```
+
+Cloudflare `error code: 1033`이 나오면 DNS는 Cloudflare까지 도달했지만 터널 연결이 없는 상태다.
+이때는 `ps aux | grep cloudflared`, LaunchDaemon 상태, `/Library/Logs/com.cloudflare.cloudflared.err.log`
+를 확인한다.
+
 ## DB 백업
 
 PostgreSQL을 쓴다면 최소 매일 1회 `pg_dump` 백업을 만든다.
