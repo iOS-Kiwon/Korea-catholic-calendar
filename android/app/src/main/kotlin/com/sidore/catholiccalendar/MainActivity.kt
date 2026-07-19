@@ -1,6 +1,5 @@
 package com.sidore.catholiccalendar
 
-import android.app.backup.BackupManager
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
@@ -19,19 +18,6 @@ class MainActivity : FlutterActivity() {
                 "openNotificationSettings" -> {
                     openNotificationSettings()
                     result.success(null)
-                }
-                else -> result.notImplemented()
-            }
-        }
-        MethodChannel(
-            flutterEngine.dartExecutor.binaryMessenger,
-            "com.sidore.catholiccalendar/personal_backup"
-        ).setMethodCallHandler { call, result ->
-            when (call.method) {
-                "loadSnapshot" -> result.success(null)
-                "saveSnapshot" -> {
-                    BackupManager(this).dataChanged()
-                    result.success(true)
                 }
                 else -> result.notImplemented()
             }
