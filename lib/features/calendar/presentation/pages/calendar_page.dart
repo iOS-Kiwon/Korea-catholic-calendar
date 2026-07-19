@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -92,6 +93,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   @override
   Widget build(BuildContext context) {
     final calendarAsync = ref.watch(calendarControllerProvider);
+    final remoteStatuses = ref.watch(remoteMonthStatusProvider);
     return Scaffold(
       body: SafeArea(
         bottom: !adsEnabled,
@@ -108,16 +110,71 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
             return LayoutBuilder(
               builder: (context, constraints) {
                 final wide = constraints.maxWidth >= _wideBreakpoint;
-                return GestureDetector(
+                final body = GestureDetector(
                   behavior: HitTestBehavior.translucent,
                   onHorizontalDragStart: (_) => _dragDx = 0,
                   onHorizontalDragUpdate: (d) => _dragDx += d.delta.dx,
                   onHorizontalDragEnd: _onSwipeEnd,
                   child: wide ? _wide(service) : _narrow(service),
                 );
+                return Stack(
+                  children: [
+                    body,
+                    _debugRemoteStatusBadge(
+                      remoteStatuses[widget.month.toString()],
+                    ),
+                  ],
+                );
               },
             );
           },
+        ),
+      ),
+    );
+  }
+
+  Widget _debugRemoteStatusBadge(RemoteMonthState? state) {
+    if (!kDebugMode) return const SizedBox.shrink();
+
+    final status = state?.status ?? RemoteMonthStatus.idle;
+    final (label, color) = switch (status) {
+      RemoteMonthStatus.loading => ('서버 확인 중', Colors.blueGrey),
+      RemoteMonthStatus.loaded => ('서버 갱신 완료', Colors.green),
+      RemoteMonthStatus.unavailable => ('서버 데이터 없음', Colors.orange),
+      RemoteMonthStatus.failed => ('서버 확인 실패', Colors.red),
+      RemoteMonthStatus.idle => ('서버 대기', Colors.grey),
+    };
+    final checkedAt = state == null
+        ? ''
+        : ' · ${state.checkedAt.hour.toString().padLeft(2, '0')}:'
+              '${state.checkedAt.minute.toString().padLeft(2, '0')}:'
+              '${state.checkedAt.second.toString().padLeft(2, '0')}';
+
+    return Positioned(
+      right: 12,
+      top: 12,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(999),
+          boxShadow: const [
+            BoxShadow(
+              blurRadius: 8,
+              offset: Offset(0, 2),
+              color: Color(0x33000000),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Text(
+            '$label$checkedAt',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ),
       ),
     );
