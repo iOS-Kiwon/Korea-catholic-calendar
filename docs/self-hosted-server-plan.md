@@ -416,6 +416,19 @@ Google 계정의 앱 전용 저장소다.
 저장소를 선택하더라도 플랫폼 계층은 이 스냅샷 JSON을 업로드/다운로드하고, 앱 로컬 저장소는
 `PersonalDataBackupRepository`로 export/restore만 수행한다.
 
+20단계에서는 Mac mini 운영 안정화를 위해 DB 백업/복구 경로와 장애 대응 문서를 보강했다. 백업은
+`scripts/server-backup.sh`로 압축 SQL 파일을 만들고, 복구는 실수 실행을 막기 위해
+`scripts/server-restore.sh <backup.sql.gz> --yes` 형태로만 동작한다. 매일 백업을 위한 launchd 예시는
+`ops/launchd/com.sidore.catholic-calendar-backup.plist.example`에 추가했다.
+
+운영 가이드는 다음 내용을 포함하도록 확장했다.
+
+- 수동/자동 DB 백업 절차
+- DB 복구 전 확인 사항과 복구 후 헬스체크
+- API, 백오피스, DB, Cloudflare Tunnel 로그 확인 명령
+- Cloudflare Rate Limit/WAF 권장 정책
+- 장애 증상별 1차 확인 방향
+
 ### 4단계: 안정화
 
 - 자동 백업

@@ -14,8 +14,8 @@ BACKUP_DIR="${BACKUP_DIR:-$ROOT_DIR/backups}"
 mkdir -p "$BACKUP_DIR"
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
-OUT="$BACKUP_DIR/db-$STAMP.sql"
+OUT="$BACKUP_DIR/db-$STAMP.sql.gz"
 
 info "Writing PostgreSQL backup: $OUT"
-compose exec -T db pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" > "$OUT"
+compose exec -T db pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" | gzip -c > "$OUT"
 info "Backup complete"
