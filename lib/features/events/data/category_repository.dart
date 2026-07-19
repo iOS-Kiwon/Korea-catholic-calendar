@@ -13,18 +13,18 @@ class CategoryRepository {
 
   final SharedPreferences _prefs;
 
-  static const _key = 'categories_v1';
+  static const storageKey = 'categories_v1';
+  static const seededStorageKey = 'categories_seeded_v1';
 
   /// Reads the ordered category list. Empty when nothing is stored or the
   /// stored value is unreadable.
   List<EventCategory> load() {
-    final raw = _prefs.getString(_key);
+    final raw = _prefs.getString(storageKey);
     if (raw == null || raw.isEmpty) return [];
     try {
       final list = jsonDecode(raw) as List;
       return [
-        for (final c in list)
-          EventCategory.fromJson(c as Map<String, dynamic>),
+        for (final c in list) EventCategory.fromJson(c as Map<String, dynamic>),
       ];
     } catch (_) {
       return [];
@@ -34,11 +34,11 @@ class CategoryRepository {
   /// Persists the ordered category list. An empty list clears the store.
   Future<void> save(List<EventCategory> categories) async {
     if (categories.isEmpty) {
-      await _prefs.remove(_key);
+      await _prefs.remove(storageKey);
       return;
     }
     await _prefs.setString(
-      _key,
+      storageKey,
       jsonEncode([for (final c in categories) c.toJson()]),
     );
   }

@@ -407,6 +407,15 @@ Google 계정의 앱 전용 저장소다.
 - 앱 삭제 후 재설치 복원 테스트
 - 로컬 데이터와 iCloud/Google 저장소 데이터 병합 정책 구현
 
+19단계에서는 실제 iCloud/Google 저장소를 붙이기 전, 앱 내부 개인 데이터 백업 단위를
+`PersonalDataSnapshot`으로 분리했다. 스냅샷에는 사용자 일정 `events_v1`, 카테고리
+`categories_v1`, 기본 카테고리 시드 여부 `categories_seeded_v1`만 포함한다. 자체 서버에는 이
+스냅샷을 업로드하지 않는다.
+
+향후 iCloud Key-Value Store, CloudKit Private Database, Google Drive `appDataFolder` 중 어떤
+저장소를 선택하더라도 플랫폼 계층은 이 스냅샷 JSON을 업로드/다운로드하고, 앱 로컬 저장소는
+`PersonalDataBackupRepository`로 export/restore만 수행한다.
+
 ### 4단계: 안정화
 
 - 자동 백업

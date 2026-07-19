@@ -23,18 +23,16 @@ class CategoryStore extends AsyncNotifier<List<EventCategory>> {
 
   /// Marks that seeding has happened, so deleting every category does not
   /// re-seed the defaults.
-  static const _seededKey = 'categories_seeded_v1';
-
   @override
   Future<List<EventCategory>> build() async {
     _prefs = await ref.watch(sharedPreferencesProvider.future);
     _repo = CategoryRepository(_prefs);
     var list = _repo.load();
-    final seeded = _prefs.getBool(_seededKey) ?? false;
+    final seeded = _prefs.getBool(CategoryRepository.seededStorageKey) ?? false;
     if (!seeded && list.isEmpty) {
       list = [...kDefaultCategories];
       await _repo.save(list);
-      await _prefs.setBool(_seededKey, true);
+      await _prefs.setBool(CategoryRepository.seededStorageKey, true);
     }
     return list;
   }
@@ -70,7 +68,7 @@ class CategoryStore extends AsyncNotifier<List<EventCategory>> {
 
   Future<void> _persist(List<EventCategory> list) async {
     await _repo.save(list);
-    await _prefs.setBool(_seededKey, true);
+    await _prefs.setBool(CategoryRepository.seededStorageKey, true);
     state = AsyncData(list);
   }
 }
