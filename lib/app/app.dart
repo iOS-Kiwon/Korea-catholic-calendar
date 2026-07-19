@@ -1,20 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/app_update/app_update_service.dart';
 import '../features/ads/ads.dart';
+import '../features/events/application/category_providers.dart';
+import '../features/events/application/event_providers.dart';
 import 'router.dart';
 import 'theme/app_theme.dart';
 
-class CatholicCalendarApp extends StatefulWidget {
+class CatholicCalendarApp extends ConsumerStatefulWidget {
   const CatholicCalendarApp({super.key});
 
   @override
-  State<CatholicCalendarApp> createState() => _CatholicCalendarAppState();
+  ConsumerState<CatholicCalendarApp> createState() =>
+      _CatholicCalendarAppState();
 }
 
-class _CatholicCalendarAppState extends State<CatholicCalendarApp> {
+class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
   late final GoRouter _router = buildRouter();
 
   @override
@@ -24,6 +28,14 @@ class _CatholicCalendarAppState extends State<CatholicCalendarApp> {
       // Consent → ATT → Mobile Ads SDK, after the first frame (no-op off mobile).
       WidgetsBinding.instance.addPostFrameCallback((_) => initAds());
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(personalCloudBackupControllerProvider).restoreIfAvailable().then(
+        (restored) {
+          if (!mounted || !restored) return;
+          ref.invalidate(categoriesProvider);
+        },
+      );
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkAppUpdate());
   }
 

@@ -443,6 +443,22 @@ Google 계정의 앱 전용 저장소다.
 `admin:비밀번호,editor:비밀번호` 형식으로 계정을 추가할 수 있다. 감사 로그의 `admin_user`에는 실제
 Basic Auth 사용자 이름이 저장된다.
 
+22단계에서는 개인 일정/카테고리 스냅샷을 앱 시작 시 원격 저장소에서 복원하고, 사용자가 일정 또는
+카테고리를 변경할 때 원격 저장소에 자동 백업하는 흐름을 추가한다. iOS는
+`NSUbiquitousKeyValueStore` 기반 iCloud Key-Value Store에 `personalDataSnapshotV1` JSON을 저장한다.
+Android는 Google Drive `appDataFolder` 연동 전까지 같은 플랫폼 채널에서 저장 실패/복원 없음으로
+응답하게 두어, 앱 로직은 공통으로 유지한다.
+
+22단계 iOS 테스트 시나리오:
+
+1. iCloud에 로그인된 실제 iPhone에 앱 설치
+2. `2026년 7월 19일` 개인 일정 추가
+3. debug log에서 `[KCC backup] Cloud personal-data backup saved` 확인
+4. 앱 삭제
+5. 같은 Apple ID의 기기에 앱 재설치
+6. 앱 실행 후 `[KCC backup] Restored cloud personal-data snapshot` 확인
+7. `2026년 7월 19일` 일정이 자동 복원되어 보이는지 확인
+
 ### 5단계: 확장
 
 - iOS CloudKit Private Database 전환 검토

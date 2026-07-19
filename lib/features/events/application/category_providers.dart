@@ -70,6 +70,7 @@ class CategoryStore extends AsyncNotifier<List<EventCategory>> {
     await _repo.save(list);
     await _prefs.setBool(CategoryRepository.seededStorageKey, true);
     state = AsyncData(list);
+    await ref.read(personalCloudBackupControllerProvider).backupNow();
   }
 }
 

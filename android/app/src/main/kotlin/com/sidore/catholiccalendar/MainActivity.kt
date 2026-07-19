@@ -22,6 +22,16 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "com.sidore.catholiccalendar/personal_backup"
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "loadSnapshot" -> result.success(null)
+                "saveSnapshot" -> result.success(false)
+                else -> result.notImplemented()
+            }
+        }
     }
 
     private fun openNotificationSettings() {

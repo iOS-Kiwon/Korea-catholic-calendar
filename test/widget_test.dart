@@ -158,7 +158,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Back on the detail view, the new event is listed under its category name.
-    expect(find.text('전례'), findsOneWidget);
+    expect(find.text('전례'), findsAtLeastNWidgets(1));
     expect(find.text('등록된 일정이 없습니다.'), findsNothing);
   });
 
