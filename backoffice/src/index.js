@@ -57,6 +57,35 @@ async function ensureSchema() {
     CREATE INDEX IF NOT EXISTS admin_audit_logs_created_at_idx
     ON admin_audit_logs (created_at DESC, id DESC)
   `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS app_version_policies (
+      platform text PRIMARY KEY,
+      minimum_version text NOT NULL DEFAULT '0.0.0',
+      latest_version text NOT NULL DEFAULT '0.0.0',
+      force_update_title text NOT NULL DEFAULT '업데이트가 필요합니다',
+      force_update_message text NOT NULL DEFAULT '',
+      recommended_update_title text NOT NULL DEFAULT '새 버전이 있습니다',
+      update_message text NOT NULL DEFAULT '',
+      store_url text NOT NULL DEFAULT '',
+      maintenance_mode boolean NOT NULL DEFAULT false,
+      maintenance_message text NOT NULL DEFAULT '',
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      CHECK (platform IN ('ios', 'android')),
+      CHECK (minimum_version ~ '^\\d+\\.\\d+\\.\\d+$'),
+      CHECK (latest_version ~ '^\\d+\\.\\d+\\.\\d+$')
+    )
+  `);
+
+  await db.query(`
+    ALTER TABLE app_version_policies
+    ADD COLUMN IF NOT EXISTS force_update_title text NOT NULL DEFAULT '업데이트가 필요합니다'
+  `);
+
+  await db.query(`
+    ALTER TABLE app_version_policies
+    ADD COLUMN IF NOT EXISTS recommended_update_title text NOT NULL DEFAULT '새 버전이 있습니다'
+  `);
 }
 
 function normalizeBasePath(value) {
@@ -255,6 +284,36 @@ function parseYearMonth(params) {
   return { year, month };
 }
 
+function normalizePlatform(value) {
+  const platform = String(value || '').trim().toLowerCase();
+  if (platform !== 'ios' && platform !== 'android') {
+    throw new Error('invalid_platform');
+  }
+  return platform;
+}
+
+function isSemanticVersion(value) {
+  return /^\d+\.\d+\.\d+$/.test(String(value || '').trim());
+}
+
+function requireSemanticVersion(value, fieldName) {
+  const version = String(value || '').trim();
+  if (!isSemanticVersion(version)) {
+    throw new Error(`${fieldName}_must_be_semantic_version`);
+  }
+  return version;
+}
+
+function compareSemanticVersions(a, b) {
+  const left = String(a).split('.').map(Number);
+  const right = String(b).split('.').map(Number);
+  for (let i = 0; i < 3; i += 1) {
+    if (left[i] > right[i]) return 1;
+    if (left[i] < right[i]) return -1;
+  }
+  return 0;
+}
+
 async function listCalendarMonths() {
   const result = await db.query(`
     SELECT
@@ -306,6 +365,87 @@ async function logAdminAction(req, action, targetType, targetId, details = {}) {
       JSON.stringify(details),
       clientIp(req),
       req.headers['user-agent'] || '',
+    ],
+  );
+}
+
+async function listAppVersionPolicies() {
+  const result = await db.query(`
+    SELECT
+      platform,
+      minimum_version,
+      latest_version,
+      force_update_title,
+      force_update_message,
+      recommended_update_title,
+      update_message,
+      store_url,
+      maintenance_mode,
+      maintenance_message,
+      updated_at
+    FROM app_version_policies
+    ORDER BY platform
+  `);
+  const byPlatform = new Map(result.rows.map((row) => [row.platform, row]));
+  return ['ios', 'android'].map(
+    (platform) =>
+      byPlatform.get(platform) || {
+        platform,
+        minimum_version: '0.0.0',
+        latest_version: '0.0.0',
+        force_update_title: '업데이트가 필요합니다',
+        force_update_message: '',
+        recommended_update_title: '새 버전이 있습니다',
+        update_message: '',
+        store_url: '',
+        maintenance_mode: false,
+        maintenance_message: '',
+        updated_at: null,
+      },
+  );
+}
+
+async function upsertAppVersionPolicy(policy) {
+  await db.query(
+    `
+      INSERT INTO app_version_policies (
+        platform,
+        minimum_version,
+        latest_version,
+        force_update_title,
+        force_update_message,
+        recommended_update_title,
+        update_message,
+        store_url,
+        maintenance_mode,
+        maintenance_message,
+        updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
+      ON CONFLICT (platform)
+      DO UPDATE SET
+        minimum_version = EXCLUDED.minimum_version,
+        latest_version = EXCLUDED.latest_version,
+        force_update_title = EXCLUDED.force_update_title,
+        force_update_message = EXCLUDED.force_update_message,
+        recommended_update_title = EXCLUDED.recommended_update_title,
+        update_message = EXCLUDED.update_message,
+        store_url = EXCLUDED.store_url,
+        maintenance_mode = EXCLUDED.maintenance_mode,
+        maintenance_message = EXCLUDED.maintenance_message,
+        updated_at = now()
+    `,
+    [
+      policy.platform,
+      policy.minimumVersion,
+      policy.latestVersion,
+      policy.forceUpdateTitle,
+      policy.forceUpdateMessage,
+      policy.recommendedUpdateTitle,
+      policy.updateMessage,
+      policy.storeUrl,
+      policy.maintenanceMode,
+      policy.maintenanceMessage,
     ],
   );
 }
@@ -530,6 +670,13 @@ function layout(title, content) {
       background: #fff;
       font: inherit;
     }
+    input.wide {
+      width: min(420px, 100%);
+    }
+    input[type="checkbox"] {
+      width: auto;
+      min-height: auto;
+    }
     button, .button {
       min-height: 36px;
       border: 1px solid var(--primary);
@@ -615,6 +762,25 @@ function layout(title, content) {
       background: #fff;
       font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       tab-size: 2;
+    }
+    .editor textarea.compact {
+      min-height: 88px;
+    }
+    .form-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+    .form-row {
+      display: grid;
+      gap: 6px;
+    }
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text);
+      font-size: 14px;
     }
     .editor-actions {
       display: flex;
@@ -743,6 +909,7 @@ async function handleIndex(req, res, url) {
       <label>연도 <input name="year" inputmode="numeric" value="2026"></label>
       <label>월 <input name="month" inputmode="numeric" value="7"></label>
       <button type="submit">캐시 생성/재갱신</button>
+      <a class="button secondary" href="${basePath}/app-version-policies">앱 버전 관리</a>
       <a class="button secondary" href="${basePath}/audit-logs">감사 로그</a>
     </form>
     ${monthRows(rows)}
@@ -802,6 +969,81 @@ async function handleAuditLogs(req, res) {
         <div class="sub">최근 관리자 변경 작업 200건입니다. JSON 검증 실패나 diff 확인만 한 경우는 기록하지 않습니다.</div>
       </div>
       ${auditLogRows(rows)}
+    </div>
+  `;
+  sendHtml(res, 200, layout('KCC Backoffice', content));
+}
+
+function platformLabel(platform) {
+  return platform === 'ios' ? 'iOS' : 'Android';
+}
+
+function appVersionPolicyForm(policy) {
+  const platform = policy.platform;
+  return `
+    <form class="editor" method="post" action="${basePath}/app-version-policies/save">
+      <input type="hidden" name="platform" value="${escapeHtml(platform)}">
+      <div>
+        <h2>${platformLabel(platform)} 앱 버전 정책</h2>
+        <div class="sub">앱 버전은 ${platformLabel(platform)} 현재 형식과 동일하게 1.2.3 형태로 입력합니다.</div>
+      </div>
+      <div class="form-grid">
+        <label class="form-row">
+          최소 허용 버전
+          <input name="minimumVersion" class="wide" inputmode="numeric" value="${escapeHtml(policy.minimum_version)}" placeholder="1.0.0">
+        </label>
+        <label class="form-row">
+          최신 권장 버전
+          <input name="latestVersion" class="wide" inputmode="numeric" value="${escapeHtml(policy.latest_version)}" placeholder="1.0.0">
+        </label>
+        <label class="form-row">
+          스토어 URL
+          <input name="storeUrl" class="wide" value="${escapeHtml(policy.store_url)}" placeholder="https://apps.apple.com/...">
+        </label>
+        <label class="check-row">
+          <input type="checkbox" name="maintenanceMode" value="true"${policy.maintenance_mode ? ' checked' : ''}>
+          점검 모드
+        </label>
+      </div>
+      <div class="form-grid">
+        <label class="form-row">
+          강제 업데이트 타이틀
+          <input name="forceUpdateTitle" class="wide" value="${escapeHtml(policy.force_update_title)}" placeholder="업데이트가 필요합니다">
+        </label>
+        <label class="form-row">
+          권장 업데이트 타이틀
+          <input name="recommendedUpdateTitle" class="wide" value="${escapeHtml(policy.recommended_update_title)}" placeholder="새 버전이 있습니다">
+        </label>
+      </div>
+      <label class="form-row">
+        강제 업데이트 메시지
+        <textarea class="compact" name="forceUpdateMessage" spellcheck="false">${escapeHtml(policy.force_update_message)}</textarea>
+      </label>
+      <label class="form-row">
+        권장 업데이트 메시지
+        <textarea class="compact" name="updateMessage" spellcheck="false">${escapeHtml(policy.update_message)}</textarea>
+      </label>
+      <label class="form-row">
+        점검 모드 메시지
+        <textarea class="compact" name="maintenanceMessage" spellcheck="false">${escapeHtml(policy.maintenance_message)}</textarea>
+      </label>
+      <div class="editor-actions">
+        <div class="sub">강제 업데이트: 버튼 1개(업데이트). 권장 업데이트: 버튼 2개(다음에, 업데이트).</div>
+        <button type="submit">저장</button>
+      </div>
+    </form>`;
+}
+
+async function handleAppVersionPolicies(req, res, url) {
+  const policies = await listAppVersionPolicies();
+  const message = url.searchParams.get('message');
+  const content = `
+    ${message ? `<div class="message">${escapeHtml(message)}</div>` : ''}
+    <div class="toolbar">
+      <a class="button secondary" href="${basePath}">목록으로</a>
+    </div>
+    <div class="diff-wrap">
+      ${policies.map((policy) => appVersionPolicyForm(policy)).join('')}
     </div>
   `;
   sendHtml(res, 200, layout('KCC Backoffice', content));
@@ -969,6 +1211,64 @@ async function handleRevisionRestore(req, res) {
   redirect(
     res,
     `${basePath}/calendar/revisions?year=${Number(revision.year)}&month=${Number(revision.month)}&message=${encodeURIComponent('선택한 이력으로 되돌렸습니다.')}`,
+  );
+}
+
+async function handleAppVersionPolicySave(req, res) {
+  const form = await readForm(req);
+  let platform;
+  let policy;
+  try {
+    platform = normalizePlatform(form.get('platform'));
+    const minimumVersion = requireSemanticVersion(
+      form.get('minimumVersion'),
+      'minimum_version',
+    );
+    const latestVersion = requireSemanticVersion(
+      form.get('latestVersion'),
+      'latest_version',
+    );
+    if (compareSemanticVersions(latestVersion, minimumVersion) < 0) {
+      throw new Error('latest_version_must_be_greater_than_or_equal_to_minimum_version');
+    }
+    policy = {
+      platform,
+      minimumVersion,
+      latestVersion,
+      forceUpdateTitle:
+        String(form.get('forceUpdateTitle') || '').trim() ||
+        '업데이트가 필요합니다',
+      forceUpdateMessage: String(form.get('forceUpdateMessage') || '').trim(),
+      recommendedUpdateTitle:
+        String(form.get('recommendedUpdateTitle') || '').trim() ||
+        '새 버전이 있습니다',
+      updateMessage: String(form.get('updateMessage') || '').trim(),
+      storeUrl: String(form.get('storeUrl') || '').trim(),
+      maintenanceMode: form.get('maintenanceMode') === 'true',
+      maintenanceMessage: String(form.get('maintenanceMessage') || '').trim(),
+    };
+  } catch (error) {
+    sendHtml(
+      res,
+      400,
+      layout(
+        'KCC Backoffice',
+        `<div class="empty">앱 버전 정책을 저장하지 않았습니다. 버전은 1.2.3 형식이어야 하고, 최신 권장 버전은 최소 허용 버전보다 낮을 수 없습니다.</div>
+        <div class="toolbar"><a class="button secondary" href="${basePath}/app-version-policies">앱 버전 관리로 돌아가기</a></div>`,
+      ),
+    );
+    return;
+  }
+
+  await upsertAppVersionPolicy(policy);
+  await logAdminAction(req, 'app_version_policy_update', 'app_version_policy', platform, {
+    minimum_version: policy.minimumVersion,
+    latest_version: policy.latestVersion,
+    maintenance_mode: policy.maintenanceMode,
+  });
+  redirect(
+    res,
+    `${basePath}/app-version-policies?message=${encodeURIComponent(`${platformLabel(platform)} 앱 버전 정책을 저장했습니다.`)}`,
   );
 }
 
@@ -1207,6 +1507,16 @@ async function handleRequest(req, res) {
 
   if (url.pathname === `${basePath}/audit-logs` && req.method === 'GET') {
     await handleAuditLogs(req, res);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/app-version-policies` && req.method === 'GET') {
+    await handleAppVersionPolicies(req, res, url);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/app-version-policies/save` && req.method === 'POST') {
+    await handleAppVersionPolicySave(req, res);
     return;
   }
 

@@ -58,6 +58,26 @@ function calendarUrl(year, month) {
   return `${workerBaseUrl.replace(/\/+$/, '')}/v1/calendar/${year}/${month}`;
 }
 
+function normalizePlatform(value) {
+  const platform = String(value || '').trim().toLowerCase();
+  if (platform !== 'ios' && platform !== 'android') return null;
+  return platform;
+}
+
+function isSemanticVersion(value) {
+  return /^\d+\.\d+\.\d+$/.test(String(value || '').trim());
+}
+
+function compareSemanticVersions(a, b) {
+  const left = String(a).split('.').map(Number);
+  const right = String(b).split('.').map(Number);
+  for (let i = 0; i < 3; i += 1) {
+    if (left[i] > right[i]) return 1;
+    if (left[i] < right[i]) return -1;
+  }
+  return 0;
+}
+
 async function ensureSchema() {
   if (!db) {
     console.warn('Database settings are not set. Calendar DB cache is disabled.');
@@ -77,6 +97,35 @@ async function ensureSchema() {
       CHECK (year >= 1900 AND year <= 2200),
       CHECK (month >= 1 AND month <= 12)
     )
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS app_version_policies (
+      platform text PRIMARY KEY,
+      minimum_version text NOT NULL DEFAULT '0.0.0',
+      latest_version text NOT NULL DEFAULT '0.0.0',
+      force_update_title text NOT NULL DEFAULT '업데이트가 필요합니다',
+      force_update_message text NOT NULL DEFAULT '',
+      recommended_update_title text NOT NULL DEFAULT '새 버전이 있습니다',
+      update_message text NOT NULL DEFAULT '',
+      store_url text NOT NULL DEFAULT '',
+      maintenance_mode boolean NOT NULL DEFAULT false,
+      maintenance_message text NOT NULL DEFAULT '',
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      CHECK (platform IN ('ios', 'android')),
+      CHECK (minimum_version ~ '^\\d+\\.\\d+\\.\\d+$'),
+      CHECK (latest_version ~ '^\\d+\\.\\d+\\.\\d+$')
+    )
+  `);
+
+  await db.query(`
+    ALTER TABLE app_version_policies
+    ADD COLUMN IF NOT EXISTS force_update_title text NOT NULL DEFAULT '업데이트가 필요합니다'
+  `);
+
+  await db.query(`
+    ALTER TABLE app_version_policies
+    ADD COLUMN IF NOT EXISTS recommended_update_title text NOT NULL DEFAULT '새 버전이 있습니다'
   `);
 }
 
@@ -130,6 +179,48 @@ async function saveCachedCalendar(year, month, payload, source) {
     `,
     [year, month, payload.available !== false, source, JSON.stringify(payload)],
   );
+}
+
+async function findAppVersionPolicy(platform) {
+  if (!db) return null;
+
+  const result = await db.query(
+    `
+      SELECT
+        platform,
+        minimum_version,
+        latest_version,
+        force_update_title,
+        force_update_message,
+        recommended_update_title,
+        update_message,
+        store_url,
+        maintenance_mode,
+        maintenance_message,
+        updated_at
+      FROM app_version_policies
+      WHERE platform = $1
+    `,
+    [platform],
+  );
+
+  return result.rows[0] || null;
+}
+
+function defaultAppVersionPolicy(platform) {
+  return {
+    platform,
+    minimum_version: '0.0.0',
+    latest_version: '0.0.0',
+    force_update_title: '업데이트가 필요합니다',
+    force_update_message: '',
+    recommended_update_title: '새 버전이 있습니다',
+    update_message: '',
+    store_url: '',
+    maintenance_mode: false,
+    maintenance_message: '',
+    updated_at: null,
+  };
 }
 
 function parseCalendarPath(pathname) {
@@ -200,6 +291,73 @@ async function handleCalendar(req, res, year, month) {
   }
 }
 
+async function handleAppVersion(req, res, url) {
+  if (req.method !== 'GET') {
+    sendJson(res, 405, { error: 'method_not_allowed' }, { allow: 'GET' });
+    return;
+  }
+
+  const platform = normalizePlatform(url.searchParams.get('platform'));
+  const currentVersion = String(
+    url.searchParams.get('version') || url.searchParams.get('appVersion') || '',
+  ).trim();
+
+  if (!platform) {
+    sendJson(res, 400, { error: 'invalid_platform' });
+    return;
+  }
+
+  if (!isSemanticVersion(currentVersion)) {
+    sendJson(res, 400, { error: 'invalid_version' });
+    return;
+  }
+
+  const policy =
+    (await findAppVersionPolicy(platform)) || defaultAppVersionPolicy(platform);
+  const minimumVersion = policy.minimum_version;
+  const latestVersion = policy.latest_version;
+  const forceUpdate =
+    policy.maintenance_mode ||
+    compareSemanticVersions(currentVersion, minimumVersion) < 0;
+  const updateRecommended =
+    !forceUpdate && compareSemanticVersions(currentVersion, latestVersion) < 0;
+  const dialog = forceUpdate
+    ? {
+        type: 'forceUpdate',
+        title: policy.force_update_title,
+        message: policy.maintenance_mode
+          ? policy.maintenance_message || policy.force_update_message
+          : policy.force_update_message,
+        buttons: [{ action: 'update', label: '업데이트' }],
+      }
+    : updateRecommended
+      ? {
+          type: 'recommendedUpdate',
+          title: policy.recommended_update_title,
+          message: policy.update_message,
+          buttons: [
+            { action: 'later', label: '다음에' },
+            { action: 'update', label: '업데이트' },
+          ],
+        }
+      : { type: 'none', title: '', message: '', buttons: [] };
+
+  sendJson(res, 200, {
+    platform,
+    currentVersion,
+    minimumVersion,
+    latestVersion,
+    forceUpdate,
+    updateRecommended,
+    maintenanceMode: policy.maintenance_mode,
+    title: dialog.title,
+    message: dialog.message,
+    dialog,
+    storeUrl: policy.store_url,
+    updatedAt: policy.updated_at ? new Date(policy.updated_at).toISOString() : null,
+  });
+}
+
 async function handleRequest(req, res) {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
 
@@ -226,6 +384,11 @@ async function handleRequest(req, res) {
   const calendar = parseCalendarPath(url.pathname);
   if (calendar) {
     await handleCalendar(req, res, calendar.year, calendar.month);
+    return;
+  }
+
+  if (url.pathname === `${apiPrefix}/app/version`) {
+    await handleAppVersion(req, res, url);
     return;
   }
 
