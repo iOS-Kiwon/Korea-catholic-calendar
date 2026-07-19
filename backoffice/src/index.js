@@ -548,6 +548,44 @@ async function handleIndex(req, res, url) {
   sendHtml(res, 200, layout('KCC Backoffice', content));
 }
 
+function renderEditForm(year, month, payload, message = '') {
+  const draftKey = `kcc-calendar-editor-${year}-${month}`;
+  const content = `
+    <form class="editor" method="post" action="${basePath}/calendar/edit/preview">
+      <input type="hidden" name="year" value="${year}">
+      <input type="hidden" name="month" value="${month}">
+      <div>
+        <h2>${year}년 ${month}월 JSON 수정</h2>
+        <div class="sub">먼저 JSON 문법을 검증하고 diff를 확인한 뒤, 최종 확인을 눌러야 저장됩니다. 저장하면 이 월의 출처가 <strong>manual</strong>로 바뀝니다.</div>
+      </div>
+      ${message ? `<div class="message">${escapeHtml(message)}</div>` : ''}
+      <textarea id="payload-editor" name="payload" spellcheck="false">${escapeHtml(payload)}</textarea>
+      <div class="editor-actions">
+        <a class="button secondary" data-clear-draft="true" href="${basePath}">목록으로</a>
+        <div class="warning">JSON 문법이 틀리면 diff 확인 단계로 넘어가지 않습니다.</div>
+        <button type="submit">JSON 검증 및 diff 확인</button>
+      </div>
+    </form>
+    <script>
+      (() => {
+        const key = ${JSON.stringify(draftKey)};
+        const editor = document.getElementById('payload-editor');
+        const draft = sessionStorage.getItem(key);
+        if (draft !== null && draft !== editor.value) {
+          editor.value = draft;
+        }
+        editor.addEventListener('input', () => {
+          sessionStorage.setItem(key, editor.value);
+        });
+        document.querySelectorAll('[data-clear-draft="true"]').forEach((node) => {
+          node.addEventListener('click', () => sessionStorage.removeItem(key));
+        });
+      })();
+    </script>
+  `;
+  return layout('KCC Backoffice', content);
+}
+
 async function handleEdit(req, res, url) {
   const { year, month } = parseYearMonth(url.searchParams);
   const row = await getCalendarMonth(year, month);
@@ -561,23 +599,23 @@ async function handleEdit(req, res, url) {
   }
 
   const payload = normalizeJsonText(row.payload_json);
-  const content = `
-    <form class="editor" method="post" action="${basePath}/calendar/edit/preview">
-      <input type="hidden" name="year" value="${year}">
-      <input type="hidden" name="month" value="${month}">
-      <div>
-        <h2>${year}년 ${month}월 JSON 수정</h2>
-        <div class="sub">먼저 JSON 문법을 검증하고 diff를 확인한 뒤, 최종 확인을 눌러야 저장됩니다. 저장하면 이 월의 출처가 <strong>manual</strong>로 바뀝니다.</div>
-      </div>
-      <textarea name="payload" spellcheck="false">${escapeHtml(payload)}</textarea>
-      <div class="editor-actions">
-        <a class="button secondary" href="${basePath}">목록으로</a>
-        <div class="warning">JSON 문법이 틀리면 diff 확인 단계로 넘어가지 않습니다.</div>
-        <button type="submit">JSON 검증 및 diff 확인</button>
-      </div>
-    </form>
-  `;
-  sendHtml(res, 200, layout('KCC Backoffice', content));
+  sendHtml(res, 200, renderEditForm(year, month, payload));
+}
+
+async function handleEditRestore(req, res) {
+  const form = await readForm(req);
+  const { year, month } = parseYearMonth(form);
+  const payload = form.get('payload') || '';
+  sendHtml(
+    res,
+    200,
+    renderEditForm(
+      year,
+      month,
+      payload,
+      'diff 확인 화면에서 돌아왔습니다. 입력하던 내용은 아직 저장되지 않았습니다.',
+    ),
+  );
 }
 
 function renderDiffTable(rows) {
@@ -639,7 +677,12 @@ async function handleEditPreview(req, res) {
       layout(
         'KCC Backoffice',
         `<div class="empty">JSON 문법 오류로 저장하지 않았습니다: ${escapeHtml(error.message)}</div>
-        <p><a class="button secondary" href="${basePath}/calendar/edit?year=${year}&month=${month}">수정 화면으로 돌아가기</a></p>`,
+        <form method="post" action="${basePath}/calendar/edit/restore">
+          <input type="hidden" name="year" value="${year}">
+          <input type="hidden" name="month" value="${month}">
+          <textarea class="hidden-payload" name="payload">${escapeHtml(payloadText)}</textarea>
+          <button class="secondary" type="submit">수정 화면으로 돌아가기</button>
+        </form>`,
       ),
     );
     return;
@@ -647,6 +690,7 @@ async function handleEditPreview(req, res) {
 
   const beforeText = normalizeJsonText(row.payload_json);
   const afterText = normalizeJsonText(payload);
+  const draftKey = `kcc-calendar-editor-${year}-${month}`;
   const rows = diffLines(beforeText, afterText);
   const hasChanges = rows.some((row) => row.type !== 'same');
   const content = `
@@ -658,16 +702,29 @@ async function handleEditPreview(req, res) {
         </div>
         ${renderDiffTable(rows)}
         <div class="editor-actions">
-          <a class="button secondary" href="${basePath}/calendar/edit?year=${year}&month=${month}">수정 화면으로 돌아가기</a>
+          <form method="post" action="${basePath}/calendar/edit/restore">
+            <input type="hidden" name="year" value="${year}">
+            <input type="hidden" name="month" value="${month}">
+            <textarea class="hidden-payload" name="payload">${escapeHtml(afterText)}</textarea>
+            <button class="secondary" type="submit">수정 화면으로 돌아가기</button>
+          </form>
           <form method="post" action="${basePath}/calendar/edit/commit">
             <input type="hidden" name="year" value="${year}">
             <input type="hidden" name="month" value="${month}">
             <textarea class="hidden-payload" name="payload">${escapeHtml(afterText)}</textarea>
-            <button type="submit"${hasChanges ? '' : ' disabled'}>최종 저장</button>
+            <button data-clear-draft="true" type="submit"${hasChanges ? '' : ' disabled'}>최종 저장</button>
           </form>
         </div>
       </div>
     </div>
+    <script>
+      (() => {
+        const key = ${JSON.stringify(draftKey)};
+        document.querySelectorAll('[data-clear-draft="true"]').forEach((node) => {
+          node.addEventListener('click', () => sessionStorage.removeItem(key));
+        });
+      })();
+    </script>
   `;
   sendHtml(res, 200, layout('KCC Backoffice', content));
 }
@@ -700,7 +757,12 @@ async function handlePost(req, res, action) {
         layout(
           'KCC Backoffice',
           `<div class="empty">JSON 문법 오류로 저장하지 않았습니다: ${escapeHtml(error.message)}</div>
-          <p><a class="button secondary" href="${basePath}/calendar/edit?year=${year}&month=${month}">수정 화면으로 돌아가기</a></p>`,
+          <form method="post" action="${basePath}/calendar/edit/restore">
+            <input type="hidden" name="year" value="${year}">
+            <input type="hidden" name="month" value="${month}">
+            <textarea class="hidden-payload" name="payload">${escapeHtml(payloadText)}</textarea>
+            <button class="secondary" type="submit">수정 화면으로 돌아가기</button>
+          </form>`,
         ),
       );
       return;
@@ -741,6 +803,11 @@ async function handleRequest(req, res) {
 
   if (url.pathname === `${basePath}/calendar/edit/preview` && req.method === 'POST') {
     await handleEditPreview(req, res);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/calendar/edit/restore` && req.method === 'POST') {
+    await handleEditRestore(req, res);
     return;
   }
 
