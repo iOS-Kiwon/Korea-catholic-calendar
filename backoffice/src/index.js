@@ -32,6 +32,108 @@ function escapeHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
+function normalizeJsonText(payload) {
+  return `${JSON.stringify(payload, null, 2)}\n`;
+}
+
+function diffLines(beforeText, afterText) {
+  const before = beforeText.split('\n');
+  const after = afterText.split('\n');
+  const rows = [];
+  let i = 0;
+  let j = 0;
+  let beforeLine = 1;
+  let afterLine = 1;
+
+  while (i < before.length || j < after.length) {
+    if (i < before.length && j < after.length && before[i] === after[j]) {
+      rows.push({
+        type: 'same',
+        before: before[i],
+        after: after[j],
+        beforeLine,
+        afterLine,
+      });
+      i += 1;
+      j += 1;
+      beforeLine += 1;
+      afterLine += 1;
+      continue;
+    }
+
+    const nextBeforeMatchesAfter =
+      i + 1 < before.length && j < after.length && before[i + 1] === after[j];
+    const beforeMatchesNextAfter =
+      i < before.length && j + 1 < after.length && before[i] === after[j + 1];
+
+    if (nextBeforeMatchesAfter) {
+      rows.push({
+        type: 'removed',
+        before: before[i],
+        after: '',
+        beforeLine,
+        afterLine: '',
+      });
+      i += 1;
+      beforeLine += 1;
+      continue;
+    }
+
+    if (beforeMatchesNextAfter) {
+      rows.push({
+        type: 'added',
+        before: '',
+        after: after[j],
+        beforeLine: '',
+        afterLine,
+      });
+      j += 1;
+      afterLine += 1;
+      continue;
+    }
+
+    if (i < before.length && j < after.length) {
+      rows.push({
+        type: 'changed',
+        before: before[i],
+        after: after[j],
+        beforeLine,
+        afterLine,
+      });
+      i += 1;
+      j += 1;
+      beforeLine += 1;
+      afterLine += 1;
+      continue;
+    }
+
+    if (i < before.length) {
+      rows.push({
+        type: 'removed',
+        before: before[i],
+        after: '',
+        beforeLine,
+        afterLine: '',
+      });
+      i += 1;
+      beforeLine += 1;
+      continue;
+    }
+
+    rows.push({
+      type: 'added',
+      before: '',
+      after: after[j],
+      beforeLine: '',
+      afterLine,
+    });
+    j += 1;
+    afterLine += 1;
+  }
+
+  return rows;
+}
+
 function sendHtml(res, status, body) {
   res.writeHead(status, {
     'content-type': 'text/html; charset=utf-8',
@@ -331,6 +433,37 @@ function layout(title, content) {
       color: var(--danger);
       font-weight: 700;
     }
+    .diff-wrap {
+      display: grid;
+      gap: 14px;
+    }
+    .diff-table {
+      table-layout: fixed;
+    }
+    .diff-table td {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      vertical-align: top;
+      font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .diff-table .line-no {
+      width: 72px;
+      color: var(--muted);
+      text-align: right;
+      user-select: none;
+    }
+    .diff-added td {
+      background: #e9f8f0;
+    }
+    .diff-removed td {
+      background: #fff0ee;
+    }
+    .diff-changed td {
+      background: #fff8db;
+    }
+    .hidden-payload {
+      display: none;
+    }
     @media (max-width: 760px) {
       main { padding: 16px; }
       table { display: block; overflow-x: auto; }
@@ -427,22 +560,114 @@ async function handleEdit(req, res, url) {
     return;
   }
 
-  const payload = JSON.stringify(row.payload_json, null, 2);
+  const payload = normalizeJsonText(row.payload_json);
   const content = `
-    <form class="editor" method="post" action="${basePath}/calendar/edit">
+    <form class="editor" method="post" action="${basePath}/calendar/edit/preview">
       <input type="hidden" name="year" value="${year}">
       <input type="hidden" name="month" value="${month}">
       <div>
         <h2>${year}년 ${month}월 JSON 수정</h2>
-        <div class="sub">저장하면 이 월의 출처가 <strong>manual</strong>로 바뀝니다. 재갱신을 누르면 수동 수정 내용이 외부 데이터로 덮어써질 수 있습니다.</div>
+        <div class="sub">먼저 JSON 문법을 검증하고 diff를 확인한 뒤, 최종 확인을 눌러야 저장됩니다. 저장하면 이 월의 출처가 <strong>manual</strong>로 바뀝니다.</div>
       </div>
       <textarea name="payload" spellcheck="false">${escapeHtml(payload)}</textarea>
       <div class="editor-actions">
         <a class="button secondary" href="${basePath}">목록으로</a>
-        <div class="warning">JSON 문법이 틀리면 저장되지 않습니다.</div>
-        <button type="submit">저장</button>
+        <div class="warning">JSON 문법이 틀리면 diff 확인 단계로 넘어가지 않습니다.</div>
+        <button type="submit">JSON 검증 및 diff 확인</button>
       </div>
     </form>
+  `;
+  sendHtml(res, 200, layout('KCC Backoffice', content));
+}
+
+function renderDiffTable(rows) {
+  const visibleRows = rows.filter((row) => row.type !== 'same');
+  if (visibleRows.length === 0) {
+    return '<div class="empty">변경된 내용이 없습니다.</div>';
+  }
+
+  const body = visibleRows
+    .map((row) => {
+      const klass = `diff-${row.type}`;
+      const marker =
+        row.type === 'added' ? '+' : row.type === 'removed' ? '-' : '~';
+      return `<tr class="${klass}">
+        <td class="line-no">${escapeHtml(row.beforeLine)}</td>
+        <td>${marker}</td>
+        <td>${escapeHtml(row.before)}</td>
+        <td class="line-no">${escapeHtml(row.afterLine)}</td>
+        <td>${escapeHtml(row.after)}</td>
+      </tr>`;
+    })
+    .join('');
+
+  return `<table class="diff-table">
+    <thead>
+      <tr>
+        <th>이전 줄</th>
+        <th></th>
+        <th>이전 값</th>
+        <th>수정 줄</th>
+        <th>수정 값</th>
+      </tr>
+    </thead>
+    <tbody>${body}</tbody>
+  </table>`;
+}
+
+async function handleEditPreview(req, res) {
+  const form = await readForm(req);
+  const { year, month } = parseYearMonth(form);
+  const row = await getCalendarMonth(year, month);
+  if (!row) {
+    sendHtml(
+      res,
+      404,
+      layout('KCC Backoffice', '<div class="empty">캐시를 찾을 수 없습니다.</div>'),
+    );
+    return;
+  }
+
+  const payloadText = form.get('payload') || '';
+  let payload;
+  try {
+    payload = JSON.parse(payloadText);
+  } catch (error) {
+    sendHtml(
+      res,
+      400,
+      layout(
+        'KCC Backoffice',
+        `<div class="empty">JSON 문법 오류로 저장하지 않았습니다: ${escapeHtml(error.message)}</div>
+        <p><a class="button secondary" href="${basePath}/calendar/edit?year=${year}&month=${month}">수정 화면으로 돌아가기</a></p>`,
+      ),
+    );
+    return;
+  }
+
+  const beforeText = normalizeJsonText(row.payload_json);
+  const afterText = normalizeJsonText(payload);
+  const rows = diffLines(beforeText, afterText);
+  const hasChanges = rows.some((row) => row.type !== 'same');
+  const content = `
+    <div class="diff-wrap">
+      <div class="editor">
+        <div>
+          <h2>${year}년 ${month}월 수정 diff 확인</h2>
+          <div class="sub">JSON 문법 검증을 통과했습니다. 아래 변경 내용을 확인한 뒤 최종 저장을 눌러야 DB에 반영됩니다.</div>
+        </div>
+        ${renderDiffTable(rows)}
+        <div class="editor-actions">
+          <a class="button secondary" href="${basePath}/calendar/edit?year=${year}&month=${month}">수정 화면으로 돌아가기</a>
+          <form method="post" action="${basePath}/calendar/edit/commit">
+            <input type="hidden" name="year" value="${year}">
+            <input type="hidden" name="month" value="${month}">
+            <textarea class="hidden-payload" name="payload">${escapeHtml(afterText)}</textarea>
+            <button type="submit"${hasChanges ? '' : ' disabled'}>최종 저장</button>
+          </form>
+        </div>
+      </div>
+    </div>
   `;
   sendHtml(res, 200, layout('KCC Backoffice', content));
 }
@@ -482,7 +707,7 @@ async function handlePost(req, res, action) {
     }
 
     await updateCalendarMonth(year, month, payload);
-    redirect(res, `${basePath}?message=${encodeURIComponent('수동 수정 내용을 저장했습니다.')}`);
+    redirect(res, `${basePath}?message=${encodeURIComponent('수동 수정 내용을 최종 저장했습니다.')}`);
     return;
   }
 
@@ -514,7 +739,12 @@ async function handleRequest(req, res) {
     return;
   }
 
-  if (url.pathname === `${basePath}/calendar/edit` && req.method === 'POST') {
+  if (url.pathname === `${basePath}/calendar/edit/preview` && req.method === 'POST') {
+    await handleEditPreview(req, res);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/calendar/edit/commit` && req.method === 'POST') {
     await handlePost(req, res, 'edit');
     return;
   }
