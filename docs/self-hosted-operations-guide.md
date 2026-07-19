@@ -638,6 +638,115 @@ curl -fsS https://api.sidore.org/kcc/v1/health
 curl -fsS https://api.sidore.org/kcc/v1/calendar/2026/7 | head
 ```
 
+### 실제 적용할 KCC 백오피스 Tunnel 설정
+
+백오피스는 외부에 바로 공개하지 말고 Cloudflare Access로 보호한 뒤 연결한다.
+
+Mac mini 로컬 백오피스 확인:
+
+```bash
+curl -fsS http://127.0.0.1:13000/health
+```
+
+`/etc/cloudflared/config.yml`의 ingress에 `admin.sidore.org`를 fallback보다 위에 추가한다.
+
+```yaml
+ingress:
+  # KCC API
+- hostname: api.sidore.org
+  service: http://localhost:18080
+
+  # KCC Backoffice
+- hostname: admin.sidore.org
+  service: http://localhost:13000
+
+  # WishingNote PRD
+- hostname: v2.wishingnote.net
+  service: http://localhost:8080
+
+  # WishingNote DEV
+- hostname: dev.wishingnote.net
+  service: http://localhost:8081
+
+  # 기본 fallback
+- service: http_status:404
+```
+
+주의:
+
+- `admin.sidore.org` 항목도 반드시 fallback인 `http_status:404`보다 위에 있어야 한다.
+- Cloudflare Tunnel ingress는 위에서 아래로 매칭되므로 더 구체적인 hostname을 먼저 둔다.
+- ingress 파일의 마지막 규칙은 catch-all fallback이어야 한다.
+
+설정 문법 확인:
+
+```bash
+cloudflared tunnel --config /etc/cloudflared/config.yml ingress validate
+```
+
+어떤 규칙에 매칭되는지 확인:
+
+```bash
+cloudflared tunnel --config /etc/cloudflared/config.yml ingress rule https://admin.sidore.org/kcc
+```
+
+DNS 확인:
+
+Cloudflare Dashboard의 `sidore.org` DNS에서 `admin.sidore.org`를 Tunnel `wishingnote` 대상으로 추가한다.
+UI에서 타입이 `터널`, 대상이 `wishingnote`, 프록시됨으로 보이면 정상이다. CLI로 시도할 때 다른 zone에
+잘못 생성될 수 있으므로 이 도메인은 Dashboard 확인을 우선한다.
+
+터널 재시작:
+
+```bash
+sudo launchctl kickstart -k system/com.cloudflare.cloudflared
+```
+
+터널 상태 확인:
+
+```bash
+ps aux | grep cloudflared | grep -v grep
+sudo launchctl print system/com.cloudflare.cloudflared | head -80
+```
+
+외부 백오피스 확인:
+
+```bash
+curl -I https://admin.sidore.org/kcc
+```
+
+Cloudflare Access 적용 전에는 외부에서 이 URL을 열지 않는다. Access가 적용되면 브라우저에서
+`https://admin.sidore.org/kcc` 접속 시 Cloudflare 로그인 화면이 먼저 보여야 한다.
+
+### Cloudflare Access 보호 설정
+
+`admin.sidore.org`는 Tunnel DNS 연결만으로 끝내지 말고 반드시 Access Application으로 보호한다.
+
+권장 설정:
+
+- Application type: Self-hosted
+- Application domain: `admin.sidore.org`
+- Path: `/kcc*`
+- Policy action: Allow
+- Include rule: 본인 이메일 또는 허용할 관리자 이메일
+- Session duration: 짧게 시작한다. 예: 8시간 이하
+- 가능하면 MFA 또는 Cloudflare 계정의 2단계 인증을 켠다.
+
+설정 후 확인할 것:
+
+- 로그인하지 않은 브라우저/private window에서 `https://admin.sidore.org/kcc` 접속
+- Cloudflare Access 로그인 화면이 먼저 나오는지 확인
+- 허용된 이메일로 로그인 후 백오피스 Basic Auth가 한 번 더 나오는지 확인
+- Basic Auth 사용자 이름은 `admin`, 비밀번호는 `ops/.env`의 `ADMIN_TOKEN`
+
+이중 보호 구조:
+
+1. Cloudflare Access: 외부 접근자 제한
+2. 백오피스 Basic Auth: 앱 내부 관리자 비밀번호
+
+Cloudflare Access가 적용되기 전까지는 `admin.sidore.org` DNS나 ingress를 추가하지 않는 편이 가장
+안전하다. 이미 추가했다면 Access 정책을 먼저 켠 뒤 외부 테스트를 진행한다.
+
 ### Mac mini DNS 주의사항
 
 Mac mini에서 `dig api.sidore.org`는 성공하지만 `curl`/Python이 `Could not resolve host` 또는
@@ -743,6 +852,16 @@ curl -fsS http://127.0.0.1:13000/health
 브라우저에서는 `http://127.0.0.1:13000/kcc`로 접속한다. 원격에서 확인할 때는 Cloudflare Tunnel에
 `admin.sidore.org -> http://localhost:13000` ingress를 추가한 뒤 `https://admin.sidore.org/kcc`로
 접속한다.
+
+백오피스 외부 연결 확인:
+
+- Cloudflare Access Application 생성
+- `admin.sidore.org` Tunnel DNS 추가
+- `/etc/cloudflared/config.yml`에 `admin.sidore.org -> http://localhost:13000` ingress 추가
+- `cloudflared tunnel --config /etc/cloudflared/config.yml ingress validate`
+- `sudo launchctl kickstart -k system/com.cloudflare.cloudflared`
+- private window에서 `https://admin.sidore.org/kcc` 접속
+- Cloudflare Access 로그인 후 Basic Auth 로그인 확인
 
 ## 배포/업데이트 절차
 
