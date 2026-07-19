@@ -1,5 +1,6 @@
 package com.sidore.catholiccalendar
 
+import android.app.backup.BackupManager
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
@@ -28,7 +29,10 @@ class MainActivity : FlutterActivity() {
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "loadSnapshot" -> result.success(null)
-                "saveSnapshot" -> result.success(false)
+                "saveSnapshot" -> {
+                    BackupManager(this).dataChanged()
+                    result.success(true)
+                }
                 else -> result.notImplemented()
             }
         }

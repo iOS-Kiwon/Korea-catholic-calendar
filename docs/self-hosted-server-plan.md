@@ -446,8 +446,8 @@ Basic Auth 사용자 이름이 저장된다.
 22단계에서는 개인 일정/카테고리 스냅샷을 앱 시작 시 원격 저장소에서 복원하고, 사용자가 일정 또는
 카테고리를 변경할 때 원격 저장소에 자동 백업하는 흐름을 추가한다. iOS는
 `NSUbiquitousKeyValueStore` 기반 iCloud Key-Value Store에 `personalDataSnapshotV1` JSON을 저장한다.
-Android는 Google Drive `appDataFolder` 연동 전까지 같은 플랫폼 채널에서 저장 실패/복원 없음으로
-응답하게 두어, 앱 로직은 공통으로 유지한다.
+Android는 Google Drive `appDataFolder` 직접 연동 대신 Android Auto Backup을 사용해 Google 계정의
+앱 데이터 백업/복원 흐름을 따른다.
 
 22단계 iOS 테스트 시나리오:
 
@@ -458,6 +458,27 @@ Android는 Google Drive `appDataFolder` 연동 전까지 같은 플랫폼 채널
 5. 같은 Apple ID의 기기에 앱 재설치
 6. 앱 실행 후 `[KCC backup] Restored cloud personal-data snapshot` 확인
 7. `2026년 7월 19일` 일정이 자동 복원되어 보이는지 확인
+
+22단계의 Google/Android 작업에서는 Android Auto Backup을 명시적으로 켰다. 개인 일정과 카테고리는
+현재 SharedPreferences에 저장되므로, `android:allowBackup="true"`, Android 11 이하용
+`@xml/backup_rules`, Android 12 이상용 `@xml/data_extraction_rules`를 추가해 SharedPreferences를
+Google 계정 백업/기기 간 전송 대상에 포함한다. 사용자가 일정 또는 카테고리를 변경하면 Android
+플랫폼 채널에서 `BackupManager.dataChanged()`를 호출해 백업 대상 데이터가 바뀌었음을 시스템에 알린다.
+
+Android Auto Backup은 iCloud KVS처럼 앱이 직접 원격 JSON을 즉시 내려받는 방식이 아니라, Android
+시스템이 앱 설치/복원 시점에 앱 데이터를 복구하는 방식이다. 따라서 앱 시작 후 `loadSnapshot`은 별도
+원격 스냅샷을 반환하지 않고, 복원된 SharedPreferences를 앱이 평소처럼 읽는다.
+
+22단계 Android 테스트 시나리오:
+
+1. Google 백업이 켜진 실제 Android 기기에 앱 설치
+2. `2026년 7월 19일` 개인 일정 추가
+3. debug log에서 `[KCC backup] Cloud personal-data backup saved` 확인
+4. Android 백업이 실행될 때까지 대기하거나 테스트 명령으로 백업을 유도
+5. 앱 삭제
+6. 같은 Google 계정의 기기에 앱 재설치
+7. Android 시스템 복원 후 앱 실행
+8. `2026년 7월 19일` 일정이 자동 복원되어 보이는지 확인
 
 ### 5단계: 확장
 
