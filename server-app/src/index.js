@@ -68,16 +68,6 @@ function isSemanticVersion(value) {
   return /^\d+\.\d+\.\d+$/.test(String(value || '').trim());
 }
 
-function compareSemanticVersions(a, b) {
-  const left = String(a).split('.').map(Number);
-  const right = String(b).split('.').map(Number);
-  for (let i = 0; i < 3; i += 1) {
-    if (left[i] > right[i]) return 1;
-    if (left[i] < right[i]) return -1;
-  }
-  return 0;
-}
-
 async function ensureSchema() {
   if (!db) {
     console.warn('Database settings are not set. Calendar DB cache is disabled.');
@@ -100,31 +90,26 @@ async function ensureSchema() {
   `);
 
   await db.query(`
-    CREATE TABLE IF NOT EXISTS app_version_policies (
-      platform text PRIMARY KEY,
-      minimum_version text NOT NULL DEFAULT '0.0.0',
-      latest_version text NOT NULL DEFAULT '0.0.0',
+    CREATE TABLE IF NOT EXISTS app_update_policy (
+      id integer PRIMARY KEY DEFAULT 1,
+      update_mode text NOT NULL DEFAULT 'none',
       force_update_title text NOT NULL DEFAULT '업데이트가 필요합니다',
       force_update_message text NOT NULL DEFAULT '',
       recommended_update_title text NOT NULL DEFAULT '새 버전이 있습니다',
       update_message text NOT NULL DEFAULT '',
-      store_url text NOT NULL DEFAULT '',
-      maintenance_mode boolean NOT NULL DEFAULT false,
-      maintenance_message text NOT NULL DEFAULT '',
       updated_at timestamptz NOT NULL DEFAULT now(),
-      CHECK (platform IN ('ios', 'android')),
-      CHECK (minimum_version ~ '^\\d+\\.\\d+\\.\\d+$'),
-      CHECK (latest_version ~ '^\\d+\\.\\d+\\.\\d+$')
+      CHECK (id = 1),
+      CHECK (update_mode IN ('none', 'recommended', 'force'))
     )
   `);
 
   await db.query(`
-    ALTER TABLE app_version_policies
+    ALTER TABLE app_update_policy
     ADD COLUMN IF NOT EXISTS force_update_title text NOT NULL DEFAULT '업데이트가 필요합니다'
   `);
 
   await db.query(`
-    ALTER TABLE app_version_policies
+    ALTER TABLE app_update_policy
     ADD COLUMN IF NOT EXISTS recommended_update_title text NOT NULL DEFAULT '새 버전이 있습니다'
   `);
 }
@@ -181,44 +166,31 @@ async function saveCachedCalendar(year, month, payload, source) {
   );
 }
 
-async function findAppVersionPolicy(platform) {
+async function findAppUpdatePolicy() {
   if (!db) return null;
 
-  const result = await db.query(
-    `
+  const result = await db.query(`
       SELECT
-        platform,
-        minimum_version,
-        latest_version,
+        update_mode,
         force_update_title,
         force_update_message,
         recommended_update_title,
         update_message,
-        store_url,
-        maintenance_mode,
-        maintenance_message,
         updated_at
-      FROM app_version_policies
-      WHERE platform = $1
-    `,
-    [platform],
-  );
+      FROM app_update_policy
+      WHERE id = 1
+    `);
 
   return result.rows[0] || null;
 }
 
-function defaultAppVersionPolicy(platform) {
+function defaultAppUpdatePolicy() {
   return {
-    platform,
-    minimum_version: '0.0.0',
-    latest_version: '0.0.0',
+    update_mode: 'none',
     force_update_title: '업데이트가 필요합니다',
     force_update_message: '',
     recommended_update_title: '새 버전이 있습니다',
     update_message: '',
-    store_url: '',
-    maintenance_mode: false,
-    maintenance_message: '',
     updated_at: null,
   };
 }
@@ -312,48 +284,34 @@ async function handleAppVersion(req, res, url) {
     return;
   }
 
-  const policy =
-    (await findAppVersionPolicy(platform)) || defaultAppVersionPolicy(platform);
-  const minimumVersion = policy.minimum_version;
-  const latestVersion = policy.latest_version;
-  const forceUpdate =
-    policy.maintenance_mode ||
-    compareSemanticVersions(currentVersion, minimumVersion) < 0;
-  const updateRecommended =
-    !forceUpdate && compareSemanticVersions(currentVersion, latestVersion) < 0;
+  const policy = (await findAppUpdatePolicy()) || defaultAppUpdatePolicy();
+  const forceUpdate = policy.update_mode === 'force';
+  const updateRecommended = policy.update_mode === 'recommended';
   const dialog = forceUpdate
     ? {
         type: 'forceUpdate',
         title: policy.force_update_title,
-        message: policy.maintenance_mode
-          ? policy.maintenance_message || policy.force_update_message
-          : policy.force_update_message,
-        buttons: [{ action: 'update', label: '업데이트' }],
+        message: policy.force_update_message,
+        actions: ['update'],
       }
     : updateRecommended
       ? {
           type: 'recommendedUpdate',
           title: policy.recommended_update_title,
           message: policy.update_message,
-          buttons: [
-            { action: 'later', label: '다음에' },
-            { action: 'update', label: '업데이트' },
-          ],
+          actions: ['later', 'update'],
         }
-      : { type: 'none', title: '', message: '', buttons: [] };
+      : { type: 'none', title: '', message: '', actions: [] };
 
   sendJson(res, 200, {
     platform,
     currentVersion,
-    minimumVersion,
-    latestVersion,
     forceUpdate,
     updateRecommended,
-    maintenanceMode: policy.maintenance_mode,
+    updateMode: policy.update_mode,
     title: dialog.title,
     message: dialog.message,
     dialog,
-    storeUrl: policy.store_url,
     updatedAt: policy.updated_at ? new Date(policy.updated_at).toISOString() : null,
   });
 }

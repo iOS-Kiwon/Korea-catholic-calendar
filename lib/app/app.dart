@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/app_update/app_update_service.dart';
 import '../features/ads/ads.dart';
 import 'router.dart';
 import 'theme/app_theme.dart';
@@ -23,6 +24,35 @@ class _CatholicCalendarAppState extends State<CatholicCalendarApp> {
       // Consent → ATT → Mobile Ads SDK, after the first frame (no-op off mobile).
       WidgetsBinding.instance.addPostFrameCallback((_) => initAds());
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkAppUpdate());
+  }
+
+  Future<void> _checkAppUpdate() async {
+    final policy = await const AppUpdateService().check();
+    if (!mounted || policy == null) return;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: !policy.isForceUpdate,
+      builder: (context) => PopScope(
+        canPop: !policy.isForceUpdate,
+        child: AlertDialog(
+          title: Text(policy.title),
+          content: policy.message.isEmpty ? null : Text(policy.message),
+          actions: [
+            if (policy.isRecommendedUpdate)
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('다음에'),
+              ),
+            FilledButton(
+              onPressed: () => AppUpdateService.openStore(),
+              child: const Text('업데이트'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
