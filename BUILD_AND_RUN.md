@@ -38,6 +38,10 @@ ANDROID_AVD=Medium_Phone_API_36.1 ./run.sh android simulator # 특정 Android AV
 https://api.sidore.org/kcc/v1
 ```
 
+월 화면은 먼저 앱에 포함된 전례력 스냅샷과 계산 엔진으로 즉시 표시됩니다. 이후 백그라운드에서
+자체 서버의 `/calendar/{year}/{month}`를 조회하고, 서버 데이터가 있으면 해당 월 데이터를 병합해
+화면을 갱신합니다. 서버가 응답하지 않거나 `available=false`이면 기존 번들 데이터로 계속 동작합니다.
+
 로컬 Mac mini API 서버나 개발 서버로 바꿔 테스트하려면 `KCC_API_BASE_URL`을
 `--dart-define`으로 주입합니다.
 
@@ -59,6 +63,13 @@ flutter run \
 flutter run \
   --dart-define=KCC_API_BASE_URL=https://api.sidore.org/kcc/v1
 ```
+
+백오피스에서 전례력 JSON을 수정한 뒤 앱 반영 여부를 확인할 때는 다음 순서가 안전합니다.
+
+1. `https://admin.sidore.org/kcc`에서 대상 월 JSON 수정 후 최종 저장
+2. `https://api.sidore.org/kcc/v1/calendar/YYYY/M`에서 수정된 값 확인
+3. 앱을 실행하고 같은 월로 이동
+4. 처음에는 번들 데이터가 보일 수 있으나, 서버 응답 후 수정된 값으로 갱신되는지 확인
 
 출시 빌드는 `release` 옵션을 붙입니다. 앱 버전과 빌드번호를 입력하면
 플랫폼별 버전 파일을 갱신한 뒤 심사용 산출물을 빌드합니다.

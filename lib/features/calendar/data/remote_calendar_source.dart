@@ -21,10 +21,12 @@ class RemoteCalendarSource {
   const RemoteCalendarSource({
     this.baseUrl = kRemoteBaseUrl,
     this.enabled = true,
+    this.client,
   });
 
   final String baseUrl;
   final bool enabled; // 테스트/오프라인에서 비활성화 가능
+  final http.Client? client;
 
   Uri monthUri(int year, int month) => Uri.parse(
     '${baseUrl.replaceAll(RegExp(r'/+$'), '')}/calendar/$year/$month',
@@ -32,8 +34,9 @@ class RemoteCalendarSource {
 
   Future<Map<String, CbckDay>?> fetchMonth(int year, int month) async {
     if (!enabled || baseUrl.isEmpty) return null;
+    final activeClient = client ?? http.Client();
     try {
-      final res = await http
+      final res = await activeClient
           .get(monthUri(year, month))
           .timeout(const Duration(seconds: 6));
       if (res.statusCode != 200) return null;
@@ -43,6 +46,8 @@ class RemoteCalendarSource {
       return CalendarService.parseDays(doc['days'] as List? ?? const []);
     } catch (_) {
       return null; // 오프라인/오류 → 폴백
+    } finally {
+      if (client == null) activeClient.close();
     }
   }
 }
