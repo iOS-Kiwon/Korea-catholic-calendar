@@ -142,6 +142,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
       RemoteMonthStatus.loaded => ('서버 갱신 완료', Colors.green),
       RemoteMonthStatus.unavailable => ('서버 데이터 없음', Colors.orange),
       RemoteMonthStatus.failed => ('서버 확인 실패', Colors.red),
+      RemoteMonthStatus.skipped => ('최근 서버 확인됨', Colors.teal),
       RemoteMonthStatus.idle => ('서버 대기', Colors.grey),
     };
     final checkedAt = state == null

@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/date/year_month.dart';
 import '../data/calendar_data_repository.dart';
 import '../data/calendar_service.dart';
+import '../data/remote_calendar_refresh_store.dart';
 import '../data/remote_calendar_source.dart';
 
 void _debugLog(String message) {
@@ -20,7 +22,13 @@ final remoteCalendarSourceProvider = Provider<RemoteCalendarSource>(
   (ref) => const RemoteCalendarSource(),
 );
 
-enum RemoteMonthStatus { idle, loading, loaded, unavailable, failed }
+final remoteCalendarRefreshStoreProvider =
+    FutureProvider<RemoteCalendarRefreshStore>((ref) async {
+      final prefs = await SharedPreferences.getInstance();
+      return RemoteCalendarRefreshStore(prefs: prefs);
+    });
+
+enum RemoteMonthStatus { idle, loading, loaded, unavailable, failed, skipped }
 
 class RemoteMonthState {
   const RemoteMonthState({
@@ -91,10 +99,20 @@ class CalendarController extends AsyncNotifier<CalendarService> {
   Future<void> ensureMonth(YearMonth month) async {
     final key = month.toString();
     final service = state.hasValue ? state.requireValue : null;
+    final refreshStore = await ref.read(
+      remoteCalendarRefreshStoreProvider.future,
+    );
     if (service == null ||
         _loading.contains(key) ||
         _loadedFromRemote.contains(key) ||
         _unavailable.contains(key)) {
+      return;
+    }
+
+    if (!refreshStore.shouldRefresh(key)) {
+      _unavailable.add(key);
+      _setRemoteStatus(key, RemoteMonthStatus.skipped, '최근 서버 확인됨');
+      _debugLog('[KCC API] $key skipped by TTL');
       return;
     }
 
@@ -120,6 +138,7 @@ class CalendarController extends AsyncNotifier<CalendarService> {
       _setRemoteStatus(key, RemoteMonthStatus.failed, '서버 확인 실패');
       _debugLog('[KCC API] $key merge failed: $error');
     } finally {
+      await refreshStore.markChecked(key);
       _loading.remove(key);
     }
   }
@@ -142,10 +161,17 @@ final monthServiceProvider = FutureProvider.family<CalendarService, YearMonth>((
   ref,
   ym,
 ) async {
+  final key = ym.toString();
   final service = await ref.watch(liturgicalCalendarProvider.future);
+  final refreshStore = await ref.watch(
+    remoteCalendarRefreshStoreProvider.future,
+  );
+  if (!refreshStore.shouldRefresh(key)) return service;
+
   final more = await ref
       .watch(remoteCalendarSourceProvider)
       .fetchMonth(ym.year, ym.month);
   if (more != null) service.merge(more);
+  await refreshStore.markChecked(key);
   return service;
 });
