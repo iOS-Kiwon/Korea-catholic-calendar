@@ -5,13 +5,36 @@ const port = Number(process.env.API_PORT || 8080);
 const host = process.env.API_HOST || '0.0.0.0';
 const appEnv = process.env.APP_ENV || 'development';
 const databaseUrl = process.env.DATABASE_URL;
+const postgresHost = process.env.POSTGRES_HOST || 'db';
+const postgresPort = Number(process.env.POSTGRES_PORT || 5432);
+const postgresDb = process.env.POSTGRES_DB;
+const postgresUser = process.env.POSTGRES_USER;
+const postgresPassword = process.env.POSTGRES_PASSWORD;
 const workerBaseUrl =
   process.env.CLOUDFLARE_WORKER_BASE_URL ||
   'https://catholic-calendar.sidore.workers.dev';
 const apiPrefix = '/kcc/v1';
 
 const startedAt = new Date();
-const db = databaseUrl ? new pg.Pool({ connectionString: databaseUrl }) : null;
+const db = createDbPool();
+
+function createDbPool() {
+  if (postgresDb && postgresUser && postgresPassword) {
+    return new pg.Pool({
+      host: postgresHost,
+      port: postgresPort,
+      database: postgresDb,
+      user: postgresUser,
+      password: postgresPassword,
+    });
+  }
+
+  if (databaseUrl) {
+    return new pg.Pool({ connectionString: databaseUrl });
+  }
+
+  return null;
+}
 
 function sendJson(res, status, body, headers = {}) {
   const payload = JSON.stringify(body);
@@ -37,7 +60,7 @@ function calendarUrl(year, month) {
 
 async function ensureSchema() {
   if (!db) {
-    console.warn('DATABASE_URL is not set. Calendar DB cache is disabled.');
+    console.warn('Database settings are not set. Calendar DB cache is disabled.');
     return;
   }
 
