@@ -10,6 +10,18 @@ services:
     ports:
       - "127.0.0.1:${HOST_API_PORT:-8080}:${API_PORT:-8080}"
 
+  backoffice:
+    build:
+      context: ../backoffice
+    env_file:
+      - .env
+    depends_on:
+      - api
+      - db
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${HOST_BACKOFFICE_PORT:-13000}:${BACKOFFICE_PORT:-3000}"
+
   db:
     image: postgres:16-alpine
     env_file:

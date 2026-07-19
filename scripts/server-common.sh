@@ -28,6 +28,21 @@ host_api_port() {
   printf "%s\n" "$value"
 }
 
+backoffice_port() {
+  local value
+  value="${BACKOFFICE_PORT:-$(env_value BACKOFFICE_PORT)}"
+  printf "%s\n" "${value:-3000}"
+}
+
+host_backoffice_port() {
+  local value
+  value="${HOST_BACKOFFICE_PORT:-$(env_value HOST_BACKOFFICE_PORT)}"
+  if [ -z "$value" ]; then
+    value="$(backoffice_port)"
+  fi
+  printf "%s\n" "$value"
+}
+
 die() {
   printf "[server] ERROR: %s\n" "$*" >&2
   exit 1
@@ -63,7 +78,7 @@ wait_for_docker() {
   die "Docker is not ready"
 }
 
-wait_for_health() {
+wait_for_api_health() {
   require_command curl
   local health_url
   health_url="http://127.0.0.1:$(host_api_port)/kcc/v1/health"
@@ -76,4 +91,24 @@ wait_for_health() {
     sleep 2
   done
   die "API health check failed: $health_url"
+}
+
+wait_for_backoffice_health() {
+  require_command curl
+  local health_url
+  health_url="http://127.0.0.1:$(host_backoffice_port)/health"
+  for i in $(seq 1 30); do
+    if curl -fsS "$health_url" >/dev/null 2>&1; then
+      info "Backoffice health check passed: $health_url"
+      return 0
+    fi
+    info "Waiting for backoffice health... $i/30"
+    sleep 2
+  done
+  die "Backoffice health check failed: $health_url"
+}
+
+wait_for_health() {
+  wait_for_api_health
+  wait_for_backoffice_health
 }
