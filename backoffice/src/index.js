@@ -17,6 +17,29 @@ const db = new pg.Pool({
   password: process.env.POSTGRES_PASSWORD,
 });
 
+async function ensureSchema() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS calendar_month_revisions (
+      id bigserial PRIMARY KEY,
+      year integer NOT NULL,
+      month integer NOT NULL,
+      action text NOT NULL,
+      source text NOT NULL,
+      available boolean NOT NULL,
+      payload_json jsonb NOT NULL,
+      note text,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      CHECK (year >= 1900 AND year <= 2200),
+      CHECK (month >= 1 AND month <= 12)
+    )
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS calendar_month_revisions_year_month_idx
+    ON calendar_month_revisions (year, month, created_at DESC)
+  `);
+}
+
 function normalizeBasePath(value) {
   const trimmed = value.trim().replace(/\/+$/, '');
   if (!trimmed) return '';
@@ -217,7 +240,11 @@ async function listCalendarMonths() {
   return result.rows;
 }
 
-async function deleteCalendarMonth(year, month) {
+async function deleteCalendarMonth(year, month, options = {}) {
+  if (options.saveRevision !== false) {
+    await saveCalendarRevision(year, month, 'delete', '삭제 전 자동 저장');
+  }
+
   await db.query('DELETE FROM calendar_months WHERE year = $1 AND month = $2', [
     year,
     month,
@@ -236,7 +263,66 @@ async function getCalendarMonth(year, month) {
   return result.rows[0] || null;
 }
 
+async function getCalendarRevision(id) {
+  const result = await db.query(
+    `
+      SELECT id, year, month, action, source, available, payload_json, note, created_at
+      FROM calendar_month_revisions
+      WHERE id = $1
+    `,
+    [id],
+  );
+  return result.rows[0] || null;
+}
+
+async function listCalendarRevisions(year, month) {
+  const result = await db.query(
+    `
+      SELECT
+        id,
+        year,
+        month,
+        action,
+        source,
+        available,
+        note,
+        created_at,
+        jsonb_array_length(COALESCE(payload_json->'days', '[]'::jsonb)) AS day_count
+      FROM calendar_month_revisions
+      WHERE year = $1 AND month = $2
+      ORDER BY created_at DESC, id DESC
+    `,
+    [year, month],
+  );
+  return result.rows;
+}
+
+async function saveCalendarRevision(year, month, action, note = '') {
+  const row = await getCalendarMonth(year, month);
+  if (!row) return;
+
+  await db.query(
+    `
+      INSERT INTO calendar_month_revisions (
+        year, month, action, source, available, payload_json, note
+      )
+      VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
+    `,
+    [
+      year,
+      month,
+      action,
+      row.source,
+      row.available,
+      JSON.stringify(row.payload_json),
+      note,
+    ],
+  );
+}
+
 async function updateCalendarMonth(year, month, payload) {
+  await saveCalendarRevision(year, month, 'manual_update', '수동 수정 전 자동 저장');
+
   await db.query(
     `
       UPDATE calendar_months
@@ -251,8 +337,46 @@ async function updateCalendarMonth(year, month, payload) {
   );
 }
 
+async function restoreCalendarRevision(id) {
+  const revision = await getCalendarRevision(id);
+  if (!revision) {
+    throw new Error('revision_not_found');
+  }
+
+  await saveCalendarRevision(
+    revision.year,
+    revision.month,
+    'restore',
+    `revision ${revision.id} 되돌리기 전 자동 저장`,
+  );
+
+  await db.query(
+    `
+      INSERT INTO calendar_months (
+        year, month, available, source, payload_json, fetched_at, updated_at
+      )
+      VALUES ($1, $2, $3, 'manual', $4::jsonb, now(), now())
+      ON CONFLICT (year, month)
+      DO UPDATE SET
+        available = EXCLUDED.available,
+        source = EXCLUDED.source,
+        payload_json = EXCLUDED.payload_json,
+        updated_at = now()
+    `,
+    [
+      revision.year,
+      revision.month,
+      revision.available,
+      JSON.stringify(revision.payload_json),
+    ],
+  );
+
+  return revision;
+}
+
 async function refreshCalendarMonth(year, month) {
-  await deleteCalendarMonth(year, month);
+  await saveCalendarRevision(year, month, 'refresh', '재갱신 전 자동 저장');
+  await deleteCalendarMonth(year, month, { saveRevision: false });
   const url = `${apiBaseUrl.replace(/\/+$/, '')}/calendar/${year}/${month}`;
   const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
   if (!response.ok) {
@@ -500,6 +624,7 @@ function monthRows(rows) {
         <td>
           <div class="actions">
             <a class="button secondary" href="${basePath}/calendar/edit?year=${year}&month=${month}">수정</a>
+            <a class="button secondary" href="${basePath}/calendar/revisions?year=${year}&month=${month}">이력</a>
             <form method="post" action="${basePath}/calendar/refresh">
               <input type="hidden" name="year" value="${year}">
               <input type="hidden" name="month" value="${month}">
@@ -584,6 +709,126 @@ function renderEditForm(year, month, payload, message = '') {
     </script>
   `;
   return layout('KCC Backoffice', content);
+}
+
+function revisionRows(rows) {
+  if (rows.length === 0) {
+    return '<div class="empty">저장된 수정 이력이 없습니다.</div>';
+  }
+
+  const cells = rows
+    .map((row) => {
+      const id = Number(row.id);
+      const year = Number(row.year);
+      const month = Number(row.month);
+      return `<tr>
+        <td>${id}</td>
+        <td>${escapeHtml(row.action)}</td>
+        <td>${escapeHtml(row.source)}</td>
+        <td>${row.available ? 'yes' : 'no'}</td>
+        <td>${Number(row.day_count || 0)}</td>
+        <td>${escapeHtml(row.note || '')}</td>
+        <td>${escapeHtml(new Date(row.created_at).toLocaleString('ko-KR'))}</td>
+        <td>
+          <form method="post" action="${basePath}/calendar/revisions/restore">
+            <input type="hidden" name="id" value="${id}">
+            <button type="submit">되돌리기</button>
+          </form>
+        </td>
+        <td>
+          <a class="button secondary" href="${basePath}/calendar/revisions/view?id=${id}&year=${year}&month=${month}">보기</a>
+        </td>
+      </tr>`;
+    })
+    .join('');
+
+  return `<table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>작업</th>
+        <th>이전 출처</th>
+        <th>사용 가능</th>
+        <th>일수</th>
+        <th>메모</th>
+        <th>저장 시각</th>
+        <th></th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>${cells}</tbody>
+  </table>`;
+}
+
+async function handleRevisions(req, res, url) {
+  const { year, month } = parseYearMonth(url.searchParams);
+  const rows = await listCalendarRevisions(year, month);
+  const message = url.searchParams.get('message');
+  const content = `
+    ${message ? `<div class="message">${escapeHtml(message)}</div>` : ''}
+    <div class="toolbar">
+      <a class="button secondary" href="${basePath}">목록으로</a>
+      <a class="button secondary" href="${basePath}/calendar/edit?year=${year}&month=${month}">현재 JSON 수정</a>
+    </div>
+    <div class="editor">
+      <div>
+        <h2>${year}년 ${month}월 수정 이력</h2>
+        <div class="sub">수정, 삭제, 재갱신, 되돌리기 전에 자동 저장된 이전 버전입니다.</div>
+      </div>
+      ${revisionRows(rows)}
+    </div>
+  `;
+  sendHtml(res, 200, layout('KCC Backoffice', content));
+}
+
+async function handleRevisionView(req, res, url) {
+  const id = Number(url.searchParams.get('id'));
+  if (!Number.isInteger(id) || id < 1) {
+    throw new Error('invalid_revision_id');
+  }
+
+  const revision = await getCalendarRevision(id);
+  if (!revision) {
+    sendHtml(
+      res,
+      404,
+      layout('KCC Backoffice', '<div class="empty">수정 이력을 찾을 수 없습니다.</div>'),
+    );
+    return;
+  }
+
+  const payload = normalizeJsonText(revision.payload_json);
+  const content = `
+    <div class="editor">
+      <div>
+        <h2>Revision #${Number(revision.id)}</h2>
+        <div class="sub">${Number(revision.year)}년 ${Number(revision.month)}월 · ${escapeHtml(revision.action)} · ${escapeHtml(new Date(revision.created_at).toLocaleString('ko-KR'))}</div>
+      </div>
+      <textarea readonly spellcheck="false">${escapeHtml(payload)}</textarea>
+      <div class="editor-actions">
+        <a class="button secondary" href="${basePath}/calendar/revisions?year=${Number(revision.year)}&month=${Number(revision.month)}">이력으로</a>
+        <form method="post" action="${basePath}/calendar/revisions/restore">
+          <input type="hidden" name="id" value="${Number(revision.id)}">
+          <button type="submit">이 버전으로 되돌리기</button>
+        </form>
+      </div>
+    </div>
+  `;
+  sendHtml(res, 200, layout('KCC Backoffice', content));
+}
+
+async function handleRevisionRestore(req, res) {
+  const form = await readForm(req);
+  const id = Number(form.get('id'));
+  if (!Number.isInteger(id) || id < 1) {
+    throw new Error('invalid_revision_id');
+  }
+
+  const revision = await restoreCalendarRevision(id);
+  redirect(
+    res,
+    `${basePath}/calendar/revisions?year=${Number(revision.year)}&month=${Number(revision.month)}&message=${encodeURIComponent('선택한 이력으로 되돌렸습니다.')}`,
+  );
 }
 
 async function handleEdit(req, res, url) {
@@ -796,8 +1041,23 @@ async function handleRequest(req, res) {
     return;
   }
 
+  if (url.pathname === `${basePath}/calendar/revisions` && req.method === 'GET') {
+    await handleRevisions(req, res, url);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/calendar/revisions/view` && req.method === 'GET') {
+    await handleRevisionView(req, res, url);
+    return;
+  }
+
   if (url.pathname === `${basePath}/calendar/delete` && req.method === 'POST') {
     await handlePost(req, res, 'delete');
+    return;
+  }
+
+  if (url.pathname === `${basePath}/calendar/revisions/restore` && req.method === 'POST') {
+    await handleRevisionRestore(req, res);
     return;
   }
 
@@ -838,9 +1098,16 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(port, host, () => {
-  console.log(`catholic-calendar backoffice listening on ${host}:${port}`);
-});
+ensureSchema()
+  .then(() => {
+    server.listen(port, host, () => {
+      console.log(`catholic-calendar backoffice listening on ${host}:${port}`);
+    });
+  })
+  .catch((error) => {
+    console.error('Failed to initialize backoffice storage', error);
+    process.exit(1);
+  });
 
 function shutdown(signal) {
   console.log(`Received ${signal}, shutting down`);
