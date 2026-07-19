@@ -438,6 +438,11 @@ Google 계정의 앱 전용 저장소다.
 - 플랫폼 개인 클라우드 데이터 초기화 기능
 - 개인정보 처리방침 업데이트
 
+21단계에서는 백오피스 보안 강화를 위해 관리자 Basic Auth 계정 분리와 로그인 실패 제한을 추가한다.
+기존 `ADMIN_TOKEN` 방식은 유지하되, 여러 관리자가 필요하면 `ADMIN_CREDENTIALS`에
+`admin:비밀번호,editor:비밀번호` 형식으로 계정을 추가할 수 있다. 감사 로그의 `admin_user`에는 실제
+Basic Auth 사용자 이름이 저장된다.
+
 ### 5단계: 확장
 
 - iOS CloudKit Private Database 전환 검토

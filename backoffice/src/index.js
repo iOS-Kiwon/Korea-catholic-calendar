@@ -1,13 +1,19 @@
 import http from 'node:http';
+import crypto from 'node:crypto';
 import pg from 'pg';
 
 const port = Number(process.env.BACKOFFICE_PORT || 3000);
 const host = process.env.BACKOFFICE_HOST || '0.0.0.0';
 const basePath = normalizeBasePath(process.env.BACKOFFICE_BASE_PATH || '/kcc');
 const adminToken = process.env.ADMIN_TOKEN || '';
+const adminUsername = process.env.ADMIN_USERNAME || 'admin';
+const adminCredentials = parseAdminCredentials();
+const authMaxFailures = Number(process.env.ADMIN_AUTH_MAX_FAILURES || 5);
+const authLockMs = Number(process.env.ADMIN_AUTH_LOCK_SECONDS || 300) * 1000;
 const apiBaseUrl =
   process.env.API_INTERNAL_BASE_URL ||
   `http://api:${process.env.API_PORT || 8080}/kcc/v1`;
+const failedAuthAttempts = new Map();
 
 const db = new pg.Pool({
   host: process.env.POSTGRES_HOST || 'db',
@@ -87,6 +93,29 @@ function normalizeBasePath(value) {
   const trimmed = value.trim().replace(/\/+$/, '');
   if (!trimmed) return '';
   return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+}
+
+function parseAdminCredentials() {
+  const entries = [];
+  const rawCredentials = process.env.ADMIN_CREDENTIALS || '';
+
+  if (adminToken) {
+    entries.push([adminUsername, adminToken]);
+  }
+
+  for (const item of rawCredentials.split(/[\n,]+/)) {
+    const trimmed = item.trim();
+    if (!trimmed) continue;
+    const separator = trimmed.indexOf(':');
+    if (separator <= 0) continue;
+    const username = trimmed.slice(0, separator).trim();
+    const password = trimmed.slice(separator + 1);
+    if (username && password) {
+      entries.push([username, password]);
+    }
+  }
+
+  return entries;
 }
 
 function escapeHtml(value) {
@@ -221,29 +250,125 @@ function redirect(res, location) {
   res.end();
 }
 
-function isAuthorized(req) {
-  if (!adminToken) return true;
+function safeEqual(a, b) {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  if (left.length !== right.length) return false;
+  return crypto.timingSafeEqual(left, right);
+}
 
+function authKey(req, username = '') {
+  return `${clientIp(req)}:${username}`;
+}
+
+function getAuthLock(req, username = '') {
+  const key = authKey(req, username);
+  const entry = failedAuthAttempts.get(key);
+  if (!entry) return null;
+
+  const now = Date.now();
+  if (entry.lockedUntil && entry.lockedUntil > now) {
+    return entry;
+  }
+
+  if (entry.resetAt <= now) {
+    failedAuthAttempts.delete(key);
+    return null;
+  }
+
+  return entry;
+}
+
+function recordAuthSuccess(req, username) {
+  failedAuthAttempts.delete(authKey(req, username));
+  failedAuthAttempts.delete(authKey(req, ''));
+}
+
+function recordAuthFailure(req, username = '') {
+  const key = authKey(req, username);
+  const now = Date.now();
+  const entry = failedAuthAttempts.get(key) || {
+    count: 0,
+    resetAt: now + authLockMs,
+    lockedUntil: 0,
+  };
+
+  if (entry.resetAt <= now) {
+    entry.count = 0;
+    entry.resetAt = now + authLockMs;
+    entry.lockedUntil = 0;
+  }
+
+  entry.count += 1;
+  if (entry.count >= authMaxFailures) {
+    entry.lockedUntil = now + authLockMs;
+  }
+  failedAuthAttempts.set(key, entry);
+  return entry;
+}
+
+function parseBasicAuth(req) {
   const header = req.headers.authorization || '';
-  if (!header.startsWith('Basic ')) return false;
+  if (!header.startsWith('Basic ')) {
+    return { username: '', password: '' };
+  }
 
-  const decoded = Buffer.from(header.slice('Basic '.length), 'base64').toString(
-    'utf8',
-  );
+  let decoded = '';
+  try {
+    decoded = Buffer.from(header.slice('Basic '.length), 'base64').toString(
+      'utf8',
+    );
+  } catch {
+    return { username: '', password: '' };
+  }
   const separator = decoded.indexOf(':');
   const username = separator >= 0 ? decoded.slice(0, separator) : decoded;
   const password = separator >= 0 ? decoded.slice(separator + 1) : '';
-  return username === 'admin' && password === adminToken;
+  return { username, password };
+}
+
+function authenticate(req) {
+  if (adminCredentials.length === 0) {
+    return { ok: true, username: 'local' };
+  }
+
+  const { username, password } = parseBasicAuth(req);
+  const lock = getAuthLock(req, username) || getAuthLock(req, '');
+  if (lock?.lockedUntil && lock.lockedUntil > Date.now()) {
+    return { ok: false, username, lockedUntil: lock.lockedUntil };
+  }
+
+  for (const [candidateUser, candidatePassword] of adminCredentials) {
+    if (safeEqual(username, candidateUser) && safeEqual(password, candidatePassword)) {
+      recordAuthSuccess(req, username);
+      return { ok: true, username };
+    }
+  }
+
+  const failed = recordAuthFailure(req, username);
+  return { ok: false, username, lockedUntil: failed.lockedUntil || 0 };
 }
 
 function requireAuth(req, res) {
-  if (isAuthorized(req)) return true;
+  const auth = authenticate(req);
+  if (auth.ok) {
+    req.adminUser = auth.username;
+    return true;
+  }
 
-  res.writeHead(401, {
+  const headers = {
     'www-authenticate': 'Basic realm="KCC Backoffice"',
     'content-type': 'text/plain; charset=utf-8',
-  });
-  res.end('Authentication required');
+  };
+
+  let message = 'Authentication required';
+  if (auth.lockedUntil && auth.lockedUntil > Date.now()) {
+    headers['retry-after'] = String(Math.ceil((auth.lockedUntil - Date.now()) / 1000));
+    message = 'Too many failed login attempts. Try again later.';
+  }
+
+  res.writeHead(401, headers);
+  res.end(message);
   return false;
 }
 
@@ -323,7 +448,7 @@ async function logAdminAction(req, action, targetType, targetId, details = {}) {
       VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
     `,
     [
-      'admin',
+      req.adminUser || 'unknown',
       action,
       targetType,
       targetId,
@@ -542,9 +667,10 @@ function navItem(activeNav, key, href, label) {
 }
 
 function layout(title, content, activeNav = 'calendar') {
-  const authNote = adminToken
-    ? 'Basic Auth: admin / ADMIN_TOKEN'
-    : 'ADMIN_TOKEN is not set. Local access only.';
+  const authNote =
+    adminCredentials.length > 0
+      ? `Basic Auth enabled · ${adminCredentials.length} admin account(s)`
+      : 'ADMIN_TOKEN/ADMIN_CREDENTIALS is not set. Local access only.';
 
   return `<!doctype html>
 <html lang="ko">

@@ -128,7 +128,11 @@ POSTGRES_PORT=5432
 CLOUDFLARE_WORKER_BASE_URL=https://catholic-calendar.sidore.workers.dev
 
 ADMIN_SESSION_SECRET=change-this-long-random-secret
+ADMIN_USERNAME=admin
 ADMIN_TOKEN=change-this-admin-token
+# ADMIN_CREDENTIALS=admin:change-this-admin-token,editor:change-this-editor-token
+ADMIN_AUTH_MAX_FAILURES=5
+ADMIN_AUTH_LOCK_SECONDS=300
 BACKUP_DIR=/var/backups/catholic-calendar
 ```
 
@@ -137,6 +141,8 @@ BACKUP_DIR=/var/backups/catholic-calendar
 - 실제 `.env`는 Git에 커밋하지 않는다.
 - `.env.example`만 커밋한다.
 - 비밀번호, 세션 secret, `ADMIN_TOKEN`은 길고 랜덤한 값으로 만든다.
+- 관리자가 여러 명이면 `ADMIN_CREDENTIALS`에 `사용자:비밀번호`를 쉼표로 구분해 넣는다.
+- 백오피스 로그인 실패 제한은 기본 5회 실패 시 300초 잠금이다.
 - 운영 서버에서 `.env` 권한은 가능하면 소유자만 읽을 수 있게 둔다.
 
 ## Docker Compose 구성 초안
@@ -476,7 +482,11 @@ BACKOFFICE_PORT=3000
 HOST_BACKOFFICE_PORT=13000
 API_INTERNAL_BASE_URL=http://api:8080/kcc/v1
 ADMIN_SESSION_SECRET=change-this-long-random-secret
+ADMIN_USERNAME=admin
 ADMIN_TOKEN=change-this-admin-token
+# ADMIN_CREDENTIALS=admin:change-this-admin-token,editor:change-this-editor-token
+ADMIN_AUTH_MAX_FAILURES=5
+ADMIN_AUTH_LOCK_SECONDS=300
 ```
 
 Mac mini 로컬 확인 URL:
@@ -487,6 +497,16 @@ http://127.0.0.1:13000/kcc
 
 `ADMIN_TOKEN`이 설정되어 있으면 브라우저의 Basic Auth 로그인 창에 사용자 이름 `admin`, 비밀번호
 `ADMIN_TOKEN` 값을 입력한다.
+
+관리자가 여러 명이면 `ADMIN_CREDENTIALS`를 사용한다.
+
+```bash
+ADMIN_CREDENTIALS=admin:long-random-admin-password,editor:long-random-editor-password
+```
+
+이 경우 Basic Auth 사용자 이름은 `admin`, `editor`처럼 각 계정 이름을 사용한다. 백오피스 감사 로그의
+관리자 컬럼에도 이 이름이 남는다. 로그인 실패가 반복되면 기본 300초 동안 같은 IP/사용자 조합의 로그인을
+잠시 막는다.
 
 백오피스 첫 버전에서 가능한 작업:
 
@@ -538,7 +558,8 @@ iOS는 Apple 앱 ID `6791044471`, Android는 번들 ID `com.sidore.catholiccalen
 - 백오피스는 공개 앱 API와 다른 도메인을 쓰는 편이 좋다.
 - Cloudflare Access 또는 2FA를 앞단에 둔다.
 - 현재 첫 버전은 Cloudflare Access와 Basic Auth를 전제로 한다.
-- 다음 단계에서는 관리자 로그인 실패 횟수 제한, 관리자별 계정/권한을 둔다.
+- 관리자 로그인 실패 횟수 제한과 관리자별 감사 로그 식별자를 둔다.
+- 현재 관리자별 화면 권한은 분리하지 않았다. 모든 Basic Auth 관리자는 같은 권한을 가진다.
 - 장기적으로는 DB에 직접 붙는 구조보다 API 서버의 관리자 API를 통해 수정하도록 한다.
 
 ## Cloudflare Tunnel 설정
