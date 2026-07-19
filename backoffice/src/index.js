@@ -122,6 +122,33 @@ async function deleteCalendarMonth(year, month) {
   ]);
 }
 
+async function getCalendarMonth(year, month) {
+  const result = await db.query(
+    `
+      SELECT year, month, available, source, payload_json, fetched_at, updated_at
+      FROM calendar_months
+      WHERE year = $1 AND month = $2
+    `,
+    [year, month],
+  );
+  return result.rows[0] || null;
+}
+
+async function updateCalendarMonth(year, month, payload) {
+  await db.query(
+    `
+      UPDATE calendar_months
+      SET
+        available = $3,
+        source = 'manual',
+        payload_json = $4::jsonb,
+        updated_at = now()
+      WHERE year = $1 AND month = $2
+    `,
+    [year, month, payload.available !== false, JSON.stringify(payload)],
+  );
+}
+
 async function refreshCalendarMonth(year, month) {
   await deleteCalendarMonth(year, month);
   const url = `${apiBaseUrl.replace(/\/+$/, '')}/calendar/${year}/${month}`;
@@ -218,6 +245,14 @@ function layout(title, content) {
       text-decoration: none;
       cursor: pointer;
     }
+    a.button {
+      display: inline-flex;
+      align-items: center;
+    }
+    .button.secondary {
+      background: #fff;
+      color: var(--primary);
+    }
     button.secondary {
       background: #fff;
       color: var(--primary);
@@ -265,6 +300,37 @@ function layout(title, content) {
       color: var(--primary);
       font-weight: 700;
     }
+    .editor {
+      display: grid;
+      gap: 14px;
+      padding: 16px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    .editor textarea {
+      width: 100%;
+      min-height: 62vh;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 12px;
+      color: var(--text);
+      background: #fff;
+      font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      tab-size: 2;
+    }
+    .editor-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .warning {
+      color: var(--danger);
+      font-weight: 700;
+    }
     @media (max-width: 760px) {
       main { padding: 16px; }
       table { display: block; overflow-x: auto; }
@@ -300,6 +366,7 @@ function monthRows(rows) {
         <td>${escapeHtml(new Date(row.updated_at).toLocaleString('ko-KR'))}</td>
         <td>
           <div class="actions">
+            <a class="button secondary" href="${basePath}/calendar/edit?year=${year}&month=${month}">수정</a>
             <form method="post" action="${basePath}/calendar/refresh">
               <input type="hidden" name="year" value="${year}">
               <input type="hidden" name="month" value="${month}">
@@ -348,6 +415,38 @@ async function handleIndex(req, res, url) {
   sendHtml(res, 200, layout('KCC Backoffice', content));
 }
 
+async function handleEdit(req, res, url) {
+  const { year, month } = parseYearMonth(url.searchParams);
+  const row = await getCalendarMonth(year, month);
+  if (!row) {
+    sendHtml(
+      res,
+      404,
+      layout('KCC Backoffice', '<div class="empty">캐시를 찾을 수 없습니다.</div>'),
+    );
+    return;
+  }
+
+  const payload = JSON.stringify(row.payload_json, null, 2);
+  const content = `
+    <form class="editor" method="post" action="${basePath}/calendar/edit">
+      <input type="hidden" name="year" value="${year}">
+      <input type="hidden" name="month" value="${month}">
+      <div>
+        <h2>${year}년 ${month}월 JSON 수정</h2>
+        <div class="sub">저장하면 이 월의 출처가 <strong>manual</strong>로 바뀝니다. 재갱신을 누르면 수동 수정 내용이 외부 데이터로 덮어써질 수 있습니다.</div>
+      </div>
+      <textarea name="payload" spellcheck="false">${escapeHtml(payload)}</textarea>
+      <div class="editor-actions">
+        <a class="button secondary" href="${basePath}">목록으로</a>
+        <div class="warning">JSON 문법이 틀리면 저장되지 않습니다.</div>
+        <button type="submit">저장</button>
+      </div>
+    </form>
+  `;
+  sendHtml(res, 200, layout('KCC Backoffice', content));
+}
+
 async function handlePost(req, res, action) {
   const form = await readForm(req);
   const { year, month } = parseYearMonth(form);
@@ -361,6 +460,29 @@ async function handlePost(req, res, action) {
   if (action === 'refresh') {
     await refreshCalendarMonth(year, month);
     redirect(res, `${basePath}?message=${encodeURIComponent('캐시를 재갱신했습니다.')}`);
+    return;
+  }
+
+  if (action === 'edit') {
+    const payloadText = form.get('payload') || '';
+    let payload;
+    try {
+      payload = JSON.parse(payloadText);
+    } catch (error) {
+      sendHtml(
+        res,
+        400,
+        layout(
+          'KCC Backoffice',
+          `<div class="empty">JSON 문법 오류로 저장하지 않았습니다: ${escapeHtml(error.message)}</div>
+          <p><a class="button secondary" href="${basePath}/calendar/edit?year=${year}&month=${month}">수정 화면으로 돌아가기</a></p>`,
+        ),
+      );
+      return;
+    }
+
+    await updateCalendarMonth(year, month, payload);
+    redirect(res, `${basePath}?message=${encodeURIComponent('수동 수정 내용을 저장했습니다.')}`);
     return;
   }
 
@@ -382,8 +504,18 @@ async function handleRequest(req, res) {
     return;
   }
 
+  if (url.pathname === `${basePath}/calendar/edit` && req.method === 'GET') {
+    await handleEdit(req, res, url);
+    return;
+  }
+
   if (url.pathname === `${basePath}/calendar/delete` && req.method === 'POST') {
     await handlePost(req, res, 'delete');
+    return;
+  }
+
+  if (url.pathname === `${basePath}/calendar/edit` && req.method === 'POST') {
+    await handlePost(req, res, 'edit');
     return;
   }
 

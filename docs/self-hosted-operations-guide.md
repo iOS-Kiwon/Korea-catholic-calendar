@@ -23,7 +23,7 @@
 - `GET /kcc/v1/health`: 서버 상태 확인
 - `GET /kcc/v1/calendar/:year/:month`: PostgreSQL 월별 캐시를 먼저 조회하고, 없으면 기존 Cloudflare
   Worker에서 가져와 저장 후 응답
-- `GET /kcc`: 캐시된 전례력 월 목록 조회, 삭제, 재갱신
+- `GET /kcc`: 캐시된 전례력 월 목록 조회, JSON 수정, 삭제, 재갱신
 - `ops/docker-compose.yml`: API 서버와 PostgreSQL 컨테이너 구성
 - `ops/.env.example`: 운영 설정 예시
 - `scripts/server-*.sh`: 빌드, 시작, 중지, 재시작, 상태 확인, 로그, 백업 스크립트
@@ -36,7 +36,7 @@
 - launchd 실제 설치 파일
 
 현재 단계에서는 API 서버가 전례력 월별 응답을 `calendar_months` 테이블에 캐시하고, 백오피스에서
-캐시 목록 조회, 삭제, 재갱신을 수행할 수 있다.
+캐시 목록 조회, JSON 수정, 삭제, 재갱신을 수행할 수 있다.
 
 ## 전제
 
@@ -487,6 +487,17 @@ http://127.0.0.1:13000/kcc
 
 `ADMIN_TOKEN`이 설정되어 있으면 브라우저의 Basic Auth 로그인 창에 사용자 이름 `admin`, 비밀번호
 `ADMIN_TOKEN` 값을 입력한다.
+
+백오피스 첫 버전에서 가능한 작업:
+
+- 월별 캐시 목록 조회
+- 월별 JSON 직접 수정
+- 월별 캐시 삭제
+- 월별 캐시 재갱신
+
+JSON 수정으로 저장한 월은 `source = manual`로 표시된다. 이후 같은 월에서 `재갱신`을 누르면 수동 수정
+내용이 외부 데이터로 덮어써질 수 있으므로 주의한다. 수정 이력과 되돌리기는 다음 단계에서 별도
+테이블로 추가한다.
 
 주의:
 
