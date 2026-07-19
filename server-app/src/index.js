@@ -1,14 +1,17 @@
 import http from 'node:http';
+import pg from 'pg';
 
 const port = Number(process.env.API_PORT || 8080);
 const host = process.env.API_HOST || '0.0.0.0';
 const appEnv = process.env.APP_ENV || 'development';
+const databaseUrl = process.env.DATABASE_URL;
 const workerBaseUrl =
   process.env.CLOUDFLARE_WORKER_BASE_URL ||
   'https://catholic-calendar.sidore.workers.dev';
 const apiPrefix = '/kcc/v1';
 
 const startedAt = new Date();
+const db = databaseUrl ? new pg.Pool({ connectionString: databaseUrl }) : null;
 
 function sendJson(res, status, body, headers = {}) {
   const payload = JSON.stringify(body);
@@ -32,6 +35,80 @@ function calendarUrl(year, month) {
   return `${workerBaseUrl.replace(/\/+$/, '')}/v1/calendar/${year}/${month}`;
 }
 
+async function ensureSchema() {
+  if (!db) {
+    console.warn('DATABASE_URL is not set. Calendar DB cache is disabled.');
+    return;
+  }
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS calendar_months (
+      year integer NOT NULL,
+      month integer NOT NULL,
+      available boolean NOT NULL DEFAULT true,
+      source text NOT NULL,
+      payload_json jsonb NOT NULL,
+      fetched_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (year, month),
+      CHECK (year >= 1900 AND year <= 2200),
+      CHECK (month >= 1 AND month <= 12)
+    )
+  `);
+}
+
+async function initializeStorage() {
+  const maxAttempts = 30;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await ensureSchema();
+      return;
+    } catch (error) {
+      if (attempt === maxAttempts) {
+        throw error;
+      }
+      console.warn(`Waiting for database... ${attempt}/${maxAttempts}`);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+}
+
+async function findCachedCalendar(year, month) {
+  if (!db) return null;
+
+  const result = await db.query(
+    `
+      SELECT available, source, payload_json, fetched_at, updated_at
+      FROM calendar_months
+      WHERE year = $1 AND month = $2
+    `,
+    [year, month],
+  );
+
+  return result.rows[0] || null;
+}
+
+async function saveCachedCalendar(year, month, payload, source) {
+  if (!db) return;
+
+  await db.query(
+    `
+      INSERT INTO calendar_months (
+        year, month, available, source, payload_json, fetched_at, updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5::jsonb, now(), now())
+      ON CONFLICT (year, month)
+      DO UPDATE SET
+        available = EXCLUDED.available,
+        source = EXCLUDED.source,
+        payload_json = EXCLUDED.payload_json,
+        fetched_at = EXCLUDED.fetched_at,
+        updated_at = now()
+    `,
+    [year, month, payload.available !== false, source, JSON.stringify(payload)],
+  );
+}
+
 function parseCalendarPath(pathname) {
   const match = pathname.match(/^\/kcc\/v1\/calendar\/(\d{4})\/(\d{1,2})$/);
   if (!match) return null;
@@ -48,6 +125,15 @@ async function handleCalendar(req, res, year, month) {
     return;
   }
 
+  const cached = await findCachedCalendar(year, month);
+  if (cached) {
+    sendJson(res, 200, cached.payload_json, {
+      'x-calendar-source': 'server-db',
+      'x-calendar-cache': 'hit',
+    });
+    return;
+  }
+
   const upstream = calendarUrl(year, month);
   try {
     const response = await fetch(upstream, {
@@ -58,12 +144,27 @@ async function handleCalendar(req, res, year, month) {
       signal: AbortSignal.timeout(8000),
     });
     const text = await response.text();
+    const contentType =
+      response.headers.get('content-type') || 'application/json; charset=utf-8';
+
+    if (response.ok && contentType.includes('application/json')) {
+      try {
+        await saveCachedCalendar(
+          year,
+          month,
+          JSON.parse(text),
+          'cloudflare-worker',
+        );
+      } catch (error) {
+        console.error('Failed to save calendar cache', error);
+      }
+    }
+
     res.writeHead(response.status, {
-      'content-type':
-        response.headers.get('content-type') ||
-        'application/json; charset=utf-8',
+      'content-type': contentType,
       'cache-control': 'no-store',
-      'x-upstream-source': 'cloudflare-worker',
+      'x-calendar-source': 'cloudflare-worker',
+      'x-calendar-cache': 'miss',
     });
     res.end(text);
   } catch (error) {
@@ -115,14 +216,32 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(port, host, () => {
-  console.log(`catholic-calendar server listening on ${host}:${port}`);
-});
+initializeStorage()
+  .then(() => {
+    server.listen(port, host, () => {
+      console.log(`catholic-calendar server listening on ${host}:${port}`);
+    });
+  })
+  .catch((error) => {
+    console.error('Failed to initialize server storage', error);
+    process.exit(1);
+  });
 
 function shutdown(signal) {
   console.log(`Received ${signal}, shutting down`);
   server.close(() => {
-    process.exit(0);
+    if (!db) {
+      process.exit(0);
+      return;
+    }
+
+    db.end()
+      .catch((error) => {
+        console.error('Failed to close database pool', error);
+      })
+      .finally(() => {
+        process.exit(0);
+      });
   });
 }
 

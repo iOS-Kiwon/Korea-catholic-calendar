@@ -13,13 +13,14 @@
 
 ## 현재 구현 상태
 
-1단계 구현으로 Mac mini용 자체 API 서버 뼈대와 운영 스크립트가 추가되었다.
+현재 구현으로 Mac mini용 자체 API 서버 뼈대, 운영 스크립트, 전례력 월별 DB 캐시가 추가되었다.
 
 현재 포함된 것:
 
 - `server-app/`: Node.js 기반 자체 API 서버
 - `GET /kcc/v1/health`: 서버 상태 확인
-- `GET /kcc/v1/calendar/:year/:month`: 기존 Cloudflare Worker로 전례력 조회 프록시
+- `GET /kcc/v1/calendar/:year/:month`: PostgreSQL 월별 캐시를 먼저 조회하고, 없으면 기존 Cloudflare
+  Worker에서 가져와 저장 후 응답
 - `ops/docker-compose.yml`: API 서버와 PostgreSQL 컨테이너 구성
 - `ops/.env.example`: 운영 설정 예시
 - `scripts/server-*.sh`: 빌드, 시작, 중지, 재시작, 상태 확인, 로그, 백업 스크립트
@@ -27,13 +28,12 @@
 아직 포함되지 않은 것:
 
 - 백오피스 웹사이트
-- 자체 DB 전례력 캐시 저장/조회
 - 관리자 로그인/권한
 - Cloudflare Tunnel 실제 설정
 - launchd 실제 설치 파일
 
-현재 단계에서는 API 서버가 DB를 사용하지 않고 Cloudflare Worker 프록시 역할만 한다. DB 캐시와
-백오피스는 다음 단계에서 붙인다.
+현재 단계에서는 API 서버가 전례력 월별 응답을 `calendar_months` 테이블에 캐시한다. 백오피스는
+다음 단계에서 붙인다.
 
 ## 전제
 
@@ -657,6 +657,8 @@ docker compose -f ops/docker-compose.yml exec -T db \
 - `GET /kcc/v1/health` 응답 확인
 - `GET /kcc/v1/calendar/2026/7`이 Cloudflare Worker 응답을 프록시하는 것 확인
 
+9단계에서 추가된 전례력 캐시는 Mac mini Docker 환경에서 확인해야 한다.
+
 Mac mini에서 추가로 확인해야 할 것:
 
 - Docker 설치 및 실행
@@ -666,6 +668,22 @@ Mac mini에서 추가로 확인해야 할 것:
 - `./scripts/server-start.sh`
 - `./scripts/server-status.sh`
 - `./scripts/server-backup.sh`
+
+전례력 캐시 확인:
+
+```bash
+curl -i http://127.0.0.1:18080/kcc/v1/calendar/2026/7
+curl -i http://127.0.0.1:18080/kcc/v1/calendar/2026/7
+```
+
+첫 요청은 `x-calendar-cache: miss`, 두 번째 요청은 `x-calendar-cache: hit`가 나와야 한다. DB에 저장된
+월별 캐시는 다음 명령으로 확인한다.
+
+```bash
+docker compose -f ops/docker-compose.yml --env-file ops/.env exec db \
+  psql -U "$POSTGRES_USER" "$POSTGRES_DB" \
+  -c "select year, month, source, fetched_at, updated_at from calendar_months order by year, month;"
+```
 
 ## 배포/업데이트 절차
 
