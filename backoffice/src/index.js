@@ -38,6 +38,25 @@ async function ensureSchema() {
     CREATE INDEX IF NOT EXISTS calendar_month_revisions_year_month_idx
     ON calendar_month_revisions (year, month, created_at DESC)
   `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS admin_audit_logs (
+      id bigserial PRIMARY KEY,
+      admin_user text NOT NULL,
+      action text NOT NULL,
+      target_type text NOT NULL,
+      target_id text NOT NULL,
+      details_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+      ip text,
+      user_agent text,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS admin_audit_logs_created_at_idx
+    ON admin_audit_logs (created_at DESC, id DESC)
+  `);
 }
 
 function normalizeBasePath(value) {
@@ -204,6 +223,18 @@ function requireAuth(req, res) {
   return false;
 }
 
+function clientIp(req) {
+  const forwardedFor = req.headers['x-forwarded-for'];
+  if (typeof forwardedFor === 'string' && forwardedFor.trim()) {
+    return forwardedFor.split(',')[0].trim();
+  }
+  const cfConnectingIp = req.headers['cf-connecting-ip'];
+  if (typeof cfConnectingIp === 'string' && cfConnectingIp.trim()) {
+    return cfConnectingIp.trim();
+  }
+  return req.socket.remoteAddress || '';
+}
+
 async function readForm(req) {
   const chunks = [];
   for await (const chunk of req) {
@@ -238,6 +269,45 @@ async function listCalendarMonths() {
     ORDER BY year DESC, month DESC
   `);
   return result.rows;
+}
+
+async function listAuditLogs() {
+  const result = await db.query(`
+    SELECT
+      id,
+      admin_user,
+      action,
+      target_type,
+      target_id,
+      details_json,
+      ip,
+      user_agent,
+      created_at
+    FROM admin_audit_logs
+    ORDER BY created_at DESC, id DESC
+    LIMIT 200
+  `);
+  return result.rows;
+}
+
+async function logAdminAction(req, action, targetType, targetId, details = {}) {
+  await db.query(
+    `
+      INSERT INTO admin_audit_logs (
+        admin_user, action, target_type, target_id, details_json, ip, user_agent
+      )
+      VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
+    `,
+    [
+      'admin',
+      action,
+      targetType,
+      targetId,
+      JSON.stringify(details),
+      clientIp(req),
+      req.headers['user-agent'] || '',
+    ],
+  );
 }
 
 async function deleteCalendarMonth(year, month, options = {}) {
@@ -588,6 +658,12 @@ function layout(title, content) {
     .hidden-payload {
       display: none;
     }
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
     @media (max-width: 760px) {
       main { padding: 16px; }
       table { display: block; overflow-x: auto; }
@@ -667,8 +743,66 @@ async function handleIndex(req, res, url) {
       <label>연도 <input name="year" inputmode="numeric" value="2026"></label>
       <label>월 <input name="month" inputmode="numeric" value="7"></label>
       <button type="submit">캐시 생성/재갱신</button>
+      <a class="button secondary" href="${basePath}/audit-logs">감사 로그</a>
     </form>
     ${monthRows(rows)}
+  `;
+  sendHtml(res, 200, layout('KCC Backoffice', content));
+}
+
+function auditLogRows(rows) {
+  if (rows.length === 0) {
+    return '<div class="empty">저장된 감사 로그가 없습니다.</div>';
+  }
+
+  const cells = rows
+    .map((row) => {
+      const detailsText = normalizeJsonText(row.details_json || {});
+      return `<tr>
+        <td>${Number(row.id)}</td>
+        <td>${escapeHtml(new Date(row.created_at).toLocaleString('ko-KR'))}</td>
+        <td>${escapeHtml(row.admin_user)}</td>
+        <td>${escapeHtml(row.action)}</td>
+        <td>${escapeHtml(row.target_type)}</td>
+        <td>${escapeHtml(row.target_id)}</td>
+        <td>${escapeHtml(row.ip || '')}</td>
+        <td>${escapeHtml(row.user_agent || '')}</td>
+        <td><pre>${escapeHtml(detailsText)}</pre></td>
+      </tr>`;
+    })
+    .join('');
+
+  return `<table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>시각</th>
+        <th>관리자</th>
+        <th>작업</th>
+        <th>대상</th>
+        <th>대상 ID</th>
+        <th>IP</th>
+        <th>User-Agent</th>
+        <th>세부 정보</th>
+      </tr>
+    </thead>
+    <tbody>${cells}</tbody>
+  </table>`;
+}
+
+async function handleAuditLogs(req, res) {
+  const rows = await listAuditLogs();
+  const content = `
+    <div class="toolbar">
+      <a class="button secondary" href="${basePath}">목록으로</a>
+    </div>
+    <div class="editor">
+      <div>
+        <h2>감사 로그</h2>
+        <div class="sub">최근 관리자 변경 작업 200건입니다. JSON 검증 실패나 diff 확인만 한 경우는 기록하지 않습니다.</div>
+      </div>
+      ${auditLogRows(rows)}
+    </div>
   `;
   sendHtml(res, 200, layout('KCC Backoffice', content));
 }
@@ -825,6 +959,13 @@ async function handleRevisionRestore(req, res) {
   }
 
   const revision = await restoreCalendarRevision(id);
+  await logAdminAction(
+    req,
+    'calendar_restore_revision',
+    'calendar_month',
+    `${Number(revision.year)}-${Number(revision.month)}`,
+    { revision_id: Number(revision.id) },
+  );
   redirect(
     res,
     `${basePath}/calendar/revisions?year=${Number(revision.year)}&month=${Number(revision.month)}&message=${encodeURIComponent('선택한 이력으로 되돌렸습니다.')}`,
@@ -980,12 +1121,20 @@ async function handlePost(req, res, action) {
 
   if (action === 'delete') {
     await deleteCalendarMonth(year, month);
+    await logAdminAction(req, 'calendar_delete', 'calendar_month', `${year}-${month}`, {
+      year,
+      month,
+    });
     redirect(res, `${basePath}?message=${encodeURIComponent('캐시를 삭제했습니다.')}`);
     return;
   }
 
   if (action === 'refresh') {
     await refreshCalendarMonth(year, month);
+    await logAdminAction(req, 'calendar_refresh', 'calendar_month', `${year}-${month}`, {
+      year,
+      month,
+    });
     redirect(res, `${basePath}?message=${encodeURIComponent('캐시를 재갱신했습니다.')}`);
     return;
   }
@@ -1014,6 +1163,11 @@ async function handlePost(req, res, action) {
     }
 
     await updateCalendarMonth(year, month, payload);
+    await logAdminAction(req, 'calendar_manual_update', 'calendar_month', `${year}-${month}`, {
+      year,
+      month,
+      available: payload.available !== false,
+    });
     redirect(res, `${basePath}?message=${encodeURIComponent('수동 수정 내용을 최종 저장했습니다.')}`);
     return;
   }
@@ -1048,6 +1202,11 @@ async function handleRequest(req, res) {
 
   if (url.pathname === `${basePath}/calendar/revisions/view` && req.method === 'GET') {
     await handleRevisionView(req, res, url);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/audit-logs` && req.method === 'GET') {
+    await handleAuditLogs(req, res);
     return;
   }
 
