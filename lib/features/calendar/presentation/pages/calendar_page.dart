@@ -105,6 +105,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     final remoteStatuses = ref.watch(remoteMonthStatusProvider);
     return Scaffold(
       body: SafeArea(
+        // 상단 인셋은 헤더(전례색)가 상태바 뒤까지 직접 덮으므로 여기서는 끈다.
+        top: false,
         bottom: !adsEnabled,
         child: calendarAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -162,7 +164,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
 
     return Positioned(
       right: 12,
-      top: 12,
+      // 헤더(상태바 + 제목줄) 아래에 두어 오늘/화살표 버튼을 가리지 않도록.
+      top: MediaQuery.paddingOf(context).top + 60,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.92),

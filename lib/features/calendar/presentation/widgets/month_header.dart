@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../core/date/year_month.dart';
 
@@ -6,7 +7,8 @@ const weekdayLabels = ['주일', '월', '화', '수', '목', '금', '토'];
 
 /// 전례색 헤더: 좌측 이전 달(‹), 중앙 월 제목(항상 화면 정중앙), 우측 [오늘 · 다음 달(›)].
 /// [showToday]가 참일 때만 `오늘` 버튼을 노출한다(오늘이 아닌 날을 보고 있을 때).
-/// 월 제목을 누르면 [onTapTitle](연/월 선택 팝업)이 호출된다.
+/// [compact](폰)일 때는 초록 배경이 상태바 영역까지 채워지고 상태바 아이콘을
+/// 배경 밝기에 맞춰 흰색/검정으로 맞춘다. 월 제목을 누르면 [onTapTitle]이 호출된다.
 class MonthHeader extends StatelessWidget {
   const MonthHeader({
     super.key,
@@ -34,59 +36,76 @@ class MonthHeader extends StatelessWidget {
     final onColor = _readableOn(color);
     final t = Theme.of(context).textTheme;
     final titleStyle = compact ? t.titleLarge : t.headlineSmall;
-    return Container(
+
+    final header = Container(
       color: color,
-      padding: compact
-          ? const EdgeInsets.fromLTRB(8, 8, 8, 8)
-          : const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      // 타이틀은 화면 정중앙에 고정. 좌측 이전 버튼, 우측 [오늘 · 다음] 버튼이
-      // 있어도 밀리지 않도록 Stack으로 배치한다.
-      child: SizedBox(
-        height: 44,
-        child: Stack(
-          children: [
-            Align(
-              alignment: Alignment.center,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(10),
-                onTap: onTapTitle,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  child: Text(
-                    '${month.year}년 ${month.month}월',
-                    textAlign: TextAlign.center,
-                    style: titleStyle?.copyWith(
-                      color: onColor,
-                      fontSize: (titleStyle.fontSize ?? 24) + 1,
-                      fontWeight: FontWeight.bold,
+      // compact(폰): 초록이 상태바 뒤까지 깔리도록 top 인셋을 헤더 안에서 처리.
+      child: SafeArea(
+        top: compact,
+        bottom: false,
+        child: Padding(
+          padding: compact
+              ? const EdgeInsets.fromLTRB(8, 8, 8, 10)
+              : const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          // 타이틀은 화면 정중앙에 고정. 좌측 이전 버튼, 우측 [오늘 · 다음]
+          // 버튼이 있어도 밀리지 않도록 Stack으로 배치한다.
+          child: SizedBox(
+            height: 44,
+            child: Stack(
+              children: [
+                Align(
+                  alignment: Alignment.center,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: onTapTitle,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      child: Text(
+                        '${month.year}년 ${month.month}월',
+                        textAlign: TextAlign.center,
+                        style: titleStyle?.copyWith(
+                          color: onColor,
+                          fontSize: (titleStyle.fontSize ?? 24) + 1,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: _chevron('‹', onColor, onPrevMonth, '이전 달'),
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (showToday) ...[
+                        _todayPill(onColor, onToday),
+                        const SizedBox(width: 6),
+                      ],
+                      _chevron('›', onColor, onNextMonth, '다음 달'),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: _chevron('‹', onColor, onPrevMonth, '이전 달'),
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (showToday) ...[
-                    _todayPill(onColor, onToday),
-                    const SizedBox(width: 6),
-                  ],
-                  _chevron('›', onColor, onNextMonth, '다음 달'),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
       ),
+    );
+
+    if (!compact) return header;
+    // 초록(어두운) 배경이면 상태바 아이콘을 밝게, 밝은 배경이면 어둡게.
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: onColor == Colors.white
+          ? SystemUiOverlayStyle.light
+          : SystemUiOverlayStyle.dark,
+      child: header,
     );
   }
 
@@ -95,7 +114,7 @@ class MonthHeader extends StatelessWidget {
     return Tooltip(
       message: '오늘',
       child: Material(
-        color: onColor.withValues(alpha: 0.12),
+        color: onColor.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
@@ -122,7 +141,7 @@ class MonthHeader extends StatelessWidget {
     return Tooltip(
       message: tip,
       child: Material(
-        color: onColor.withValues(alpha: 0.10), // 더 연한 버튼 배경
+        color: onColor.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
