@@ -125,7 +125,6 @@ struct SmallTodayWidgetView: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(16)
     }
 }
 
@@ -147,7 +146,7 @@ struct MonthWidgetView: View {
                 ForEach(Array(weekdays.enumerated()), id: \.offset) { _, weekday in
                     Text(weekday)
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color(red: 0.36, green: 0.36, blue: 0.36))
                         .frame(height: 15)
                 }
             }
@@ -158,7 +157,6 @@ struct MonthWidgetView: View {
                 }
             }
         }
-        .padding(16)
     }
 }
 
@@ -195,10 +193,10 @@ struct MonthDayCell: View {
 
     private var numberColor: Color {
         if day.isToday { return Color(red: 0.85, green: 0.28, blue: 0.11) }
-        if !day.inMonth { return .secondary.opacity(0.45) }
+        if !day.inMonth { return Color(red: 0.62, green: 0.62, blue: 0.62) }
         if day.weekday == 7 { return Color(red: 0.78, green: 0.16, blue: 0.16) }
         if day.weekday == 6 { return Color(red: 0.08, green: 0.39, blue: 0.75) }
-        return .primary
+        return Color.black
     }
 }
 
