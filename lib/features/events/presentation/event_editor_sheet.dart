@@ -14,32 +14,31 @@ String _two(int n) => n.toString().padLeft(2, '0');
 String _dateLabel(DateTime d) =>
     '${d.year}년 ${d.month}월 ${d.day}일 (${_weekdays[d.weekday % 7]})';
 
-/// Opens the add/edit event sheet. Pass [existing] to edit; otherwise a new
+/// Opens the add/edit event screen. Pass [existing] to edit; otherwise a new
 /// event is created on [date].
 Future<void> showEventEditor(
   BuildContext context, {
   required DateTime date,
   CalendarEvent? existing,
 }) {
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    builder: (_) => _EventEditorSheet(date: date, existing: existing),
+  return Navigator.of(context).push<void>(
+    MaterialPageRoute<void>(
+      builder: (_) => _EventEditorPage(date: date, existing: existing),
+    ),
   );
 }
 
-class _EventEditorSheet extends ConsumerStatefulWidget {
-  const _EventEditorSheet({required this.date, this.existing});
+class _EventEditorPage extends ConsumerStatefulWidget {
+  const _EventEditorPage({required this.date, this.existing});
 
   final DateTime date;
   final CalendarEvent? existing;
 
   @override
-  ConsumerState<_EventEditorSheet> createState() => _EventEditorSheetState();
+  ConsumerState<_EventEditorPage> createState() => _EventEditorPageState();
 }
 
-class _EventEditorSheetState extends ConsumerState<_EventEditorSheet>
+class _EventEditorPageState extends ConsumerState<_EventEditorPage>
     with WidgetsBindingObserver {
   late final TextEditingController _memo;
   late DateTime _date;
@@ -48,6 +47,7 @@ class _EventEditorSheetState extends ConsumerState<_EventEditorSheet>
   String? _selectedCategoryId;
   bool _categoryError = false;
   bool? _systemNotificationsEnabled;
+  bool _enableNotifyWhenPermissionReturns = false;
 
   bool get _isEditing => widget.existing != null;
 
@@ -145,7 +145,12 @@ class _EventEditorSheetState extends ConsumerState<_EventEditorSheet>
     if (!mounted) return;
     setState(() {
       _systemNotificationsEnabled = enabled;
-      if (!enabled) _notify = false;
+      if (enabled && _enableNotifyWhenPermissionReturns) {
+        _notify = true;
+        _enableNotifyWhenPermissionReturns = false;
+      } else if (!enabled) {
+        _notify = false;
+      }
     });
   }
 
@@ -163,11 +168,29 @@ class _EventEditorSheetState extends ConsumerState<_EventEditorSheet>
         _systemNotificationsEnabled = false;
         _notify = false;
       });
-      await service.openNotificationSettings();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('시스템 알림이 꺼져 있어 앱 알림 설정으로 이동합니다.')),
+      final openSettings = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          content: const Text(
+            '시스템 알림이 꺼져있어 알림을 보낼수 없습니다. 알림을 설정하시겠습니까?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('아니오'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('예'),
+            ),
+          ],
+        ),
       );
+      if (!mounted) return;
+      if (openSettings == true) {
+        _enableNotifyWhenPermissionReturns = true;
+        await service.openNotificationSettings();
+      }
       return;
     }
 
@@ -225,35 +248,26 @@ class _EventEditorSheetState extends ConsumerState<_EventEditorSheet>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     final allDay = _time == null;
     final categories = ref.watch(categoriesProvider).value ?? const [];
     final selected = _resolveSelected(categories);
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(20, 4, 20, 20 + bottomInset),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Text(
-                  _isEditing ? '일정 수정' : '새 일정',
-                  style: theme.textTheme.titleLarge,
-                ),
-                const Spacer(),
-                if (_isEditing)
-                  IconButton(
-                    onPressed: _delete,
-                    icon: const Icon(Icons.delete_outline),
-                    tooltip: '삭제',
-                  ),
-              ],
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_isEditing ? '일정 수정' : '새 일정'),
+        actions: [
+          if (_isEditing)
+            IconButton(
+              onPressed: _delete,
+              icon: const Icon(Icons.delete_outline),
+              tooltip: '삭제',
             ),
-            const SizedBox(height: 8),
-
+        ],
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          children: [
             // 날짜 (필수)
             ListTile(
               contentPadding: EdgeInsets.zero,
@@ -326,11 +340,7 @@ class _EventEditorSheetState extends ConsumerState<_EventEditorSheet>
               contentPadding: EdgeInsets.zero,
               secondary: const Icon(Icons.notifications_outlined),
               title: const Text('알림'),
-              subtitle: Text(
-                _systemNotificationsEnabled == false
-                    ? '${_reminderHelpText()}\n시스템 알림이 꺼져 있어 알림을 보낼 수 없습니다.'
-                    : _reminderHelpText(),
-              ),
+              subtitle: Text(_reminderHelpText()),
               value: _systemNotificationsEnabled == false ? false : _notify,
               onChanged: _toggleNotifications,
             ),

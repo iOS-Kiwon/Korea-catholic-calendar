@@ -24,14 +24,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// A no-op notification service so tests never touch platform channels.
 class _FakeNotifications implements NotificationService {
+  _FakeNotifications({this.enabled = true, this.onOpenSettings});
+
+  final bool enabled;
+  final VoidCallback? onOpenSettings;
+
   @override
   Future<void> init() async {}
 
   @override
-  Future<bool> areNotificationsEnabled() async => true;
+  Future<bool> areNotificationsEnabled() async => enabled;
 
   @override
-  Future<void> openNotificationSettings() async {}
+  Future<void> openNotificationSettings() async => onOpenSettings?.call();
 
   @override
   Future<void> sync(Map<String, List<CalendarEvent>> events) async {}
@@ -52,7 +57,10 @@ class _FakeBackupStore extends PersonalCloudBackupStore {
   Future<bool> saveSnapshotJson(String snapshotJson) async => true;
 }
 
-Widget _wrap(Widget child) => ProviderScope(
+Widget _wrap(
+  Widget child, {
+  NotificationService? notificationService,
+}) => ProviderScope(
   // Inject the engine-only service (no CBCK snapshot) and disable the remote
   // gateway so tests never hit the network → falls back to the computed engine.
   // Notifications and cloud backup are stubbed to avoid platform channels.
@@ -63,7 +71,9 @@ Widget _wrap(Widget child) => ProviderScope(
     remoteCalendarSourceProvider.overrideWithValue(
       const RemoteCalendarSource(enabled: false),
     ),
-    notificationServiceProvider.overrideWithValue(_FakeNotifications()),
+    notificationServiceProvider.overrideWithValue(
+      notificationService ?? _FakeNotifications(),
+    ),
     categoryLogServiceProvider.overrideWithValue(
       const NoopCategoryLogService(),
     ),
@@ -110,7 +120,7 @@ void main() {
     expect(find.textContaining('나해'), findsOneWidget);
   });
 
-  testWidgets('the add-event FAB opens the editor sheet', (tester) async {
+  testWidgets('the add-event FAB pushes the editor screen', (tester) async {
     tester.view.physicalSize = const Size(390, 844); // phone (narrow) layout
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -127,6 +137,41 @@ void main() {
     expect(find.text('새 일정'), findsOneWidget);
     // Title is now chosen on the category screen, not typed here.
     expect(find.text('카테고리를 선택하세요'), findsOneWidget);
+  });
+
+  testWidgets('disabled system notifications prompt only when turning on', (
+    tester,
+  ) async {
+    var openedSettings = false;
+    final day = LiturgicalCalendar().day(DateTime(2026, 7, 16));
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(body: DayDetailView(day: day)),
+        notificationService: _FakeNotifications(
+          enabled: false,
+          onOpenSettings: () => openedSettings = true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(TextButton, '추가'));
+    await tester.pumpAndSettle();
+
+    const message = '시스템 알림이 꺼져있어 알림을 보낼수 없습니다. 알림을 설정하시겠습니까?';
+    expect(find.text(message), findsNothing);
+
+    await tester.tap(find.widgetWithText(SwitchListTile, '알림'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(message), findsOneWidget);
+    expect(find.text('아니오'), findsOneWidget);
+    expect(find.text('예'), findsOneWidget);
+
+    await tester.tap(find.text('예'));
+    await tester.pumpAndSettle();
+
+    expect(openedSettings, isTrue);
   });
 
   testWidgets('day detail lists stored personal events', (tester) async {
