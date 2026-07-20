@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../application/category_providers.dart';
@@ -263,7 +264,7 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
   }
 
   void _submit() {
-    final name = _name.text.trim();
+    final name = normalizeCategoryName(_name.text);
     if (name.isEmpty) {
       setState(() => _nameError = true);
       return;
@@ -290,6 +291,8 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
           TextField(
             controller: _name,
             autofocus: true,
+            maxLength: kMaxCategoryNameLength,
+            maxLengthEnforcement: MaxLengthEnforcement.enforced,
             decoration: InputDecoration(
               labelText: '이름',
               hintText: '예: 본당 행사, 전례',

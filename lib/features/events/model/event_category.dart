@@ -34,3 +34,11 @@ class EventCategory {
     color: (json['color'] as num).toInt(),
   );
 }
+
+const int kMaxCategoryNameLength = 15;
+
+String normalizeCategoryName(String name) {
+  final trimmed = name.trim();
+  if (trimmed.length <= kMaxCategoryNameLength) return trimmed;
+  return String.fromCharCodes(trimmed.runes.take(kMaxCategoryNameLength));
+}

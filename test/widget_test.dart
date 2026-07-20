@@ -154,6 +154,43 @@ void main() {
     expect(find.text('성경 공부'), findsOneWidget);
   });
 
+  testWidgets('bottom info bar summarizes event time category and memo', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'events_v1': jsonEncode({
+        '2026-07-16': [
+          {
+            'id': '1',
+            'date': '2026-07-16',
+            'categoryId': 'c1',
+            'categoryName': '성경 공부',
+            'categoryColor': 0xFF2E7D32,
+            'memo': '루카복음 긴 메모',
+            'time': '19:30',
+            'notify': true,
+          },
+        ],
+      }),
+    });
+
+    final day = LiturgicalCalendar().day(DateTime(2026, 7, 16));
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(
+          body: DayInfoBar(day: day, onTapDetail: () {}),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final summary = tester.widget<Text>(
+      find.text('19:30 · 성경 공부 · 루카복음 긴 메모'),
+    );
+    expect(summary.maxLines, 1);
+    expect(summary.overflow, TextOverflow.ellipsis);
+  });
+
   testWidgets('adding an event by picking a category persists and shows it', (
     tester,
   ) async {
@@ -200,6 +237,21 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('레지오'), findsOneWidget);
+  });
+
+  testWidgets('category names are limited to 15 characters', (tester) async {
+    await tester.pumpWidget(_wrap(const CategoryPickerPage()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FloatingActionButton, '카테고리 추가'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).first, '12345678901234567890');
+    await tester.tap(find.widgetWithText(FilledButton, '추가'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('123456789012345'), findsOneWidget);
+    expect(find.text('1234567890123456'), findsNothing);
   });
 
   testWidgets('tapping the bottom info area pushes the day detail page', (

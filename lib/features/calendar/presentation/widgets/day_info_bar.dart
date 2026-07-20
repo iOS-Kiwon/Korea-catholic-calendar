@@ -100,7 +100,8 @@ class DayInfoBar extends ConsumerWidget {
 }
 
 /// The day's personal events, summarized under the liturgical names.
-/// Shows the first event, then "외 N개 일정이 있어요." when there are more.
+/// Shows the first event as time/category/memo in one line, then a count when
+/// there are more.
 class _EventSummary extends StatelessWidget {
   const _EventSummary({required this.events});
 
@@ -111,6 +112,12 @@ class _EventSummary extends StatelessWidget {
     final theme = Theme.of(context);
     final first = events.first;
     final extra = events.length - 1;
+    final memo = first.memo?.trim();
+    final summary = [
+      first.isAllDay ? '종일' : first.time!,
+      first.title,
+      if (memo != null && memo.isNotEmpty) memo,
+    ].join(' · ');
 
     return Padding(
       padding: const EdgeInsets.only(top: 6),
@@ -130,16 +137,9 @@ class _EventSummary extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
-                first.isAllDay ? '종일' : first.time!,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  first.title,
+                  summary,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodyLarge,
