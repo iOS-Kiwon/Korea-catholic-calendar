@@ -77,7 +77,12 @@ class MonthHeader extends StatelessWidget {
                 ),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: _chevron('‹', onColor, onPrevMonth, '이전 달'),
+                  child: _chevron(
+                    Icons.chevron_left,
+                    onColor,
+                    onPrevMonth,
+                    '이전 달',
+                  ),
                 ),
                 Align(
                   alignment: Alignment.centerRight,
@@ -88,7 +93,12 @@ class MonthHeader extends StatelessWidget {
                         _todayPill(onColor, onToday),
                         const SizedBox(width: 6),
                       ],
-                      _chevron('›', onColor, onNextMonth, '다음 달'),
+                      _chevron(
+                        Icons.chevron_right,
+                        onColor,
+                        onNextMonth,
+                        '다음 달',
+                      ),
                     ],
                   ),
                 ),
@@ -137,26 +147,25 @@ class MonthHeader extends StatelessWidget {
     );
   }
 
-  Widget _chevron(String label, Color onColor, VoidCallback onTap, String tip) {
+  Widget _chevron(
+    IconData icon,
+    Color onColor,
+    VoidCallback onTap,
+    String tip,
+  ) {
     return Tooltip(
       message: tip,
       child: Material(
         color: onColor.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         child: InkWell(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           onTap: onTap,
           child: Container(
-            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            width: 44,
+            height: 44,
             alignment: Alignment.center,
-            child: Text(
-              label,
-              style: TextStyle(
-                color: onColor,
-                fontWeight: FontWeight.w600,
-                fontSize: 20,
-              ),
-            ),
+            child: Icon(icon, color: onColor, size: 26),
           ),
         ),
       ),
