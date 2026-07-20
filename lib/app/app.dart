@@ -99,10 +99,16 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
       themeMode: ThemeMode.light, // 다크 모드 미지원 — 항상 라이트 테마
       routerConfig: _router,
       // 모든 화면 하단(SafeArea.bottom 바로 위)에 배너 광고 배치.
+      // 키보드가 올라오면 광고를 접어(Offstage) 입력 영역 위 공백을 없앤다.
+      // (Offstage는 상태를 유지하므로 광고를 다시 로드하지 않는다.)
       builder: (context, child) => Column(
         children: [
           Expanded(child: child ?? const SizedBox.shrink()),
-          if (adsEnabled) const BottomAdBanner(),
+          if (adsEnabled)
+            Offstage(
+              offstage: MediaQuery.viewInsetsOf(context).bottom > 0,
+              child: const BottomAdBanner(),
+            ),
         ],
       ),
       locale: const Locale('ko'),

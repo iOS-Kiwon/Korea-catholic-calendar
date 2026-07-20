@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../ads/ads.dart';
 import '../application/category_providers.dart';
 import '../application/event_providers.dart';
 import '../model/calendar_event.dart';
@@ -265,8 +266,10 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
         ],
       ),
       body: SafeArea(
+        top: false,
+        bottom: false,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
           children: [
             // 날짜 (필수)
             ListTile(
@@ -300,16 +303,17 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
             ),
             const SizedBox(height: 4),
 
-            // 메모 (선택)
+            // 메모 (선택) - 한 줄, 최대 100자, 완료(return) 키로 입력 종료.
             TextField(
               controller: _memo,
-              minLines: 1,
-              maxLines: 4,
+              maxLines: 1,
+              maxLength: 100,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => FocusScope.of(context).unfocus(),
               decoration: const InputDecoration(
                 labelText: '메모 (선택)',
                 hintText: '부가 설명',
-                prefixIcon: Icon(Icons.notes),
-                alignLabelWithHint: true,
+                prefixIcon: Icon(Icons.sticky_note_2_outlined),
               ),
             ),
             const SizedBox(height: 4),
@@ -344,16 +348,33 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
               value: _systemNotificationsEnabled == false ? false : _notify,
               onChanged: _toggleNotifications,
             ),
-            const SizedBox(height: 12),
-
-            FilledButton(
-              onPressed: () => _save(categories),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Text(_isEditing ? '저장' : '추가'),
-              ),
-            ),
           ],
+        ),
+      ),
+      // 추가/저장 버튼은 항상 화면 하단에 고정(광고 위). 키보드가 올라오면
+      // 그 위로 자연스럽게 올라간다.
+      bottomNavigationBar: SafeArea(
+        top: false,
+        bottom: !adsEnabled, // 광고가 켜지면 광고 배너가 하단 세이프영역을 처리.
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+          child: SizedBox(
+            height: 54,
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: () => _save(categories),
+              style: FilledButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              child: Text(_isEditing ? '저장' : '추가'),
+            ),
+          ),
         ),
       ),
     );
