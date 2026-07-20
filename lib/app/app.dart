@@ -1,3 +1,4 @@
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,7 +22,13 @@ class CatholicCalendarApp extends ConsumerStatefulWidget {
 }
 
 class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
-  late final GoRouter _router = buildRouter();
+  final _rootNavigatorKey = GlobalKey<NavigatorState>();
+  late final GoRouter _router = buildRouter(
+    navigatorKey: _rootNavigatorKey,
+    observers: [
+      FirebaseAnalyticsObserver(analytics: FirebaseAnalytics.instance),
+    ],
+  );
   final _widgetSnapshotService = const WidgetSnapshotService();
 
   @override
@@ -46,8 +53,11 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
     final policy = await const AppUpdateService().check();
     if (!mounted || policy == null) return;
 
+    final dialogContext = _rootNavigatorKey.currentContext;
+    if (dialogContext == null || !dialogContext.mounted) return;
+
     await showDialog<void>(
-      context: context,
+      context: dialogContext,
       barrierDismissible: !policy.isForceUpdate,
       builder: (context) => PopScope(
         canPop: !policy.isForceUpdate,

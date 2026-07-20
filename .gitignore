@@ -91,6 +91,7 @@ coverage/
 **/ios/**/Pods/
 **/ios/**/.symlinks/
 **/ios/**/profile
+**/ios/Runner.xcodeproj/xcshareddata/
 **/ios/**/xcuserdata
 **/ios/.generated/
 **/ios/Flutter/.last_build_id
