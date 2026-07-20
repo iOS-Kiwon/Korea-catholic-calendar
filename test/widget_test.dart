@@ -6,7 +6,9 @@ import 'package:catholic_calendar/features/calendar/application/calendar_provide
 import 'package:catholic_calendar/features/calendar/data/calendar_service.dart';
 import 'package:catholic_calendar/features/calendar/data/remote_calendar_source.dart';
 import 'package:catholic_calendar/features/calendar/presentation/pages/calendar_page.dart';
+import 'package:catholic_calendar/features/calendar/presentation/pages/day_detail_page.dart';
 import 'package:catholic_calendar/features/calendar/presentation/widgets/day_detail_view.dart';
+import 'package:catholic_calendar/features/calendar/presentation/widgets/day_info_bar.dart';
 import 'package:catholic_calendar/features/events/analytics/category_log_service.dart';
 import 'package:catholic_calendar/features/events/application/event_providers.dart';
 import 'package:catholic_calendar/features/events/data/personal_cloud_backup_store.dart';
@@ -198,6 +200,30 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('레지오'), findsOneWidget);
+  });
+
+  testWidgets('tapping the bottom info area pushes the day detail page', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      _wrap(const CalendarPage(month: YearMonth(2026, 7))),
+    );
+    await tester.pumpAndSettle();
+
+    // The bottom detail area is a tappable InkWell inside the info bar.
+    final detailTap = find.descendant(
+      of: find.byType(DayInfoBar),
+      matching: find.byType(InkWell),
+    );
+    await tester.tap(detailTap.first);
+    await tester.pumpAndSettle();
+
+    // Opens as a pushed full-screen page (not a bottom sheet).
+    expect(find.byType(DayDetailPage), findsOneWidget);
   });
 
   testWidgets('adding the first event shows the backup notice once', (

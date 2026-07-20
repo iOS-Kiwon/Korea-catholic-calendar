@@ -60,10 +60,19 @@ String _weekdayCycleLabel(WeekdayCycle c) =>
 /// Reusable content body for a single day's liturgical detail. Presentation-
 /// agnostic: used in a side pane, a full-screen route and a bottom sheet.
 class DayDetailView extends ConsumerWidget {
-  const DayDetailView({super.key, required this.day, this.scrollController});
+  const DayDetailView({
+    super.key,
+    required this.day,
+    this.scrollController,
+    this.embedded = false,
+  });
 
   final LiturgicalDay day;
   final ScrollController? scrollController;
+
+  /// When shown inside a page whose app bar already displays the date, set this
+  /// to true to drop the redundant date line at the top of the content.
+  final bool embedded;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -79,13 +88,15 @@ class DayDetailView extends ConsumerWidget {
       controller: scrollController,
       padding: const EdgeInsets.all(20),
       children: [
-        Text(
-          '${d.year}년 ${d.month}월 ${d.day}일 ($weekday)',
-          style: theme.textTheme.titleMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+        if (!embedded) ...[
+          Text(
+            '${d.year}년 ${d.month}월 ${d.day}일 ($weekday)',
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
+          const SizedBox(height: 8),
+        ],
         Text(day.title, style: theme.textTheme.headlineSmall),
         const SizedBox(height: 16),
         Wrap(

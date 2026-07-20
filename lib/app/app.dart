@@ -2,14 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/app_update/app_update_service.dart';
 import '../features/ads/ads.dart';
 import '../features/events/application/category_providers.dart';
 import '../features/events/application/event_providers.dart';
 import '../features/calendar/application/calendar_providers.dart';
-import '../features/events/application/event_providers.dart';
 import '../features/widgets/widget_snapshot_service.dart';
 import 'router.dart';
 import 'theme/app_theme.dart';

@@ -16,6 +16,7 @@ class MonthHeader extends StatelessWidget {
     required this.onPrevMonth,
     required this.onNextMonth,
     required this.onTapTitle,
+    required this.onToday,
   });
 
   final YearMonth month;
@@ -25,6 +26,7 @@ class MonthHeader extends StatelessWidget {
   final VoidCallback onPrevMonth;
   final VoidCallback onNextMonth;
   final VoidCallback onTapTitle;
+  final VoidCallback onToday;
 
   @override
   Widget build(BuildContext context) {
@@ -39,30 +41,51 @@ class MonthHeader extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              _chevron('‹', onColor, onPrevMonth, '이전 달'),
-              Expanded(
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(10),
-                  onTap: onTapTitle,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Text(
-                      '${month.year}년 ${month.month}월',
-                      textAlign: TextAlign.center,
-                      style: titleStyle?.copyWith(
-                        color: onColor,
-                        fontSize: (titleStyle.fontSize ?? 24) + 1,
-                        fontWeight: FontWeight.bold,
+          // 타이틀은 화면 정중앙에 고정. 좌측 이전 버튼, 우측 [오늘 · 다음]
+          // 버튼이 있어도 밀리지 않도록 Stack으로 배치한다.
+          SizedBox(
+            height: 44,
+            child: Stack(
+              children: [
+                Align(
+                  alignment: Alignment.center,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: onTapTitle,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      child: Text(
+                        '${month.year}년 ${month.month}월',
+                        textAlign: TextAlign.center,
+                        style: titleStyle?.copyWith(
+                          color: onColor,
+                          fontSize: (titleStyle.fontSize ?? 24) + 1,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 6),
-              _chevron('›', onColor, onNextMonth, '다음 달'),
-            ],
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: _chevron('‹', onColor, onPrevMonth, '이전 달'),
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _todayPill(onColor, onToday),
+                      const SizedBox(width: 6),
+                      _chevron('›', onColor, onNextMonth, '다음 달'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 2),
           Text(
@@ -73,6 +96,34 @@ class MonthHeader extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// `오늘` 캡슐 버튼(헤더 전례색 배경 위). 누르면 오늘로 이동.
+  Widget _todayPill(Color onColor, VoidCallback onTap) {
+    return Tooltip(
+      message: '오늘',
+      child: Material(
+        color: onColor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: onTap,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 40),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            alignment: Alignment.center,
+            child: Text(
+              '오늘',
+              style: TextStyle(
+                color: onColor,
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
