@@ -104,7 +104,7 @@ struct SmallTodayWidgetView: View {
         VStack(alignment: .leading, spacing: 5) {
             Text(today.dateLabel)
                 .font(.system(size: 21, weight: .bold))
-                .foregroundStyle(.primary)
+                .foregroundStyle(Color.black)
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
 
@@ -117,7 +117,7 @@ struct SmallTodayWidgetView: View {
             if let eventText {
                 Text(eventText)
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.black)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
             }
@@ -125,8 +125,7 @@ struct SmallTodayWidgetView: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(.horizontal, 4)
-        .padding(.vertical, 5)
+        .padding(16)
     }
 }
 
@@ -140,7 +139,7 @@ struct MonthWidgetView: View {
         VStack(spacing: 2) {
             Text(month.title)
                 .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(.primary)
+                .foregroundStyle(Color.black)
                 .frame(height: 21)
                 .frame(maxWidth: .infinity)
 
@@ -159,9 +158,7 @@ struct MonthWidgetView: View {
                 }
             }
         }
-        .padding(.horizontal, 3)
-        .padding(.top, 4)
-        .padding(.bottom, 3)
+        .padding(16)
     }
 }
 
@@ -184,7 +181,7 @@ struct MonthDayCell: View {
 
             Text(title)
                 .font(.system(size: 8, weight: day.eventTitle.isEmpty ? .regular : .semibold))
-                .foregroundStyle(day.eventTitle.isEmpty ? color(for: day.liturgicalColor) : .primary)
+                .foregroundStyle(day.eventTitle.isEmpty ? color(for: day.liturgicalColor) : Color.black)
                 .lineLimit(2)
                 .minimumScaleFactor(0.65)
                 .multilineTextAlignment(.center)
@@ -216,7 +213,6 @@ struct TodayWidget: Widget {
         .configurationDisplayName("가톨릭 달력")
         .description("오늘의 전례와 이번 달 달력을 보여줍니다.")
         .supportedFamilies([.systemSmall, .systemLarge])
-        .contentMarginsDisabled()
     }
 }
 
