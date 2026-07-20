@@ -190,15 +190,18 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     );
   }
 
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
   MonthHeader _header(CalendarService s, {required bool compact}) {
     final mid = s.day(DateTime(widget.month.year, widget.month.month, 15));
     final color = seasonColor(mid.season);
     return MonthHeader(
       month: widget.month,
-      seasonText:
-          '${seasonLabel(mid.season)} · ${LiturgicalColors.label(color)}',
       color: context.liturgical.of(color),
       compact: compact,
+      // 오늘이 아닌 날짜(다른 달 포함)를 보고 있을 때만 `오늘` 버튼 노출.
+      showToday: !_isSameDay(_focusDate, DateTime.now()),
       onPrevMonth: () => _goMonth(widget.month.previous),
       onNextMonth: () => _goMonth(widget.month.next),
       onTapTitle: _openPicker,

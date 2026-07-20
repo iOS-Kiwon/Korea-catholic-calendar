@@ -4,29 +4,30 @@ import '../../../../core/date/year_month.dart';
 
 const weekdayLabels = ['주일', '월', '화', '수', '목', '금', '토'];
 
-/// 전례색 헤더: `‹ 2026년 7월 ›` (양옆 이전/다음 달) + 시기·색 부제.
+/// 전례색 헤더: 좌측 이전 달(‹), 중앙 월 제목(항상 화면 정중앙), 우측 [오늘 · 다음 달(›)].
+/// [showToday]가 참일 때만 `오늘` 버튼을 노출한다(오늘이 아닌 날을 보고 있을 때).
 /// 월 제목을 누르면 [onTapTitle](연/월 선택 팝업)이 호출된다.
 class MonthHeader extends StatelessWidget {
   const MonthHeader({
     super.key,
     required this.month,
-    required this.seasonText,
     required this.color,
     required this.compact,
     required this.onPrevMonth,
     required this.onNextMonth,
     required this.onTapTitle,
     required this.onToday,
+    required this.showToday,
   });
 
   final YearMonth month;
-  final String seasonText;
   final Color color;
   final bool compact;
   final VoidCallback onPrevMonth;
   final VoidCallback onNextMonth;
   final VoidCallback onTapTitle;
   final VoidCallback onToday;
+  final bool showToday;
 
   @override
   Widget build(BuildContext context) {
@@ -36,66 +37,55 @@ class MonthHeader extends StatelessWidget {
     return Container(
       color: color,
       padding: compact
-          ? const EdgeInsets.fromLTRB(8, 10, 8, 12)
-          : const EdgeInsets.fromLTRB(16, 14, 16, 16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // 타이틀은 화면 정중앙에 고정. 좌측 이전 버튼, 우측 [오늘 · 다음]
-          // 버튼이 있어도 밀리지 않도록 Stack으로 배치한다.
-          SizedBox(
-            height: 44,
-            child: Stack(
-              children: [
-                Align(
-                  alignment: Alignment.center,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: onTapTitle,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      child: Text(
-                        '${month.year}년 ${month.month}월',
-                        textAlign: TextAlign.center,
-                        style: titleStyle?.copyWith(
-                          color: onColor,
-                          fontSize: (titleStyle.fontSize ?? 24) + 1,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+          ? const EdgeInsets.fromLTRB(8, 8, 8, 8)
+          : const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      // 타이틀은 화면 정중앙에 고정. 좌측 이전 버튼, 우측 [오늘 · 다음] 버튼이
+      // 있어도 밀리지 않도록 Stack으로 배치한다.
+      child: SizedBox(
+        height: 44,
+        child: Stack(
+          children: [
+            Align(
+              alignment: Alignment.center,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: onTapTitle,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  child: Text(
+                    '${month.year}년 ${month.month}월',
+                    textAlign: TextAlign.center,
+                    style: titleStyle?.copyWith(
+                      color: onColor,
+                      fontSize: (titleStyle.fontSize ?? 24) + 1,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: _chevron('‹', onColor, onPrevMonth, '이전 달'),
-                ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _todayPill(onColor, onToday),
-                      const SizedBox(width: 6),
-                      _chevron('›', onColor, onNextMonth, '다음 달'),
-                    ],
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            seasonText,
-            style: t.labelMedium?.copyWith(
-              color: onColor.withValues(alpha: 0.85),
-              fontSize: (t.labelMedium?.fontSize ?? 12) + 2,
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _chevron('‹', onColor, onPrevMonth, '이전 달'),
             ),
-          ),
-        ],
+            Align(
+              alignment: Alignment.centerRight,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (showToday) ...[
+                    _todayPill(onColor, onToday),
+                    const SizedBox(width: 6),
+                  ],
+                  _chevron('›', onColor, onNextMonth, '다음 달'),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
