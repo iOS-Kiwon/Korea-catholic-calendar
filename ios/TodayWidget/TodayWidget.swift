@@ -192,7 +192,8 @@ struct MonthDayCell: View {
     }
 
     private var numberColor: Color {
-        if day.isToday { return Color(red: 0.85, green: 0.28, blue: 0.11) }
+        // 오늘은 빨간색 대신 검정(배경 하이라이트로 오늘을 구분).
+        if day.isToday { return .black }
         if !day.inMonth { return Color(red: 0.62, green: 0.62, blue: 0.62) }
         if day.weekday == 7 { return Color(red: 0.78, green: 0.16, blue: 0.16) }
         if day.weekday == 6 { return Color(red: 0.08, green: 0.39, blue: 0.75) }
