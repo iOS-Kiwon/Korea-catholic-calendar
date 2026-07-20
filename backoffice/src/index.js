@@ -68,14 +68,40 @@ async function ensureSchema() {
     CREATE TABLE IF NOT EXISTS app_update_policy (
       id integer PRIMARY KEY DEFAULT 1,
       update_mode text NOT NULL DEFAULT 'none',
+      ios_update_mode text NOT NULL DEFAULT 'none',
+      ios_update_version text NOT NULL DEFAULT '',
+      android_update_mode text NOT NULL DEFAULT 'none',
+      android_update_version text NOT NULL DEFAULT '',
       force_update_title text NOT NULL DEFAULT '업데이트가 필요합니다',
       force_update_message text NOT NULL DEFAULT '',
       recommended_update_title text NOT NULL DEFAULT '새 버전이 있습니다',
       update_message text NOT NULL DEFAULT '',
       updated_at timestamptz NOT NULL DEFAULT now(),
       CHECK (id = 1),
-      CHECK (update_mode IN ('none', 'recommended', 'force'))
+      CHECK (update_mode IN ('none', 'recommended', 'force')),
+      CHECK (ios_update_mode IN ('none', 'recommended', 'force')),
+      CHECK (android_update_mode IN ('none', 'recommended', 'force'))
     )
+  `);
+
+  await db.query(`
+    ALTER TABLE app_update_policy
+    ADD COLUMN IF NOT EXISTS ios_update_mode text NOT NULL DEFAULT 'none'
+  `);
+
+  await db.query(`
+    ALTER TABLE app_update_policy
+    ADD COLUMN IF NOT EXISTS ios_update_version text NOT NULL DEFAULT ''
+  `);
+
+  await db.query(`
+    ALTER TABLE app_update_policy
+    ADD COLUMN IF NOT EXISTS android_update_mode text NOT NULL DEFAULT 'none'
+  `);
+
+  await db.query(`
+    ALTER TABLE app_update_policy
+    ADD COLUMN IF NOT EXISTS android_update_version text NOT NULL DEFAULT ''
   `);
 
   await db.query(`
@@ -463,6 +489,10 @@ async function getAppUpdatePolicy() {
   const result = await db.query(`
     SELECT
       update_mode,
+      ios_update_mode,
+      ios_update_version,
+      android_update_mode,
+      android_update_version,
       force_update_title,
       force_update_message,
       recommended_update_title,
@@ -475,6 +505,10 @@ async function getAppUpdatePolicy() {
   return (
     result.rows[0] || {
       update_mode: 'none',
+      ios_update_mode: 'none',
+      ios_update_version: '',
+      android_update_mode: 'none',
+      android_update_version: '',
       force_update_title: '업데이트가 필요합니다',
       force_update_message: '',
       recommended_update_title: '새 버전이 있습니다',
@@ -490,16 +524,24 @@ async function upsertAppUpdatePolicy(policy) {
       INSERT INTO app_update_policy (
         id,
         update_mode,
+        ios_update_mode,
+        ios_update_version,
+        android_update_mode,
+        android_update_version,
         force_update_title,
         force_update_message,
         recommended_update_title,
         update_message,
         updated_at
       )
-      VALUES (1, $1, $2, $3, $4, $5, now())
+      VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, now())
       ON CONFLICT (id)
       DO UPDATE SET
         update_mode = EXCLUDED.update_mode,
+        ios_update_mode = EXCLUDED.ios_update_mode,
+        ios_update_version = EXCLUDED.ios_update_version,
+        android_update_mode = EXCLUDED.android_update_mode,
+        android_update_version = EXCLUDED.android_update_version,
         force_update_title = EXCLUDED.force_update_title,
         force_update_message = EXCLUDED.force_update_message,
         recommended_update_title = EXCLUDED.recommended_update_title,
@@ -508,6 +550,10 @@ async function upsertAppUpdatePolicy(policy) {
     `,
     [
       policy.updateMode,
+      policy.iosUpdateMode,
+      policy.iosUpdateVersion,
+      policy.androidUpdateMode,
+      policy.androidUpdateVersion,
       policy.forceUpdateTitle,
       policy.forceUpdateMessage,
       policy.recommendedUpdateTitle,
@@ -879,6 +925,18 @@ function layout(title, content, activeNav = 'calendar') {
       gap: 12px;
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     }
+    .platform-panel {
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfbfc;
+    }
+    .platform-panel h2 {
+      margin: 0;
+      font-size: 16px;
+    }
     .form-row {
       display: grid;
       gap: 6px;
@@ -1107,30 +1165,59 @@ async function handleAuditLogs(req, res) {
   sendHtml(res, 200, layout('감사 로그', content, 'audit'));
 }
 
-function updateModeChecked(policy, mode) {
-  return policy.update_mode === mode ? ' checked' : '';
+
+function platformModeChecked(policy, platform, mode) {
+  const key = platform === 'ios' ? 'ios_update_mode' : 'android_update_mode';
+  return policy[key] === mode ? ' checked' : '';
 }
 
 function appUpdatePolicyForm(policy) {
   return `
     <form class="editor" method="post" action="${basePath}/app-update-policy/save">
+      <input type="hidden" name="updateMode" value="none">
       <div>
         <h2>업데이트 정책</h2>
-        <div class="sub">iOS와 Android에 동일하게 적용됩니다. 버튼 문구와 스토어 URL은 앱에 고정되어 있습니다.</div>
+        <div class="sub">앱 버전은 1.2.3 형식으로 입력합니다. 현재 앱 버전이 설정 버전보다 낮을 때만 업데이트 안내가 표시됩니다.</div>
       </div>
       <div class="form-grid">
-        <label class="check-row">
-          <input type="radio" name="updateMode" value="none"${updateModeChecked(policy, 'none')}>
-          업데이트 안내 없음
-        </label>
-        <label class="check-row">
-          <input type="radio" name="updateMode" value="recommended"${updateModeChecked(policy, 'recommended')}>
-          권장 업데이트
-        </label>
-        <label class="check-row">
-          <input type="radio" name="updateMode" value="force"${updateModeChecked(policy, 'force')}>
-          강제 업데이트
-        </label>
+        <div class="platform-panel">
+          <h2>iOS</h2>
+          <label class="form-row">
+            업데이트 기준 버전
+            <input name="iosUpdateVersion" class="wide" value="${escapeHtml(policy.ios_update_version)}" placeholder="1.0.1">
+          </label>
+          <label class="check-row">
+            <input type="radio" name="iosUpdateMode" value="none"${platformModeChecked(policy, 'ios', 'none')}>
+            안내 없음
+          </label>
+          <label class="check-row">
+            <input type="radio" name="iosUpdateMode" value="recommended"${platformModeChecked(policy, 'ios', 'recommended')}>
+            권장 업데이트
+          </label>
+          <label class="check-row">
+            <input type="radio" name="iosUpdateMode" value="force"${platformModeChecked(policy, 'ios', 'force')}>
+            강제 업데이트
+          </label>
+        </div>
+        <div class="platform-panel">
+          <h2>Android</h2>
+          <label class="form-row">
+            업데이트 기준 버전
+            <input name="androidUpdateVersion" class="wide" value="${escapeHtml(policy.android_update_version)}" placeholder="1.0.1">
+          </label>
+          <label class="check-row">
+            <input type="radio" name="androidUpdateMode" value="none"${platformModeChecked(policy, 'android', 'none')}>
+            안내 없음
+          </label>
+          <label class="check-row">
+            <input type="radio" name="androidUpdateMode" value="recommended"${platformModeChecked(policy, 'android', 'recommended')}>
+            권장 업데이트
+          </label>
+          <label class="check-row">
+            <input type="radio" name="androidUpdateMode" value="force"${platformModeChecked(policy, 'android', 'force')}>
+            강제 업데이트
+          </label>
+        </div>
       </div>
       <div class="form-grid">
         <label class="form-row">
@@ -1151,7 +1238,7 @@ function appUpdatePolicyForm(policy) {
         <textarea class="compact" name="updateMessage" spellcheck="false">${escapeHtml(policy.update_message)}</textarea>
       </label>
       <div class="editor-actions">
-        <div class="sub">강제 업데이트: 업데이트 버튼 1개. 권장 업데이트: 다음에, 업데이트 버튼 2개.</div>
+        <div class="sub">강제 업데이트: 업데이트 버튼 1개. 권장 업데이트: 다음에, 업데이트 버튼 2개. 버튼 문구와 스토어 URL은 앱에 고정되어 있습니다.</div>
         <button type="submit">저장</button>
       </div>
     </form>`;
@@ -1342,12 +1429,33 @@ function normalizeUpdateMode(value) {
   return mode;
 }
 
+function normalizePolicyVersion(value, updateMode) {
+  const version = String(value || '').trim();
+  if (updateMode === 'none' && version === '') return '';
+  if (!/^\d+\.\d+\.\d+$/.test(version)) {
+    throw new Error('invalid_update_version');
+  }
+  return version;
+}
+
 async function handleAppUpdatePolicySave(req, res) {
   const form = await readForm(req);
   let policy;
   try {
+    const iosUpdateMode = normalizeUpdateMode(form.get('iosUpdateMode'));
+    const androidUpdateMode = normalizeUpdateMode(form.get('androidUpdateMode'));
     policy = {
       updateMode: normalizeUpdateMode(form.get('updateMode')),
+      iosUpdateMode,
+      iosUpdateVersion: normalizePolicyVersion(
+        form.get('iosUpdateVersion'),
+        iosUpdateMode,
+      ),
+      androidUpdateMode,
+      androidUpdateVersion: normalizePolicyVersion(
+        form.get('androidUpdateVersion'),
+        androidUpdateMode,
+      ),
       forceUpdateTitle:
         String(form.get('forceUpdateTitle') || '').trim() ||
         '업데이트가 필요합니다',
@@ -1363,7 +1471,7 @@ async function handleAppUpdatePolicySave(req, res) {
       400,
       layout(
         'KCC Backoffice',
-        `<div class="empty">업데이트 정책을 저장하지 않았습니다. 안내 방식은 없음, 권장, 강제 중 하나여야 합니다.</div>
+        `<div class="empty">업데이트 정책을 저장하지 않았습니다. 안내 방식은 없음, 권장, 강제 중 하나여야 하며, 기준 버전은 1.2.3 형식이어야 합니다.</div>
         <div class="toolbar"><a class="button secondary" href="${basePath}/app-update-policy">업데이트 정책으로 돌아가기</a></div>`,
         'app-update',
       ),
@@ -1374,6 +1482,10 @@ async function handleAppUpdatePolicySave(req, res) {
   await upsertAppUpdatePolicy(policy);
   await logAdminAction(req, 'app_update_policy_update', 'app_update_policy', 'global', {
     update_mode: policy.updateMode,
+    ios_update_mode: policy.iosUpdateMode,
+    ios_update_version: policy.iosUpdateVersion,
+    android_update_mode: policy.androidUpdateMode,
+    android_update_version: policy.androidUpdateVersion,
   });
   redirect(
     res,

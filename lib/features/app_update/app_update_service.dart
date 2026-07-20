@@ -19,11 +19,15 @@ class AppUpdatePolicy {
     required this.dialogType,
     required this.title,
     required this.message,
+    required this.updateMode,
+    required this.updateVersion,
   });
 
   final String dialogType;
   final String title;
   final String message;
+  final String updateMode;
+  final String updateVersion;
 
   bool get isForceUpdate => dialogType == 'forceUpdate';
   bool get isRecommendedUpdate => dialogType == 'recommendedUpdate';
@@ -31,12 +35,49 @@ class AppUpdatePolicy {
 
   factory AppUpdatePolicy.fromJson(Map<String, dynamic> json) {
     final dialog = json['dialog'] as Map<String, dynamic>? ?? const {};
+    final currentVersion = json['currentVersion'] as String? ?? '';
+    final updateVersion = json['updateVersion'] as String? ?? '';
+    final rawDialogType = dialog['type'] as String? ?? 'none';
+    final dialogType =
+        _versionAllowsDialog(currentVersion, updateVersion, rawDialogType)
+        ? rawDialogType
+        : 'none';
     return AppUpdatePolicy(
-      dialogType: dialog['type'] as String? ?? 'none',
+      dialogType: dialogType,
       title: dialog['title'] as String? ?? '',
       message: dialog['message'] as String? ?? '',
+      updateMode: json['updateMode'] as String? ?? 'none',
+      updateVersion: updateVersion,
     );
   }
+}
+
+bool _versionAllowsDialog(
+  String currentVersion,
+  String updateVersion,
+  String dialogType,
+) {
+  if (dialogType != 'forceUpdate' && dialogType != 'recommendedUpdate') {
+    return false;
+  }
+  if (!_isSemanticVersion(currentVersion) ||
+      !_isSemanticVersion(updateVersion)) {
+    return true;
+  }
+  return _compareSemanticVersions(currentVersion, updateVersion) < 0;
+}
+
+bool _isSemanticVersion(String value) =>
+    RegExp(r'^\d+\.\d+\.\d+$').hasMatch(value);
+
+int _compareSemanticVersions(String left, String right) {
+  final leftParts = left.split('.').map(int.parse).toList();
+  final rightParts = right.split('.').map(int.parse).toList();
+  for (var index = 0; index < 3; index += 1) {
+    if (leftParts[index] < rightParts[index]) return -1;
+    if (leftParts[index] > rightParts[index]) return 1;
+  }
+  return 0;
 }
 
 class AppUpdateService {

@@ -68,6 +68,32 @@ function isSemanticVersion(value) {
   return /^\d+\.\d+\.\d+$/.test(String(value || '').trim());
 }
 
+function compareSemanticVersions(left, right) {
+  const leftParts = left.split('.').map(Number);
+  const rightParts = right.split('.').map(Number);
+  for (let index = 0; index < 3; index += 1) {
+    if (leftParts[index] < rightParts[index]) return -1;
+    if (leftParts[index] > rightParts[index]) return 1;
+  }
+  return 0;
+}
+
+function platformUpdatePolicy(policy, platform) {
+  if (platform === 'ios') {
+    return {
+      updateMode: policy.ios_update_mode || policy.update_mode || 'none',
+      updateVersion: policy.ios_update_version || '',
+    };
+  }
+  if (platform === 'android') {
+    return {
+      updateMode: policy.android_update_mode || policy.update_mode || 'none',
+      updateVersion: policy.android_update_version || '',
+    };
+  }
+  return { updateMode: 'none', updateVersion: '' };
+}
+
 async function ensureSchema() {
   if (!db) {
     console.warn('Database settings are not set. Calendar DB cache is disabled.');
@@ -93,14 +119,40 @@ async function ensureSchema() {
     CREATE TABLE IF NOT EXISTS app_update_policy (
       id integer PRIMARY KEY DEFAULT 1,
       update_mode text NOT NULL DEFAULT 'none',
+      ios_update_mode text NOT NULL DEFAULT 'none',
+      ios_update_version text NOT NULL DEFAULT '',
+      android_update_mode text NOT NULL DEFAULT 'none',
+      android_update_version text NOT NULL DEFAULT '',
       force_update_title text NOT NULL DEFAULT '업데이트가 필요합니다',
       force_update_message text NOT NULL DEFAULT '',
       recommended_update_title text NOT NULL DEFAULT '새 버전이 있습니다',
       update_message text NOT NULL DEFAULT '',
       updated_at timestamptz NOT NULL DEFAULT now(),
       CHECK (id = 1),
-      CHECK (update_mode IN ('none', 'recommended', 'force'))
+      CHECK (update_mode IN ('none', 'recommended', 'force')),
+      CHECK (ios_update_mode IN ('none', 'recommended', 'force')),
+      CHECK (android_update_mode IN ('none', 'recommended', 'force'))
     )
+  `);
+
+  await db.query(`
+    ALTER TABLE app_update_policy
+    ADD COLUMN IF NOT EXISTS ios_update_mode text NOT NULL DEFAULT 'none'
+  `);
+
+  await db.query(`
+    ALTER TABLE app_update_policy
+    ADD COLUMN IF NOT EXISTS ios_update_version text NOT NULL DEFAULT ''
+  `);
+
+  await db.query(`
+    ALTER TABLE app_update_policy
+    ADD COLUMN IF NOT EXISTS android_update_mode text NOT NULL DEFAULT 'none'
+  `);
+
+  await db.query(`
+    ALTER TABLE app_update_policy
+    ADD COLUMN IF NOT EXISTS android_update_version text NOT NULL DEFAULT ''
   `);
 
   await db.query(`
@@ -172,6 +224,10 @@ async function findAppUpdatePolicy() {
   const result = await db.query(`
       SELECT
         update_mode,
+        ios_update_mode,
+        ios_update_version,
+        android_update_mode,
+        android_update_version,
         force_update_title,
         force_update_message,
         recommended_update_title,
@@ -187,6 +243,10 @@ async function findAppUpdatePolicy() {
 function defaultAppUpdatePolicy() {
   return {
     update_mode: 'none',
+    ios_update_mode: 'none',
+    ios_update_version: '',
+    android_update_mode: 'none',
+    android_update_version: '',
     force_update_title: '업데이트가 필요합니다',
     force_update_message: '',
     recommended_update_title: '새 버전이 있습니다',
@@ -285,8 +345,14 @@ async function handleAppVersion(req, res, url) {
   }
 
   const policy = (await findAppUpdatePolicy()) || defaultAppUpdatePolicy();
-  const forceUpdate = policy.update_mode === 'force';
-  const updateRecommended = policy.update_mode === 'recommended';
+  const platformPolicy = platformUpdatePolicy(policy, platform);
+  const updateVersion = platformPolicy.updateVersion;
+  const versionApplies =
+    isSemanticVersion(updateVersion) &&
+    compareSemanticVersions(currentVersion, updateVersion) < 0;
+  const updateMode = versionApplies ? platformPolicy.updateMode : 'none';
+  const forceUpdate = updateMode === 'force';
+  const updateRecommended = updateMode === 'recommended';
   const dialog = forceUpdate
     ? {
         type: 'forceUpdate',
@@ -306,9 +372,10 @@ async function handleAppVersion(req, res, url) {
   sendJson(res, 200, {
     platform,
     currentVersion,
+    updateVersion,
     forceUpdate,
     updateRecommended,
-    updateMode: policy.update_mode,
+    updateMode,
     title: dialog.title,
     message: dialog.message,
     dialog,
