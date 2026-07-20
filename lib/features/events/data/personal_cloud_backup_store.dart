@@ -6,6 +6,19 @@ import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 
+/// Whether the platform's cloud backup destination (iCloud on iOS, Google
+/// Drive on Android) is ready to store the user's personal data.
+enum CloudBackupAvailability {
+  /// Signed in and ready to back up.
+  available,
+
+  /// Supported platform, but the user has not set up iCloud/Google yet.
+  notConfigured,
+
+  /// No cloud backup on this platform (web/desktop).
+  unsupported,
+}
+
 class PersonalCloudBackupStore {
   const PersonalCloudBackupStore({MethodChannel? channel})
     : _channel =
@@ -16,6 +29,56 @@ class PersonalCloudBackupStore {
   static const _driveScopes = [drive.DriveApi.driveAppdataScope];
   static const _driveFileName = 'personalDataSnapshotV1.json';
   static Future<void>? _googleSignInInitialization;
+
+  /// Checks whether cloud backup is set up, without prompting the user.
+  /// iOS → iCloud account present; Android → a Google account already signed in.
+  Future<CloudBackupAvailability> checkAvailability() async {
+    if (kIsWeb) return CloudBackupAvailability.unsupported;
+    if (_usesGoogleDriveBackup) {
+      try {
+        await _ensureGoogleSignInInitialized();
+        final lightweight = GoogleSignIn.instance
+            .attemptLightweightAuthentication();
+        final account = lightweight == null ? null : await lightweight;
+        return account != null
+            ? CloudBackupAvailability.available
+            : CloudBackupAvailability.notConfigured;
+      } catch (_) {
+        return CloudBackupAvailability.notConfigured;
+      }
+    }
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      try {
+        final ok = await _channel.invokeMethod<bool>('backupAvailability');
+        return ok == true
+            ? CloudBackupAvailability.available
+            : CloudBackupAvailability.notConfigured;
+      } on MissingPluginException {
+        return CloudBackupAvailability.unsupported;
+      } catch (_) {
+        return CloudBackupAvailability.notConfigured;
+      }
+    }
+    return CloudBackupAvailability.unsupported;
+  }
+
+  /// Guides the user to set up backup. Android → runs the Google sign-in/consent
+  /// flow (returns true on success). iOS → opens the system Settings app (there
+  /// is no public deep link to iCloud settings) and returns false.
+  Future<bool> promptSetup() async {
+    if (_usesGoogleDriveBackup) {
+      final session = await _driveSession(promptIfNeeded: true);
+      session?.close();
+      return session != null;
+    }
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      try {
+        await _channel.invokeMethod('openSettings');
+      } catch (_) {}
+      return false;
+    }
+    return false;
+  }
 
   Future<String?> loadSnapshotJson() async {
     if (_usesGoogleDriveBackup) {

@@ -59,6 +59,14 @@ import UserNotifications
       }
 
       switch call.method {
+      case "backupAvailability":
+        // iCloud 로그인 여부(계정 토큰 존재)로 백업 가능 여부를 판단.
+        result(FileManager.default.ubiquityIdentityToken != nil)
+      case "openSettings":
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+          UIApplication.shared.open(url, options: [:])
+        }
+        result(nil)
       case "loadSnapshot":
         let store = NSUbiquitousKeyValueStore.default
         store.synchronize()
