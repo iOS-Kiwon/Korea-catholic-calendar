@@ -39,6 +39,28 @@
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="ca-app-pub-5980133283002959~2281981735" />
+        <receiver
+            android:name=".TodayWidgetTwoByTwoProvider"
+            android:exported="true"
+            android:label="@string/today_widget_2x2_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/today_widget_2x2_info" />
+        </receiver>
+        <receiver
+            android:name=".TodayWidgetFourByFourProvider"
+            android:exported="true"
+            android:label="@string/today_widget_4x4_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/today_widget_4x4_info" />
+        </receiver>
         <!--
             WorkManager is pulled in transitively by mobile ads/consent deps.
             This app does not schedule background work, and automatic startup can
