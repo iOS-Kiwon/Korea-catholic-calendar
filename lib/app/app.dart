@@ -111,7 +111,11 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
               child: Builder(
                 builder: (context) {
                   final media = MediaQuery.of(context);
-                  final reduced = (media.viewInsets.bottom - bottomAdBannerHeight)
+                  // 광고 배너는 하단에 '배너 높이 + 세이프영역'만큼 고정되어 있으므로
+                  // (maintainBottomViewPadding), 자식의 키보드 인셋을 그만큼 줄여야
+                  // 버튼과 키보드 사이에 공백이 생기지 않는다.
+                  final adReserved = bottomAdBannerHeight + media.viewPadding.bottom;
+                  final reduced = (media.viewInsets.bottom - adReserved)
                       .clamp(0.0, double.infinity);
                   return MediaQuery(
                     data: media.copyWith(
