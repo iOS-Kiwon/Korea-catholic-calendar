@@ -1,0 +1,9 @@
+{
+  "name": "kcc-scripts",
+  "private": true,
+  "type": "module",
+  "description": "Mac mini 운영용 일회성/주기 스크립트 (성인 데이터 임포터 등)",
+  "dependencies": {
+    "pg": "^8.16.3"
+  }
+}
