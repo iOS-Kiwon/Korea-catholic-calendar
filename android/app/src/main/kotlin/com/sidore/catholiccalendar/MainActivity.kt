@@ -42,6 +42,16 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "com.sidore.catholiccalendar/google_config"
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "serverClientId" -> result.success(getString(R.string.default_web_client_id))
+                else -> result.notImplemented()
+            }
+        }
     }
 
     private fun openNotificationSettings() {

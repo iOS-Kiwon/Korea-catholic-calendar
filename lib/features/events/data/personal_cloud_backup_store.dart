@@ -26,6 +26,9 @@ class PersonalCloudBackupStore {
           const MethodChannel('com.sidore.catholiccalendar/personal_backup');
 
   final MethodChannel _channel;
+  static const _googleConfigChannel = MethodChannel(
+    'com.sidore.catholiccalendar/google_config',
+  );
   static const _driveScopes = [drive.DriveApi.driveAppdataScope];
   static const _driveFileName = 'personalDataSnapshotV1.json';
   static Future<void>? _googleSignInInitialization;
@@ -126,7 +129,32 @@ class PersonalCloudBackupStore {
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
   Future<void> _ensureGoogleSignInInitialized() {
-    return _googleSignInInitialization ??= GoogleSignIn.instance.initialize();
+    return _googleSignInInitialization ??= _initializeGoogleSignIn();
+  }
+
+  Future<void> _initializeGoogleSignIn() async {
+    final serverClientId = await _googleServerClientId();
+    await GoogleSignIn.instance.initialize(serverClientId: serverClientId);
+  }
+
+  Future<String?> _googleServerClientId() async {
+    if (!_usesGoogleDriveBackup) return null;
+    try {
+      final id = await _googleConfigChannel.invokeMethod<String>(
+        'serverClientId',
+      );
+      if (id == null || id.isEmpty) {
+        debugPrint('[KCC backup] Google serverClientId is empty');
+        return null;
+      }
+      return id;
+    } on MissingPluginException {
+      debugPrint('[KCC backup] Google config channel is unavailable');
+      return null;
+    } on PlatformException catch (error) {
+      debugPrint('[KCC backup] Google serverClientId load failed: $error');
+      return null;
+    }
   }
 
   Future<_GoogleDriveSession?> _driveSession({
