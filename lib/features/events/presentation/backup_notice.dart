@@ -41,9 +41,10 @@ Future<void> maybeShowBackupNotice(BuildContext context, WidgetRef ref) async {
         '설정 앱에서 "Apple 계정 > iCloud"를 켜 주세요.';
   } else {
     message =
-        '추가한 일정과 카테고리는 Google Drive에 자동으로 저장·복원됩니다.\n\n'
-        '현재 Google 계정이 연동되어 있지 않아 지금은 백업되지 않습니다. '
-        '아래에서 연동해 주세요.';
+        'Google Drive를 연동하면\n'
+        '일정과 카테고리를 자동으로\n'
+        '저장하고 복원할 수 있어요.\n\n'
+        '연동하시겠습니까?';
   }
 
   await showDialog<void>(
@@ -83,10 +84,25 @@ Future<void> maybeShowBackupNotice(BuildContext context, WidgetRef ref) async {
               onPressed: () async {
                 Navigator.of(dialogContext).pop();
                 final ok = await store.promptSetup();
+                if (!context.mounted) return;
                 if (ok) {
                   await ref
                       .read(personalCloudBackupControllerProvider)
                       .backupNow();
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Google Drive 연동을 완료했습니다.')),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        isIos
+                            ? 'iCloud 설정을 확인한 뒤 다시 시도해 주세요.'
+                            : 'Google Drive 연동을 완료하지 못했습니다. Google 계정 설정을 확인해 주세요.',
+                      ),
+                    ),
+                  );
                 }
               },
               child: Text(isIos ? '설정 열기' : '연동하기', style: buttonStyle),

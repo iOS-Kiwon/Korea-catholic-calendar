@@ -67,9 +67,14 @@ class PersonalCloudBackupStore {
   /// is no public deep link to iCloud settings) and returns false.
   Future<bool> promptSetup() async {
     if (_usesGoogleDriveBackup) {
+      debugPrint('[KCC backup] Starting Google Drive setup');
       final session = await _driveSession(promptIfNeeded: true);
       session?.close();
-      return session != null;
+      final ok = session != null;
+      debugPrint(
+        '[KCC backup] Google Drive setup ${ok ? 'completed' : 'failed'}',
+      );
+      return ok;
     }
     if (defaultTargetPlatform == TargetPlatform.iOS) {
       try {
@@ -143,7 +148,10 @@ class PersonalCloudBackupStore {
         account = await googleSignIn.authenticate(scopeHint: _driveScopes);
       }
 
-      if (account == null) return null;
+      if (account == null) {
+        debugPrint('[KCC backup] Google account is not signed in');
+        return null;
+      }
 
       final authorization =
           await account.authorizationClient.authorizationForScopes(
@@ -152,7 +160,12 @@ class PersonalCloudBackupStore {
           (promptIfNeeded
               ? await account.authorizationClient.authorizeScopes(_driveScopes)
               : null);
-      if (authorization == null) return null;
+      if (authorization == null) {
+        debugPrint(
+          '[KCC backup] Google Drive scope authorization was not granted',
+        );
+        return null;
+      }
 
       final authClient = authorization.authClient(scopes: _driveScopes);
       return _GoogleDriveSession(drive.DriveApi(authClient), authClient);
