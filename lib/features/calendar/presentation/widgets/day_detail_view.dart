@@ -7,165 +7,126 @@ import '../../../../app/theme/liturgical_colors.dart';
 import '../../../events/application/event_providers.dart';
 import '../../../events/model/calendar_event.dart';
 import '../../../events/presentation/event_editor_sheet.dart';
-import 'liturgical_color_badge.dart';
-import 'month_header.dart' show weekdayLabels;
+import '../../../support/presentation/support_sheet.dart';
 
-String _seasonLabel(Season s) {
-  switch (s) {
-    case Season.advent:
-      return '대림 시기';
-    case Season.christmas:
-      return '성탄 시기';
-    case Season.ordinaryTime:
-      return '연중 시기';
-    case Season.lent:
-      return '사순 시기';
-    case Season.paschalTriduum:
-      return '파스카 성삼일';
-    case Season.easter:
-      return '부활 시기';
-  }
-}
-
-String _rankLabel(Rank r) {
-  switch (r) {
-    case Rank.solemnity:
-      return '대축일';
-    case Rank.feastOfTheLord:
-      return '주님의 축일';
-    case Rank.feast:
-      return '축일';
-    case Rank.sunday:
-      return '주일';
-    case Rank.obligatoryMemorial:
-      return '의무 기념일';
-    case Rank.optionalMemorial:
-      return '선택 기념일';
-    case Rank.privilegedFeria:
-      return '특전 평일';
-    case Rank.feria:
-      return '평일';
-  }
-}
-
-String _sundayCycleLabel(SundayCycle c) => switch (c) {
-  SundayCycle.a => '가해',
-  SundayCycle.b => '나해',
-  SundayCycle.c => '다해',
+/// 독서 마커(①/②/㉥ …) → 사람이 읽는 라벨.
+const _readingLabels = {
+  '①': '제1독서',
+  '②': '제2독서',
+  '③': '제3독서',
+  '④': '제4독서',
+  '⑤': '제5독서',
+  '⑥': '제6독서',
+  '⑦': '제7독서',
+  '⑧': '제8독서',
+  '㉥': '복음',
 };
 
-String _weekdayCycleLabel(WeekdayCycle c) =>
-    c == WeekdayCycle.i ? '제1주기(홀수해)' : '제2주기(짝수해)';
+/// 원문 독서 문자열을 (라벨, 구절)로 분리. 라벨 마커가 없으면 라벨은 빈 문자열.
+({String label, String reference}) _parseReading(String raw) {
+  final space = raw.indexOf(' ');
+  if (space > 0) {
+    final marker = raw.substring(0, space);
+    final label = _readingLabels[marker];
+    if (label != null) {
+      return (label: label, reference: raw.substring(space + 1).trim());
+    }
+  }
+  return (label: '', reference: raw);
+}
 
-/// Reusable content body for a single day's liturgical detail. Presentation-
-/// agnostic: used in a side pane, a full-screen route and a bottom sheet.
+/// 하루의 전례 정보 상세: 전례력 · 내 일정 · 말씀을 한 장의 카드에 담고,
+/// 그 아래 나눔 배너를 둔다. (날짜/시기는 상위 [DayDetailPage]의 앱바에 표시)
 class DayDetailView extends ConsumerWidget {
-  const DayDetailView({
-    super.key,
-    required this.day,
-    this.scrollController,
-    this.embedded = false,
-  });
+  const DayDetailView({super.key, required this.day});
 
   final LiturgicalDay day;
-  final ScrollController? scrollController;
-
-  /// When shown inside a page whose app bar already displays the date, set this
-  /// to true to drop the redundant date line at the top of the content.
-  final bool embedded;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final d = day.date;
-    final events = ref.watch(eventsForDateProvider(d));
-    final weekday = weekdayLabels[d.weekday % 7];
-    final seasonText = day.seasonWeek != null
-        ? '${_seasonLabel(day.season)} 제${day.seasonWeek}주간'
-        : _seasonLabel(day.season);
+    final events = ref.watch(eventsForDateProvider(day.date));
+    final readings = day.scriptureReadings;
 
     return ListView(
-      controller: scrollController,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
       children: [
-        if (!embedded) ...[
-          Text(
-            '${d.year}년 ${d.month}월 ${d.day}일 ($weekday)',
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+        Card(
+          elevation: 0.5,
+          margin: EdgeInsets.zero,
+          clipBehavior: Clip.antiAlias,
+          color: theme.colorScheme.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 전례력
+                _SectionHeader('전례력'),
+                const SizedBox(height: 12),
+                _DotLine(color: context.liturgical.of(day.color), text: day.title),
+                for (final m in day.optionalMemorials) ...[
+                  const SizedBox(height: 10),
+                  _DotLine(color: context.liturgical.of(m.color), text: m.name),
+                ],
+
+                // 일정 (추가는 유지 - 기존 기능)
+                const _SectionDivider(),
+                Row(
+                  children: [
+                    Expanded(child: _SectionHeader('일정')),
+                    TextButton.icon(
+                      onPressed: () =>
+                          showEventEditor(context, date: day.date),
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('추가'),
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                if (events.isEmpty)
+                  Text(
+                    '등록된 일정이 없습니다.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  )
+                else
+                  for (var i = 0; i < events.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 10),
+                    _EventLine(event: events[i]),
+                  ],
+
+                // 말씀
+                if (readings.isNotEmpty) ...[
+                  const _SectionDivider(),
+                  _SectionHeader('말씀'),
+                  const SizedBox(height: 12),
+                  for (final r in readings) ...[
+                    _ReadingLine(raw: r),
+                    const SizedBox(height: 6),
+                  ],
+                  if (day.sourceUrl != null)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () => _openSourceUrl(day.sourceUrl!),
+                        icon: const Icon(Icons.open_in_new, size: 16),
+                        label: const Text('매일미사에서 전문 보기'),
+                      ),
+                    ),
+                ],
+              ],
             ),
           ),
-          const SizedBox(height: 8),
-        ],
-        Text(day.title, style: theme.textTheme.headlineSmall),
-        const SizedBox(height: 16),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _Chip(label: seasonText),
-            _Chip(
-              label: LiturgicalColors.label(day.color),
-              leading: LiturgicalColorBadge(day.color),
-            ),
-            for (final alt in day.alternativeColors)
-              _Chip(
-                label: '${LiturgicalColors.label(alt)}(선택)',
-                leading: LiturgicalColorBadge(alt),
-              ),
-            _Chip(label: _rankLabel(day.celebration.rank)),
-            if (day.isHolyDayOfObligation) const _Chip(label: '의무 축일'),
-            if (day.specialDay != null && day.specialDay!.isNotEmpty)
-              _Chip(label: day.specialDay!),
-          ],
         ),
-        const Divider(height: 32),
-        _MyEventsSection(date: d, events: events),
-        const Divider(height: 32),
-        _InfoRow(label: '주일 독서', value: _sundayCycleLabel(day.sundayCycle)),
-        _InfoRow(label: '평일 독서', value: _weekdayCycleLabel(day.weekdayCycle)),
-        if (day.celebration.isProperToKorea)
-          const _InfoRow(label: '전례력', value: '한국 고유 전례력'),
-        if (day.scriptureReadings.isNotEmpty) ...[
-          const Divider(height: 32),
-          Text('말씀 (구절)', style: theme.textTheme.titleSmall),
-          const SizedBox(height: 8),
-          for (final r in day.scriptureReadings)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text(r, style: theme.textTheme.bodyMedium),
-            ),
-          if (day.sourceUrl != null) ...[
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: () => _openSourceUrl(day.sourceUrl!),
-                icon: const Icon(Icons.open_in_new, size: 18),
-                label: const Text('매일미사에서 전문 보기'),
-              ),
-            ),
-          ],
-        ],
-        if (day.optionalMemorials.isNotEmpty) ...[
-          const Divider(height: 32),
-          Text('이 날의 다른 기념', style: theme.textTheme.titleSmall),
-          const SizedBox(height: 8),
-          for (final m in day.optionalMemorials)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 5, right: 8),
-                    child: LiturgicalColorBadge(m.color, size: 10),
-                  ),
-                  Expanded(child: Text(m.name)),
-                ],
-              ),
-            ),
-        ],
+        const SizedBox(height: 16),
+        _SupportBanner(onTap: () => showSupportSheet(context)),
       ],
     );
   }
@@ -179,139 +140,202 @@ Future<void> _openSourceUrl(String url) async {
   }
 }
 
-/// "내 일정" section inside the day detail: list + add/edit/delete.
-class _MyEventsSection extends ConsumerWidget {
-  const _MyEventsSection({required this.date, required this.events});
-
-  final DateTime date;
-  final List<CalendarEvent> events;
-
-  Future<void> _confirmDelete(
-    BuildContext context,
-    WidgetRef ref,
-    CalendarEvent event,
-  ) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('일정 삭제'),
-        content: Text("'${event.title}' 일정을 삭제할까요?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('삭제'),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) {
-      await ref.read(eventStoreProvider.notifier).delete(event);
-    }
-  }
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader(this.title);
+  final String title;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Column(
+    return Text(
+      title,
+      style: theme.textTheme.titleSmall?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+}
+
+class _SectionDivider extends StatelessWidget {
+  const _SectionDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Divider(
+      height: 32,
+      color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
+    );
+  }
+}
+
+/// 색점 + 이름 (전례력 행).
+class _DotLine extends StatelessWidget {
+  const _DotLine({required this.color, required this.text});
+  final Color color;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Text('내 일정', style: theme.textTheme.titleSmall),
-            const Spacer(),
-            TextButton.icon(
-              onPressed: () => showEventEditor(context, date: date),
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('추가'),
-            ),
-          ],
+        Padding(
+          padding: const EdgeInsets.only(top: 5),
+          child: Container(
+            width: 11,
+            height: 11,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+          ),
         ),
-        if (events.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Text(
-              '등록된 일정이 없습니다.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          )
-        else
-          for (final e in events)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              dense: true,
-              leading: Icon(
-                e.notify
-                    ? Icons.notifications_active_outlined
-                    : Icons.event_note_outlined,
-                color: Color(e.categoryColor),
-              ),
-              title: Text(e.title),
-              subtitle: Text(
-                [
-                  e.isAllDay ? '종일' : e.time!,
-                  if (e.memo != null && e.memo!.isNotEmpty) e.memo!,
-                ].join(' · '),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete_outline),
-                tooltip: '삭제',
-                onPressed: () => _confirmDelete(context, ref, e),
-              ),
-              onTap: () =>
-                  showEventEditor(context, date: date, existing: e),
-            ),
+        const SizedBox(width: 12),
+        Expanded(child: Text(text, style: theme.textTheme.bodyLarge)),
       ],
     );
   }
 }
 
-class _Chip extends StatelessWidget {
-  const _Chip({required this.label, this.leading});
-  final String label;
-  final Widget? leading;
-
-  @override
-  Widget build(BuildContext context) {
-    return Chip(
-      avatar: leading,
-      label: Text(label),
-      visualDensity: VisualDensity.compact,
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
-  final String label;
-  final String value;
+/// 일정 한 줄(색점 + 시간 + 제목). 누르면 편집 화면으로 이동.
+class _EventLine extends StatelessWidget {
+  const _EventLine({required this.event});
+  final CalendarEvent event;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final timeLabel = event.isAllDay ? '종일' : event.time!;
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () => showEventEditor(
+        context,
+        date: parseEventDate(event.date),
+        existing: event,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 5),
+              child: Container(
+                width: 11,
+                height: 11,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(event.categoryColor),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              timeLabel,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                event.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyLarge,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 말씀 한 줄(라벨 | 구절).
+class _ReadingLine extends StatelessWidget {
+  const _ReadingLine({required this.raw});
+  final String raw;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final parsed = _parseReading(raw);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           SizedBox(
-            width: 80,
+            width: 60,
             child: Text(
-              label,
+              parsed.label,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
           ),
-          Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
+          Container(
+            width: 1,
+            height: 16,
+            color: theme.dividerColor.withValues(alpha: 0.6),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(parsed.reference, style: theme.textTheme.bodyLarge),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+/// 나눔(응원) 배너 - 카드 아래에 연한 녹색으로 표시.
+class _SupportBanner extends StatelessWidget {
+  const _SupportBanner({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+    return Material(
+      color: accent.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Icon(Icons.favorite, color: accent, size: 22),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '오늘의 기쁨을 나눠요',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: accent,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '하느님의 말씀을 전하는 데 함께해주세요',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: accent.withValues(alpha: 0.85),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: accent),
+            ],
+          ),
+        ),
       ),
     );
   }

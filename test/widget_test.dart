@@ -105,19 +105,16 @@ void main() {
     expect(find.text('연중 제15주일'), findsWidgets); // 2026-07-12
   });
 
-  testWidgets('day detail shows season, color and reading cycle', (
-    tester,
-  ) async {
-    // 2026-12-25 — Christmas, white, holy day of obligation.
+  testWidgets('day detail shows the 전례력 and 일정 sections', (tester) async {
+    // 2026-12-25 — Christmas.
     final day = LiturgicalCalendar().day(DateTime(2026, 12, 25));
     await tester.pumpWidget(_wrap(Scaffold(body: DayDetailView(day: day))));
     await tester.pumpAndSettle();
 
+    expect(find.text('전례력'), findsOneWidget);
+    // The liturgical title appears in the 전례력 section.
     expect(find.text('주님 성탄 대축일'), findsOneWidget);
-    expect(find.text('백색'), findsOneWidget);
-    expect(find.text('의무 축일'), findsOneWidget);
-    // 2026-12-25 falls in the 2026–27 liturgical year (Advent began Nov 29) = 나해(B).
-    expect(find.textContaining('나해'), findsOneWidget);
+    expect(find.text('일정'), findsOneWidget);
   });
 
   testWidgets('the add-event FAB pushes the editor screen', (tester) async {
@@ -195,7 +192,7 @@ void main() {
     await tester.pumpWidget(_wrap(Scaffold(body: DayDetailView(day: day))));
     await tester.pumpAndSettle();
 
-    expect(find.text('내 일정'), findsOneWidget);
+    expect(find.text('일정'), findsOneWidget);
     expect(find.text('성경 공부'), findsOneWidget);
   });
 
@@ -246,7 +243,7 @@ void main() {
     // No events yet.
     expect(find.text('등록된 일정이 없습니다.'), findsOneWidget);
 
-    // Open the editor from the "내 일정" section.
+    // Open the editor from the "일정" section.
     await tester.tap(find.widgetWithText(TextButton, '추가'));
     await tester.pumpAndSettle();
 
