@@ -1,4 +1,5 @@
 import http from 'node:http';
+import fs from 'node:fs';
 import pg from 'pg';
 
 const port = Number(process.env.API_PORT || 8080);
@@ -14,6 +15,8 @@ const workerBaseUrl =
   process.env.CLOUDFLARE_WORKER_BASE_URL ||
   'https://catholic-calendar.sidore.workers.dev';
 const apiPrefix = '/kcc/v1';
+const saintsAliasFile =
+  process.env.SAINTS_ALIAS_FILE || '/app/saint-aliases.json';
 
 const startedAt = new Date();
 const db = createDbPool();
@@ -56,6 +59,25 @@ function sendText(res, status, body) {
 
 function calendarUrl(year, month) {
   return `${workerBaseUrl.replace(/\/+$/, '')}/v1/calendar/${year}/${month}`;
+}
+
+function loadSaintAliases() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(saintsAliasFile, 'utf8'));
+    return Object.entries(parsed)
+      .map(([id, aliases]) => ({
+        id: Number(id),
+        aliases: Array.isArray(aliases)
+          ? aliases.map(String).map((s) => s.trim()).filter(Boolean)
+          : [],
+      }))
+      .filter((entry) => Number.isInteger(entry.id) && entry.aliases.length > 0);
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      console.warn(`Failed to load saint aliases: ${saintsAliasFile}`, error);
+    }
+    return [];
+  }
 }
 
 function normalizePlatform(value) {
@@ -204,6 +226,20 @@ async function ensureSchema() {
     SET search_text = trim(concat_ws(' ', name_ko, name_latin, status, kind, region_ko, region_en, year_text))
     WHERE search_text = ''
   `);
+
+  for (const entry of loadSaintAliases()) {
+    for (const alias of entry.aliases) {
+      await db.query(
+        `
+          UPDATE saints
+          SET search_text = trim(concat_ws(' ', search_text, $2))
+          WHERE source_saint_id = $1
+            AND search_text NOT ILIKE '%' || $2 || '%'
+        `,
+        [entry.id, alias],
+      );
+    }
+  }
 
   await db.query(`
     CREATE INDEX IF NOT EXISTS saints_feast_idx ON saints (feast_month, feast_day)

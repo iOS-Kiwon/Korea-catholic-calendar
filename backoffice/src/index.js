@@ -1,5 +1,6 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import pg from 'pg';
 
 const port = Number(process.env.BACKOFFICE_PORT || 3000);
@@ -13,6 +14,8 @@ const authLockMs = Number(process.env.ADMIN_AUTH_LOCK_SECONDS || 300) * 1000;
 const apiBaseUrl =
   process.env.API_INTERNAL_BASE_URL ||
   `http://api:${process.env.API_PORT || 8080}/kcc/v1`;
+const saintsAliasFile =
+  process.env.SAINTS_ALIAS_FILE || '/app/saint-aliases.json';
 const failedAuthAttempts = new Map();
 
 const db = new pg.Pool({
@@ -156,6 +159,20 @@ async function ensureSchema() {
     WHERE search_text = ''
   `);
 
+  for (const entry of loadSaintAliases()) {
+    for (const alias of entry.aliases) {
+      await db.query(
+        `
+          UPDATE saints
+          SET search_text = trim(concat_ws(' ', search_text, $2))
+          WHERE source_saint_id = $1
+            AND search_text NOT ILIKE '%' || $2 || '%'
+        `,
+        [entry.id, alias],
+      );
+    }
+  }
+
   await db.query(`
     CREATE INDEX IF NOT EXISTS saints_feast_idx ON saints (feast_month, feast_day)
   `);
@@ -163,6 +180,50 @@ async function ensureSchema() {
   await db.query(`
     CREATE INDEX IF NOT EXISTS saints_name_idx ON saints (name_ko)
   `);
+}
+
+function loadSaintAliases() {
+  return Object.entries(loadSaintAliasMap())
+    .map(([id, aliases]) => ({
+      id: Number(id),
+      aliases,
+    }))
+    .filter((entry) => Number.isInteger(entry.id) && entry.aliases.length > 0);
+}
+
+function loadSaintAliasMap() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(saintsAliasFile, 'utf8'));
+    return Object.fromEntries(
+      Object.entries(parsed).map(([id, aliases]) => [
+        String(Number(id)),
+        Array.isArray(aliases)
+          ? [...new Set(aliases.map(String).map((s) => s.trim()).filter(Boolean))]
+          : [],
+      ]),
+    );
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      console.warn(`Failed to load saint aliases: ${saintsAliasFile}`, error);
+    }
+    return {};
+  }
+}
+
+function saveSaintAliases(sourceSaintId, aliases) {
+  const normalizedId = String(Number(sourceSaintId));
+  const map = loadSaintAliasMap();
+  if (aliases.length === 0) {
+    delete map[normalizedId];
+  } else {
+    map[normalizedId] = aliases;
+  }
+  const sorted = Object.fromEntries(
+    Object.entries(map)
+      .filter(([id, values]) => Number.isInteger(Number(id)) && values.length > 0)
+      .sort(([a], [b]) => Number(a) - Number(b)),
+  );
+  fs.writeFileSync(saintsAliasFile, `${JSON.stringify(sorted, null, 2)}\n`);
 }
 
 function normalizeBasePath(value) {
@@ -1844,6 +1905,33 @@ async function upsertSaintManual(s) {
   );
 }
 
+function parseSaintAliases(value) {
+  return [
+    ...new Set(
+      String(value || '')
+        .split(/[\s,]+/)
+        .map((s) => s.trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
+function buildSaintSearchText(s, aliases) {
+  return [
+    s.nameKo,
+    s.nameLatin,
+    s.status,
+    s.kind,
+    s.regionKo,
+    s.regionEn,
+    s.yearText,
+    ...aliases,
+  ]
+    .map((s) => String(s || '').trim())
+    .filter(Boolean)
+    .join(' ');
+}
+
 function normalizeSaintForm(form) {
   const sourceSaintId = Number(form.get('sourceSaintId'));
   if (!Number.isInteger(sourceSaintId) || sourceSaintId <= 0) {
@@ -1876,7 +1964,12 @@ function normalizeSaintForm(form) {
     yearText: String(form.get('yearText') || '').trim(),
     detailUrl: String(form.get('detailUrl') || '').trim(),
     url: String(form.get('url') || '').trim(),
-    searchText: String(form.get('searchText') || '').trim(),
+  };
+  const aliases = parseSaintAliases(form.get('aliases'));
+  return {
+    ...saint,
+    aliases,
+    searchText: buildSaintSearchText(saint, aliases),
   };
 }
 
@@ -1921,11 +2014,12 @@ function saintRows(rows) {
   </table>`;
 }
 
-function saintEditForm(saint) {
+function saintEditForm(saint, aliases) {
   const id = Number(saint.source_saint_id);
   const detail = saint.detail_url
     ? ` · <a href="${escapeHtml(saint.detail_url)}" target="_blank" rel="noopener">원본 보기</a>`
     : '';
+  const aliasText = aliases.join(' ');
   return `
     <form class="editor" method="post" action="${basePath}/saints/edit/commit">
       <input type="hidden" name="sourceSaintId" value="${id}">
@@ -1952,7 +2046,7 @@ function saintEditForm(saint) {
       </div>
       <label class="form-row">연도<input name="yearText" class="wide" value="${escapeHtml(saint.year_text)}"></label>
       <label class="form-row">URL<input name="url" class="wide" value="${escapeHtml(saint.url || '')}"></label>
-      <label class="form-row">검색어<input name="searchText" class="wide" value="${escapeHtml(saint.search_text || '')}" placeholder="별칭을 공백으로 구분해 추가"></label>
+      <label class="form-row">별칭<input name="aliases" class="wide" value="${escapeHtml(aliasText)}" placeholder="공백 또는 쉼표로 구분"></label>
       <div class="editor-actions">
         <a class="button secondary" href="${basePath}/saints">목록으로</a>
         <button type="submit">저장</button>
@@ -2030,7 +2124,8 @@ async function handleSaintEdit(req, res, url) {
     );
     return;
   }
-  sendHtml(res, 200, layout(`${saint.name_ko} 수정`, saintEditForm(saint), 'saints'));
+  const aliases = loadSaintAliasMap()[String(id)] || [];
+  sendHtml(res, 200, layout(`${saint.name_ko} 수정`, saintEditForm(saint, aliases), 'saints'));
 }
 
 async function handleSaintSave(req, res) {
@@ -2052,9 +2147,25 @@ async function handleSaintSave(req, res) {
     return;
   }
 
+  try {
+    saveSaintAliases(saint.sourceSaintId, saint.aliases);
+  } catch (error) {
+    sendHtml(
+      res,
+      500,
+      layout(
+        '성인',
+        `<div class="empty">별칭 파일을 저장하지 못했습니다. <code>${escapeHtml(saintsAliasFile)}</code> 권한을 확인하세요.</div>
+        <div class="toolbar"><a class="button secondary" href="${basePath}/saints/edit?id=${saint.sourceSaintId}">수정 화면으로 돌아가기</a></div>`,
+        'saints',
+      ),
+    );
+    return;
+  }
   await upsertSaintManual(saint);
   await logAdminAction(req, 'saint_update', 'saint', String(saint.sourceSaintId), {
     name_ko: saint.nameKo,
+    aliases: saint.aliases,
   });
   redirect(res, `${basePath}/saints?message=${encodeURIComponent('성인 정보를 저장했습니다.')}`);
 }

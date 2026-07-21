@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../ads/ads.dart';
 import '../../events/application/event_providers.dart';
@@ -112,6 +113,17 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
         _date = DateTime(_date.year, saint.feastMonth!, saint.feastDay!);
       }
     });
+  }
+
+  Future<void> _openSaintUrl() async {
+    final raw = _saint?.url.trim();
+    if (raw == null || raw.isEmpty) return;
+    final uri = Uri.tryParse(raw);
+    if (uri == null) return;
+    final openedInApp = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+    if (!openedInApp) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   Future<void> _pickDate() async {
@@ -281,6 +293,15 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
               trailing: const Icon(Icons.chevron_right),
               onTap: _pickSaint,
             ),
+            if (saint != null && saint.url.trim().isNotEmpty)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: _openSaintUrl,
+                  icon: const Icon(Icons.open_in_new, size: 16),
+                  label: const Text('성인 정보 보기'),
+                ),
+              ),
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.calendar_today_outlined),

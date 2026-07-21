@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 // 성인(聖人) 목록 임포터
 //
 // maria.catholic.or.kr(가톨릭 굿뉴스) 성인 목록(list.asp)을 페이지 단위로 받아
@@ -21,6 +25,9 @@
 const BASE = process.env.SAINTS_SOURCE_BASE_URL || 'https://maria.catholic.or.kr';
 const LIST_PATH = '/sa_ho/list/list.asp';
 const PAGE_DELAY_MS = Number(process.env.SAINTS_PAGE_DELAY_MS || 1500);
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
+const DEFAULT_ALIAS_FILE = path.resolve(SCRIPT_DIR, '../ops/saint-aliases.json');
+const aliasFile = process.env.SAINTS_ALIAS_FILE || DEFAULT_ALIAS_FILE;
 
 // 목록 경로는 robots.txt에서 일반 UA에 대해 막혀있지 않다. AI 브랜드 UA는 쓰지 않는다.
 const HEADERS = {
@@ -33,6 +40,25 @@ const HEADERS = {
 };
 
 const KIND_LABELS = { 성: '성인', 복: '복자', 천: '천사', 가: '가경자' };
+const SEARCH_ALIASES_BY_ID = loadAliases(aliasFile);
+
+function loadAliases(file) {
+  try {
+    const raw = fs.readFileSync(file, 'utf8');
+    const parsed = JSON.parse(raw);
+    return Object.fromEntries(
+      Object.entries(parsed).map(([id, aliases]) => [
+        Number(id),
+        Array.isArray(aliases) ? aliases.map(String).map((s) => s.trim()).filter(Boolean) : [],
+      ]),
+    );
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      console.warn(`성인 별칭 파일을 읽지 못했습니다: ${file} (${error.message})`);
+    }
+    return {};
+  }
+}
 
 function parseArgs(argv) {
   const args = { psize: 1000, page: null, dry: false };
@@ -129,7 +155,7 @@ function parseRows(html) {
       yearText,
       detailUrl: `${BASE}/sa_ho/list/view.asp?menugubun=saint&Orggubun=101&ctxtSaintId=${id}`,
       url: `https://m.mariasarang.net/saint/bbs_view.asp?index=bbs_saint&no=${id}`,
-      searchText: [nameKo, nameLatin, status, kind, regionKo, regionEn, yearText]
+      searchText: [nameKo, nameLatin, status, kind, regionKo, regionEn, yearText, ...(SEARCH_ALIASES_BY_ID[id] || [])]
         .filter(Boolean)
         .join(' '),
     });
