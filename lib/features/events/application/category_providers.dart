@@ -39,9 +39,10 @@ class CategoryStore extends AsyncNotifier<List<EventCategory>> {
 
   /// Adds a new category (immediate persist). Used by the picker's "add".
   Future<EventCategory> add(String name, int color) async {
+    final normalizedName = normalizeCategoryName(name);
     final category = EventCategory(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
-      name: name,
+      name: normalizedName,
       color: color,
     );
     await _persist([...await future, category]);
@@ -57,8 +58,11 @@ class CategoryStore extends AsyncNotifier<List<EventCategory>> {
   /// persists it, then propagates any name/color changes into existing events.
   Future<void> replaceAll(List<EventCategory> next) async {
     final prev = {for (final c in await future) c.id: c};
-    await _persist(next);
-    for (final c in next) {
+    final normalized = [
+      for (final c in next) c.copyWith(name: normalizeCategoryName(c.name)),
+    ];
+    await _persist(normalized);
+    for (final c in normalized) {
       final old = prev[c.id];
       if (old != null && (old.name != c.name || old.color != c.color)) {
         await ref.read(eventStoreProvider.notifier).applyCategory(c);

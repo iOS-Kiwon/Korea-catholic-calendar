@@ -91,6 +91,9 @@ coverage/
 **/ios/**/Pods/
 **/ios/**/.symlinks/
 **/ios/**/profile
+# 공유 스킴(Runner.xcscheme)은 Flutter SPM 통합/CI 빌드에 필요하므로 추적한다.
+# (개인 설정은 xcuserdata에만 있으므로 그쪽만 무시)
+**/ios/Runner.xcodeproj/xcshareddata/WorkspaceSettings.xcsettings
 **/ios/**/xcuserdata
 **/ios/.generated/
 **/ios/Flutter/.last_build_id

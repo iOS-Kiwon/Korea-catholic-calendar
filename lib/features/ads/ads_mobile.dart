@@ -11,6 +11,11 @@ bool get _adsSupported => Platform.isAndroid || Platform.isIOS;
 
 const bool adsEnabled = bool.fromEnvironment('ADS_ENABLED', defaultValue: true);
 
+/// Height reserved for the anchored bottom banner (standard 320x50 banner).
+/// Used to offset the keyboard inset so no gap appears above the keyboard while
+/// the banner stays pinned to the bottom.
+const double bottomAdBannerHeight = 50.0;
+
 Future<void>? _initAdsFuture;
 
 /// Sets up ads on mobile in the required order:
@@ -137,8 +142,11 @@ class _BottomAdBannerState extends State<BottomAdBanner> {
 
     // SafeArea(top:false) keeps the ad just above the home indicator. Reserve
     // banner height before load so the calendar layout always has an ad slot.
+    // maintainBottomViewPadding: 키보드가 올라와도 하단 여백을 safe-area 높이로
+    // 고정해, 배너가 view.bottom 쪽으로 내려가며 움직이지 않게 한다.
     return SafeArea(
       top: false,
+      maintainBottomViewPadding: true,
       child: (_loaded && _ad != null)
           ? SizedBox(
               height: _ad!.size.height.toDouble(),

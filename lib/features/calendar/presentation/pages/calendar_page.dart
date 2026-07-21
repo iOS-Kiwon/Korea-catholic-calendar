@@ -6,20 +6,17 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/theme/liturgical_colors.dart';
 import '../../../../core/date/year_month.dart';
 import '../../../ads/ads.dart';
-import '../../../events/application/event_providers.dart';
-import '../../../events/presentation/backup_notice.dart';
 import '../../../events/presentation/event_editor_sheet.dart';
 import '../../../support/presentation/support_sheet.dart';
 import '../../application/calendar_providers.dart';
 import '../../data/calendar_service.dart';
 import '../season_style.dart';
-import '../widgets/day_detail_view.dart';
 import '../widgets/day_info_bar.dart';
 import '../widgets/legend.dart';
 import '../widgets/month_grid.dart';
 import '../widgets/month_header.dart';
 import '../widgets/month_year_picker.dart';
-import '../widgets/today_button.dart';
+import 'day_detail_page.dart';
 
 String monthPath(YearMonth ym) =>
     '/${ym.year}/${ym.month.toString().padLeft(2, '0')}';
@@ -94,18 +91,12 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
 
   @override
   Widget build(BuildContext context) {
-    // 최초로 개인 일정이 추가되는 순간(0 → 1)에 백업 안내를 1회 노출.
-    ref.listen(eventStoreProvider, (prev, next) {
-      final was = prev?.value;
-      final now = next.value;
-      if (was != null && was.isEmpty && now != null && now.isNotEmpty) {
-        maybeShowBackupNotice(context, ref);
-      }
-    });
     final calendarAsync = ref.watch(calendarControllerProvider);
     final remoteStatuses = ref.watch(remoteMonthStatusProvider);
     return Scaffold(
       body: SafeArea(
+        // 상단 인셋은 헤더(전례색)가 상태바 뒤까지 직접 덮으므로 여기서는 끈다.
+        top: false,
         bottom: !adsEnabled,
         child: calendarAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -163,7 +154,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
 
     return Positioned(
       right: 12,
-      top: 12,
+      // 헤더(상태바 + 제목줄) 아래에 두어 오늘/화살표 버튼을 가리지 않도록.
+      top: MediaQuery.paddingOf(context).top + 60,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.92),
@@ -191,28 +183,24 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     );
   }
 
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
   MonthHeader _header(CalendarService s, {required bool compact}) {
     final mid = s.day(DateTime(widget.month.year, widget.month.month, 15));
     final color = seasonColor(mid.season);
     return MonthHeader(
       month: widget.month,
-      seasonText:
-          '${seasonLabel(mid.season)} · ${LiturgicalColors.label(color)}',
       color: context.liturgical.of(color),
       compact: compact,
+      // 오늘이 아닌 날짜(다른 달 포함)를 보고 있을 때만 `오늘` 버튼 노출.
+      showToday: !_isSameDay(_focusDate, DateTime.now()),
       onPrevMonth: () => _goMonth(widget.month.previous),
       onNextMonth: () => _goMonth(widget.month.next),
       onTapTitle: _openPicker,
+      onToday: _goToday,
     );
   }
-
-  Widget _todayButton() => Align(
-    alignment: Alignment.centerRight,
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-      child: TodayButton(onPressed: _goToday),
-    ),
-  );
 
   MonthGrid _grid(CalendarService s, {required bool compact}) => MonthGrid(
     calendar: s,
@@ -226,8 +214,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   DayInfoBar _infoBar(CalendarService s, {required bool compact}) => DayInfoBar(
     day: s.day(_focusDate),
     onSupportTap: () => showSupportSheet(context),
-    onTapDetail: () =>
-        compact ? _openDetailSheet(s, _focusDate) : _openDetail(s, _focusDate),
+    onTapDetail: () => _openDetailPage(s, _focusDate),
   );
 
   /// 일정 추가 플로팅 버튼. 색상 = 현재 월의 전례색(연중=녹색 등).
@@ -267,7 +254,6 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
             child: Column(
               children: [
                 _header(s, compact: false),
-                _todayButton(),
                 Expanded(
                   child: Stack(
                     children: [
@@ -302,7 +288,6 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     return Column(
       children: [
         _header(s, compact: true),
-        _todayButton(),
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 8),
           child: WeekdayRow(),
@@ -323,31 +308,12 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     );
   }
 
-  void _openDetail(CalendarService s, DateTime date) {
-    showDialog<void>(
-      context: context,
-      builder: (_) => Dialog(
-        clipBehavior: Clip.antiAlias,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 460, maxHeight: 620),
-          child: DayDetailView(day: s.day(date)),
-        ),
-      ),
-    );
-  }
-
-  void _openDetailSheet(CalendarService s, DateTime date) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.8,
-        minChildSize: 0.25,
-        maxChildSize: 0.95,
-        builder: (context, scrollController) =>
-            DayDetailView(day: s.day(date), scrollController: scrollController),
+  /// 하단 상세영역 탭 → 별도 화면으로 이동(iOS의 push 방식). 기존 바텀시트/다이얼로그
+  /// 대신 전체 화면 라우트를 쌓는다.
+  void _openDetailPage(CalendarService s, DateTime date) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => DayDetailPage(day: s.day(date)),
       ),
     );
   }

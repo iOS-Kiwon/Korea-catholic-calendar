@@ -6,7 +6,9 @@ import 'package:catholic_calendar/features/calendar/application/calendar_provide
 import 'package:catholic_calendar/features/calendar/data/calendar_service.dart';
 import 'package:catholic_calendar/features/calendar/data/remote_calendar_source.dart';
 import 'package:catholic_calendar/features/calendar/presentation/pages/calendar_page.dart';
+import 'package:catholic_calendar/features/calendar/presentation/pages/day_detail_page.dart';
 import 'package:catholic_calendar/features/calendar/presentation/widgets/day_detail_view.dart';
+import 'package:catholic_calendar/features/calendar/presentation/widgets/day_info_bar.dart';
 import 'package:catholic_calendar/features/events/analytics/category_log_service.dart';
 import 'package:catholic_calendar/features/events/application/event_providers.dart';
 import 'package:catholic_calendar/features/events/data/personal_cloud_backup_store.dart';
@@ -22,14 +24,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// A no-op notification service so tests never touch platform channels.
 class _FakeNotifications implements NotificationService {
+  _FakeNotifications({this.enabled = true, this.onOpenSettings});
+
+  final bool enabled;
+  final VoidCallback? onOpenSettings;
+
   @override
   Future<void> init() async {}
 
   @override
-  Future<bool> areNotificationsEnabled() async => true;
+  Future<bool> areNotificationsEnabled() async => enabled;
 
   @override
-  Future<void> openNotificationSettings() async {}
+  Future<void> openNotificationSettings() async => onOpenSettings?.call();
 
   @override
   Future<void> sync(Map<String, List<CalendarEvent>> events) async {}
@@ -50,7 +57,10 @@ class _FakeBackupStore extends PersonalCloudBackupStore {
   Future<bool> saveSnapshotJson(String snapshotJson) async => true;
 }
 
-Widget _wrap(Widget child) => ProviderScope(
+Widget _wrap(
+  Widget child, {
+  NotificationService? notificationService,
+}) => ProviderScope(
   // Inject the engine-only service (no CBCK snapshot) and disable the remote
   // gateway so tests never hit the network → falls back to the computed engine.
   // Notifications and cloud backup are stubbed to avoid platform channels.
@@ -61,7 +71,9 @@ Widget _wrap(Widget child) => ProviderScope(
     remoteCalendarSourceProvider.overrideWithValue(
       const RemoteCalendarSource(enabled: false),
     ),
-    notificationServiceProvider.overrideWithValue(_FakeNotifications()),
+    notificationServiceProvider.overrideWithValue(
+      notificationService ?? _FakeNotifications(),
+    ),
     categoryLogServiceProvider.overrideWithValue(
       const NoopCategoryLogService(),
     ),
@@ -93,22 +105,19 @@ void main() {
     expect(find.text('연중 제15주일'), findsWidgets); // 2026-07-12
   });
 
-  testWidgets('day detail shows season, color and reading cycle', (
-    tester,
-  ) async {
-    // 2026-12-25 — Christmas, white, holy day of obligation.
+  testWidgets('day detail shows the 전례력 and 일정 sections', (tester) async {
+    // 2026-12-25 — Christmas.
     final day = LiturgicalCalendar().day(DateTime(2026, 12, 25));
     await tester.pumpWidget(_wrap(Scaffold(body: DayDetailView(day: day))));
     await tester.pumpAndSettle();
 
+    expect(find.text('전례력'), findsOneWidget);
+    // The liturgical title appears in the 전례력 section.
     expect(find.text('주님 성탄 대축일'), findsOneWidget);
-    expect(find.text('백색'), findsOneWidget);
-    expect(find.text('의무 축일'), findsOneWidget);
-    // 2026-12-25 falls in the 2026–27 liturgical year (Advent began Nov 29) = 나해(B).
-    expect(find.textContaining('나해'), findsOneWidget);
+    expect(find.text('일정'), findsOneWidget);
   });
 
-  testWidgets('the add-event FAB opens the editor sheet', (tester) async {
+  testWidgets('the add-event FAB pushes the editor screen', (tester) async {
     tester.view.physicalSize = const Size(390, 844); // phone (narrow) layout
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -125,6 +134,41 @@ void main() {
     expect(find.text('새 일정'), findsOneWidget);
     // Title is now chosen on the category screen, not typed here.
     expect(find.text('카테고리를 선택하세요'), findsOneWidget);
+  });
+
+  testWidgets('disabled system notifications prompt only when turning on', (
+    tester,
+  ) async {
+    var openedSettings = false;
+    final day = LiturgicalCalendar().day(DateTime(2026, 7, 16));
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(body: DayDetailView(day: day)),
+        notificationService: _FakeNotifications(
+          enabled: false,
+          onOpenSettings: () => openedSettings = true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(TextButton, '추가'));
+    await tester.pumpAndSettle();
+
+    const message = '시스템 알림이 꺼져있어 알림을 보낼수 없습니다. 알림을 설정하시겠습니까?';
+    expect(find.text(message), findsNothing);
+
+    await tester.tap(find.widgetWithText(SwitchListTile, '알림'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(message), findsOneWidget);
+    expect(find.text('아니오'), findsOneWidget);
+    expect(find.text('예'), findsOneWidget);
+
+    await tester.tap(find.text('예'));
+    await tester.pumpAndSettle();
+
+    expect(openedSettings, isTrue);
   });
 
   testWidgets('day detail lists stored personal events', (tester) async {
@@ -148,8 +192,45 @@ void main() {
     await tester.pumpWidget(_wrap(Scaffold(body: DayDetailView(day: day))));
     await tester.pumpAndSettle();
 
-    expect(find.text('내 일정'), findsOneWidget);
+    expect(find.text('일정'), findsOneWidget);
     expect(find.text('성경 공부'), findsOneWidget);
+  });
+
+  testWidgets('bottom info bar summarizes event time category and memo', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'events_v1': jsonEncode({
+        '2026-07-16': [
+          {
+            'id': '1',
+            'date': '2026-07-16',
+            'categoryId': 'c1',
+            'categoryName': '성경 공부',
+            'categoryColor': 0xFF2E7D32,
+            'memo': '루카복음 긴 메모',
+            'time': '19:30',
+            'notify': true,
+          },
+        ],
+      }),
+    });
+
+    final day = LiturgicalCalendar().day(DateTime(2026, 7, 16));
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(
+          body: DayInfoBar(day: day, onTapDetail: () {}),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final summary = tester.widget<Text>(
+      find.text('19:30 · 성경 공부 · 루카복음 긴 메모'),
+    );
+    expect(summary.maxLines, 1);
+    expect(summary.overflow, TextOverflow.ellipsis);
   });
 
   testWidgets('adding an event by picking a category persists and shows it', (
@@ -162,7 +243,7 @@ void main() {
     // No events yet.
     expect(find.text('등록된 일정이 없습니다.'), findsOneWidget);
 
-    // Open the editor from the "내 일정" section.
+    // Open the editor from the "일정" section.
     await tester.tap(find.widgetWithText(TextButton, '추가'));
     await tester.pumpAndSettle();
 
@@ -200,7 +281,22 @@ void main() {
     expect(find.text('레지오'), findsOneWidget);
   });
 
-  testWidgets('adding the first event shows the backup notice once', (
+  testWidgets('category names are limited to 15 characters', (tester) async {
+    await tester.pumpWidget(_wrap(const CategoryPickerPage()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FloatingActionButton, '카테고리 추가'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).first, '12345678901234567890');
+    await tester.tap(find.widgetWithText(FilledButton, '추가'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('123456789012345'), findsOneWidget);
+    expect(find.text('1234567890123456'), findsNothing);
+  });
+
+  testWidgets('tapping the bottom info area pushes the day detail page', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -212,34 +308,48 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(CalendarPage)),
+    // The bottom detail area is a tappable InkWell inside the info bar.
+    final detailTap = find.descendant(
+      of: find.byType(DayInfoBar),
+      matching: find.byType(InkWell),
     );
-    const first = CalendarEvent(
-      id: '1',
-      date: '2026-07-16',
-      categoryId: 'c',
-      categoryName: '전례',
-      categoryColor: 0xFF2E7D32,
-    );
-    await container.read(eventStoreProvider.notifier).add(first);
+    await tester.tap(detailTap.first);
     await tester.pumpAndSettle();
 
+    // Opens as a pushed full-screen page (not a bottom sheet).
+    expect(find.byType(DayDetailPage), findsOneWidget);
+  });
+
+  testWidgets('backup notice shows once, when the first add completes', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final day = LiturgicalCalendar().day(DateTime(2026, 7, 16));
+    await tester.pumpWidget(_wrap(Scaffold(body: DayDetailView(day: day))));
+    await tester.pumpAndSettle();
+
+    Future<void> addEventViaEditor() async {
+      await tester.tap(find.widgetWithText(TextButton, '추가')); // 상세의 일정 추가
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('카테고리를 선택하세요')); // 카테고리 화면 열기
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('전례')); // 선택 → 편집 화면으로 복귀
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, '추가')); // 저장
+      await tester.pumpAndSettle();
+    }
+
+    // 첫 추가 완료 시점에 백업 안내 노출.
+    await addEventViaEditor();
     expect(find.text('내 일정 백업'), findsOneWidget);
     await tester.tap(find.text('확인'));
     await tester.pumpAndSettle();
 
-    // A second add must not re-show the (once-only) notice.
-    await container.read(eventStoreProvider.notifier).add(
-      const CalendarEvent(
-        id: '2',
-        date: '2026-07-17',
-        categoryId: 'c',
-        categoryName: '전례',
-        categoryColor: 0xFF2E7D32,
-      ),
-    );
-    await tester.pumpAndSettle();
+    // 두 번째 추가부터는 다시 뜨지 않는다.
+    await addEventViaEditor();
     expect(find.text('내 일정 백업'), findsNothing);
   });
 

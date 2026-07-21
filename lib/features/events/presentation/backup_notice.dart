@@ -5,21 +5,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../application/event_providers.dart';
 import '../data/personal_cloud_backup_store.dart';
 
-/// Shown-once flag for the first-run personal-data backup notice.
+/// Shown-once flag for the first personal-data backup notice.
 const kBackupNoticeShownKey = 'backup_notice_shown_v1';
 
-/// Shows a one-time notice, the first time the user adds a personal event, that
-/// their events/categories back up to iCloud (iOS) / Google Drive (Android) and
-/// restore on reinstall. If cloud isn't set up yet, it guides the user to
-/// enable it. No-op on web/desktop, and never shown more than once.
+/// Shows a one-time notice, the first time the user finishes adding a personal
+/// event, that their events/categories back up to iCloud (iOS) / Google Drive
+/// (Android) and restore on reinstall. If cloud isn't set up yet, it guides the
+/// user to enable it. No-op on web/desktop, and never shown more than once.
+///
+/// Trigger this right after a successful *add* (not on launch/restore).
 Future<void> maybeShowBackupNotice(BuildContext context, WidgetRef ref) async {
   final prefs = await ref.read(sharedPreferencesProvider.future);
   if (prefs.getBool(kBackupNoticeShownKey) ?? false) return;
 
   final store = ref.read(personalCloudBackupStoreProvider);
   final availability = await store.checkAvailability();
-  // Web/desktop: no cloud backup — don't show, and leave the flag unset so a
-  // later mobile install (same prefs won't carry over anyway) can still show.
   if (availability == CloudBackupAvailability.unsupported) return;
 
   await prefs.setBool(kBackupNoticeShownKey, true);
@@ -41,41 +41,99 @@ Future<void> maybeShowBackupNotice(BuildContext context, WidgetRef ref) async {
         '설정 앱에서 "Apple 계정 > iCloud"를 켜 주세요.';
   } else {
     message =
-        '추가한 일정과 카테고리는 Google Drive에 자동으로 저장·복원됩니다.\n\n'
-        '현재 Google 계정이 연동되어 있지 않아 지금은 백업되지 않습니다. '
-        '아래에서 연동해 주세요.';
+        'Google Drive를 연동하면\n'
+        '일정과 카테고리를 자동으로\n'
+        '저장하고 복원할 수 있어요.\n\n'
+        '연동하시겠습니까?';
   }
 
   await showDialog<void>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
-      title: const Text('내 일정 백업'),
-      content: Text(message),
-      actions: configured
-          ? [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('확인'),
+    builder: (dialogContext) {
+      final theme = Theme.of(dialogContext);
+      // 서브타이틀·버튼 폰트를 기본보다 2단계(+4) 키운다.
+      final subtitleStyle = (theme.textTheme.bodyMedium ?? const TextStyle())
+          .copyWith(
+            fontSize: (theme.textTheme.bodyMedium?.fontSize ?? 14) + 4,
+            height: 1.45,
+            color: theme.colorScheme.onSurfaceVariant,
+          );
+      final buttonStyle = TextStyle(
+        fontSize: (theme.textTheme.labelLarge?.fontSize ?? 14) + 4,
+        fontWeight: FontWeight.w600,
+      );
+
+      Widget actions() {
+        if (configured) {
+          return Center(
+            child: TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text('확인', style: buttonStyle),
+            ),
+          );
+        }
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text('나중에', style: buttonStyle),
+            ),
+            const SizedBox(width: 8),
+            FilledButton(
+              onPressed: () async {
+                Navigator.of(dialogContext).pop();
+                final ok = await store.promptSetup();
+                if (!context.mounted) return;
+                if (ok) {
+                  await ref
+                      .read(personalCloudBackupControllerProvider)
+                      .backupNow();
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Google Drive 연동을 완료했습니다.')),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        isIos
+                            ? 'iCloud 설정을 확인한 뒤 다시 시도해 주세요.'
+                            : 'Google Drive 연동을 완료하지 못했습니다. Google 계정 설정을 확인해 주세요.',
+                      ),
+                    ),
+                  );
+                }
+              },
+              child: Text(isIos ? '설정 열기' : '연동하기', style: buttonStyle),
+            ),
+          ],
+        );
+      }
+
+      return Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '내 일정 백업',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ]
-          : [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('나중에'),
-              ),
-              FilledButton(
-                onPressed: () async {
-                  Navigator.of(dialogContext).pop();
-                  final ok = await store.promptSetup();
-                  if (ok) {
-                    await ref
-                        .read(personalCloudBackupControllerProvider)
-                        .backupNow();
-                  }
-                },
-                child: Text(isIos ? '설정 열기' : '연동하기'),
-              ),
+              const SizedBox(height: 14),
+              Text(message, textAlign: TextAlign.center, style: subtitleStyle),
+              const SizedBox(height: 22),
+              actions(),
             ],
-    ),
+          ),
+        ),
+      );
+    },
   );
 }

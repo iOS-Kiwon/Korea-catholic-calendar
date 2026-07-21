@@ -8,9 +8,9 @@ import '../../../events/model/calendar_event.dart';
 
 const _weekdayFull = ['일', '월', '화', '수', '목', '금', '토'];
 const _maxMemorialRows = 3;
-const _maxEventRows = 2;
 
-/// 달력 하단 고정 정보영역: 얇은 구분선 + 날짜 + 기념/전례명 + 그날의 내 일정 요약.
+/// 달력 하단 정보 카드: 날짜(+상세 이동 셰브런) · 기념/전례명 · 그날의 내 일정 요약,
+/// 그리고 (해당하는 날) 나눔 배너. 카드 영역을 누르면 상세 화면으로 이동한다.
 class DayInfoBar extends ConsumerWidget {
   const DayInfoBar({
     super.key,
@@ -20,7 +20,7 @@ class DayInfoBar extends ConsumerWidget {
   });
 
   final LiturgicalDay day;
-  final VoidCallback onTapDetail; // 축일/일정 영역 탭 → 상세
+  final VoidCallback onTapDetail; // 카드 상단(날짜/기념/일정) 탭 → 상세
   final VoidCallback? onSupportTap;
 
   @override
@@ -39,59 +39,69 @@ class DayInfoBar extends ConsumerWidget {
         _MemorialLine(title: m.name, color: m.color),
     ].take(_maxMemorialRows).toList();
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Divider(
-          height: 1,
-          thickness: 1,
-          color: theme.dividerColor.withValues(alpha: 0.4),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (showSupportInvite) ...[
-                _SupportInviteRow(onTap: onSupportTap!),
-                const SizedBox(height: 10),
-              ],
-              Text(
-                '${d.month}월 ${d.day}일 $weekday요일',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: const Color(0xFF121212),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              InkWell(
-                onTap: onTapDetail,
-                borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, -3),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 날짜 + 기념/전례명 + 일정 요약 (탭하면 상세)
+            InkWell(
+              onTap: onTapDetail,
+              borderRadius: BorderRadius.circular(12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      for (var i = 0; i < _maxMemorialRows; i++)
-                        _MemorialRow(
-                          line: i < memorials.length ? memorials[i] : null,
+                      Expanded(
+                        child: Text(
+                          '${d.month}월 ${d.day}일 $weekday요일',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: const Color(0xFF121212),
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      if (events.isNotEmpty) _EventSummary(events: events),
+                      ),
+                      Icon(
+                        Icons.chevron_right,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ],
                   ),
-                ),
+                  const SizedBox(height: 10),
+                  for (final line in memorials) _MemorialRow(line: line),
+                  if (events.isNotEmpty) _EventSummary(events: events),
+                ],
               ),
+            ),
+            if (showSupportInvite) ...[
+              const SizedBox(height: 14),
+              _SupportBanner(onTap: onSupportTap!),
             ],
-          ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
 
 /// The day's personal events, summarized under the liturgical names.
+/// Shows the first event as time/category/memo in one line, then a count when
+/// there are more.
 class _EventSummary extends StatelessWidget {
   const _EventSummary({required this.events});
 
@@ -100,8 +110,14 @@ class _EventSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final shown = events.take(_maxEventRows).toList();
-    final extra = events.length - shown.length;
+    final first = events.first;
+    final extra = events.length - 1;
+    final memo = first.memo?.trim();
+    final summary = [
+      first.isAllDay ? '종일' : first.time!,
+      first.title,
+      if (memo != null && memo.isNotEmpty) memo,
+    ].join(' · ');
 
     return Padding(
       padding: const EdgeInsets.only(top: 6),
@@ -109,46 +125,35 @@ class _EventSummary extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Divider(height: 12, color: theme.dividerColor.withValues(alpha: 0.3)),
-          for (final e in shown)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
-                children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Color(e.categoryColor),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    e.isAllDay ? '종일' : e.time!,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      e.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                  ),
-                ],
+          Divider(height: 20, color: theme.dividerColor.withValues(alpha: 0.4)),
+          Row(
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(first.categoryColor),
+                ),
               ),
-            ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  summary,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyLarge,
+                ),
+              ),
+            ],
+          ),
           if (extra > 0)
             Padding(
-              padding: const EdgeInsets.only(top: 2, left: 24),
+              padding: const EdgeInsets.only(top: 4, left: 18),
               child: Text(
-                '+$extra개 더',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.primary,
+                '외 $extra개 일정이 있어요.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
             ),
@@ -158,44 +163,40 @@ class _EventSummary extends StatelessWidget {
   }
 }
 
-class _SupportInviteRow extends StatelessWidget {
-  const _SupportInviteRow({required this.onTap});
+/// 나눔(응원) 배너. 연한 녹색 배경 + 하트 + 셰브런.
+class _SupportBanner extends StatelessWidget {
+  const _SupportBanner({required this.onTap});
 
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
     return Material(
-      color: theme.colorScheme.primaryContainer.withValues(alpha: 0.55),
-      borderRadius: BorderRadius.circular(8),
+      color: accent.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(14),
       child: InkWell(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(14),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             children: [
+              Icon(Icons.favorite, color: accent, size: 20),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   '오늘의 기쁨을 나눠요',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onPrimaryContainer,
-                    fontWeight: FontWeight.w600,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: accent,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
-              Tooltip(
-                message: '나눔으로 응원하기',
-                child: IconButton(
-                  onPressed: onTap,
-                  icon: const Icon(Icons.favorite_border),
-                  color: theme.colorScheme.primary,
-                  visualDensity: VisualDensity.compact,
-                ),
-              ),
+              Icon(Icons.chevron_right, color: accent),
             ],
           ),
         ),
@@ -214,37 +215,34 @@ class _MemorialLine {
 class _MemorialRow extends StatelessWidget {
   const _MemorialRow({required this.line});
 
-  final _MemorialLine? line;
+  final _MemorialLine line;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    return SizedBox(
-      height: 26,
-      child: line == null
-          ? const SizedBox.shrink()
-          : Row(
-              children: [
-                Container(
-                  width: 11,
-                  height: 11,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: context.liturgical.of(line!.color),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    line!.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyLarge,
-                  ),
-                ),
-              ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          Container(
+            width: 11,
+            height: 11,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: context.liturgical.of(line.color),
             ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              line.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyLarge,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

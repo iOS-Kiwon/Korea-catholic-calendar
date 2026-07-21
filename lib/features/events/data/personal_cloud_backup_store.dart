@@ -26,6 +26,9 @@ class PersonalCloudBackupStore {
           const MethodChannel('com.sidore.catholiccalendar/personal_backup');
 
   final MethodChannel _channel;
+  static const _googleConfigChannel = MethodChannel(
+    'com.sidore.catholiccalendar/google_config',
+  );
   static const _driveScopes = [drive.DriveApi.driveAppdataScope];
   static const _driveFileName = 'personalDataSnapshotV1.json';
   static Future<void>? _googleSignInInitialization;
@@ -67,9 +70,14 @@ class PersonalCloudBackupStore {
   /// is no public deep link to iCloud settings) and returns false.
   Future<bool> promptSetup() async {
     if (_usesGoogleDriveBackup) {
+      debugPrint('[KCC backup] Starting Google Drive setup');
       final session = await _driveSession(promptIfNeeded: true);
       session?.close();
-      return session != null;
+      final ok = session != null;
+      debugPrint(
+        '[KCC backup] Google Drive setup ${ok ? 'completed' : 'failed'}',
+      );
+      return ok;
     }
     if (defaultTargetPlatform == TargetPlatform.iOS) {
       try {
@@ -121,7 +129,32 @@ class PersonalCloudBackupStore {
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
   Future<void> _ensureGoogleSignInInitialized() {
-    return _googleSignInInitialization ??= GoogleSignIn.instance.initialize();
+    return _googleSignInInitialization ??= _initializeGoogleSignIn();
+  }
+
+  Future<void> _initializeGoogleSignIn() async {
+    final serverClientId = await _googleServerClientId();
+    await GoogleSignIn.instance.initialize(serverClientId: serverClientId);
+  }
+
+  Future<String?> _googleServerClientId() async {
+    if (!_usesGoogleDriveBackup) return null;
+    try {
+      final id = await _googleConfigChannel.invokeMethod<String>(
+        'serverClientId',
+      );
+      if (id == null || id.isEmpty) {
+        debugPrint('[KCC backup] Google serverClientId is empty');
+        return null;
+      }
+      return id;
+    } on MissingPluginException {
+      debugPrint('[KCC backup] Google config channel is unavailable');
+      return null;
+    } on PlatformException catch (error) {
+      debugPrint('[KCC backup] Google serverClientId load failed: $error');
+      return null;
+    }
   }
 
   Future<_GoogleDriveSession?> _driveSession({
@@ -143,7 +176,10 @@ class PersonalCloudBackupStore {
         account = await googleSignIn.authenticate(scopeHint: _driveScopes);
       }
 
-      if (account == null) return null;
+      if (account == null) {
+        debugPrint('[KCC backup] Google account is not signed in');
+        return null;
+      }
 
       final authorization =
           await account.authorizationClient.authorizationForScopes(
@@ -152,7 +188,12 @@ class PersonalCloudBackupStore {
           (promptIfNeeded
               ? await account.authorizationClient.authorizeScopes(_driveScopes)
               : null);
-      if (authorization == null) return null;
+      if (authorization == null) {
+        debugPrint(
+          '[KCC backup] Google Drive scope authorization was not granted',
+        );
+        return null;
+      }
 
       final authClient = authorization.authClient(scopes: _driveScopes);
       return _GoogleDriveSession(drive.DriveApi(authClient), authClient);

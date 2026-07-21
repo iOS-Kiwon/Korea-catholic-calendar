@@ -564,6 +564,53 @@ API 호출이 실패하면 앱 사용을 허용한다.
 - 현재 관리자별 화면 권한은 분리하지 않았다. 모든 Basic Auth 관리자는 같은 권한을 가진다.
 - 장기적으로는 DB에 직접 붙는 구조보다 API 서버의 관리자 API를 통해 수정하도록 한다.
 
+## 성인(聖人) 데이터 임포트/편집
+
+성인 사전 데이터(maria.catholic.or.kr 성인 목록, 약 6688명)를 Postgres `saints` 테이블에 저장하고
+백오피스에서 편집한다. 앱 전례력 성인(sanctorale)과는 별개의 데이터이며, 앱 노출은 별도 과제다.
+
+### 임포트 (CLI, Mac mini 호스트)
+
+`scripts/import-saints.mjs`가 목록 페이지(`list.asp`, `PSIZE=1000` 기준 7페이지)를 받아 파싱 후
+`saints` 테이블에 upsert 한다. 백오피스에서 수동 수정한 행(`source='manual'`)은 재임포트해도
+덮어쓰지 않는다.
+
+준비(한 번):
+
+```bash
+cd scripts && npm install
+```
+
+실행(호스트에서 노출된 DB 포트 `127.0.0.1:5432` 사용, `ops/.env` 재사용):
+
+```bash
+# 소량 파싱 검증 (DB 미기록)
+node --env-file=../ops/.env import-saints.mjs --dry --psize 5 --page 1
+# 소량 실제 저장 검증
+node --env-file=../ops/.env import-saints.mjs --psize 20 --page 1
+# 전체 임포트
+node --env-file=../ops/.env import-saints.mjs
+```
+
+주의:
+
+- 운영자가 자동 수집을 원치 않을 수 있으므로 약관/허가를 먼저 확인한다.
+- 임포터는 일반 브라우저 UA를 쓰고(AI 봇 UA 금지) 페이지 사이에 딜레이(기본 1.5초)를 둔다.
+- `ops/.env`의 `POSTGRES_HOST=db`(도커 내부명)는 호스트 실행 시 자동으로 `127.0.0.1`로 매핑된다.
+
+확인:
+
+```bash
+docker compose -f ops/docker-compose.yml --env-file ops/.env exec db \
+  sh -lc 'psql -U "$POSTGRES_USER" "$POSTGRES_DB" -c "select count(*) from saints;"'
+```
+
+### 백오피스 편집
+
+`https://admin.sidore.org/kcc/saints`(로컬 `http://127.0.0.1:13000/kcc/saints`)에서 이름 검색·축일 월
+필터·페이지네이션으로 목록을 보고, `수정`으로 이름/축일/신분/등급/지역/연도를 편집한다. 저장하면 해당
+성인의 출처가 `manual`로 바뀌어 재임포트 시 보존되며, `admin_audit_logs`에 `saint_update`로 기록된다.
+
 ## Cloudflare Tunnel 설정
 
 권장 도메인:

@@ -240,7 +240,8 @@ open class TodayWidgetProvider : AppWidgetProvider() {
         }
 
         private fun dayNumberColor(weekday: Int, inMonth: Boolean, isToday: Boolean): Int {
-            if (isToday) return Color.rgb(218, 72, 28)
+            // 오늘은 빨간색 대신 검정(배경 하이라이트로 오늘을 구분).
+            if (isToday) return Color.rgb(29, 27, 32)
             if (!inMonth) return Color.rgb(178, 172, 185)
             if (weekday == 7) return Color.rgb(218, 72, 28)
             if (weekday == 6) return Color.rgb(21, 101, 192)

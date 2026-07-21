@@ -12,7 +12,28 @@
           "package_name": "com.sidore.catholiccalendar"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "802069788540-03ce1tommscp77hd3gn1rc8tc8pvmng9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sidore.catholiccalendar",
+            "certificate_hash": "24c9448aee3aecb2795b457062f930cb899f5ff4"
+          }
+        },
+        {
+          "client_id": "802069788540-vj7tkmk1sdrh3b0e896se6gjtqj0g6o9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sidore.catholiccalendar",
+            "certificate_hash": "c27bd87377932f56e035c4db9caa3fc6c4ea2eab"
+          }
+        },
+        {
+          "client_id": "802069788540-uushhob6t0gn63vfp09uog0un3g9b9lc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCho_tJ0J9HfpP4KzLqxFCcuoNqEBV3To0"
@@ -20,7 +41,20 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "802069788540-uushhob6t0gn63vfp09uog0un3g9b9lc.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "802069788540-a3aoa0gl1akfqpg77i3i19ggfem9lo99.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.sidore.catholiccalendar",
+                "app_store_id": "6791044471"
+              }
+            }
+          ]
         }
       }
     }

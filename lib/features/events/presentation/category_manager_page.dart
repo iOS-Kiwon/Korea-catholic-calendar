@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../ads/ads.dart';
 import '../application/category_providers.dart';
 import '../model/category_palette.dart';
 import '../model/event_category.dart';
@@ -219,17 +221,17 @@ class _Swatch extends StatelessWidget {
   }
 }
 
-/// Collects a category name + color. Returns the entered values (no
-/// persistence) or null if cancelled.
+/// Opens the add/edit category form as a full-screen page (no persistence).
+/// Returns the entered (name, color) or null if cancelled. A full page (rather
+/// than a bottom sheet) avoids keyboard jank and matches the event editor.
 Future<({String name, int color})?> showCategoryFormSheet(
   BuildContext context, {
   EventCategory? existing,
 }) {
-  return showModalBottomSheet<({String name, int color})>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    builder: (_) => _CategoryFormSheet(existing: existing),
+  return Navigator.of(context).push<({String name, int color})>(
+    MaterialPageRoute<({String name, int color})>(
+      builder: (_) => _CategoryFormSheet(existing: existing),
+    ),
   );
 }
 
@@ -263,7 +265,7 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
   }
 
   void _submit() {
-    final name = _name.text.trim();
+    final name = normalizeCategoryName(_name.text);
     if (name.isEmpty) {
       setState(() => _nameError = true);
       return;
@@ -274,63 +276,80 @@ class _CategoryFormSheetState extends State<_CategoryFormSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(20, 4, 20, 20 + bottomInset),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            _isEditing ? '카테고리 수정' : '새 카테고리',
-            style: theme.textTheme.titleLarge,
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _name,
-            autofocus: true,
-            decoration: InputDecoration(
-              labelText: '이름',
-              hintText: '예: 본당 행사, 전례',
-              errorText: _nameError ? '이름을 입력하세요' : null,
-              prefixIcon: const Icon(Icons.label_outline),
+    return Scaffold(
+      appBar: AppBar(title: Text(_isEditing ? '카테고리 수정' : '새 카테고리')),
+      body: SafeArea(
+        top: false,
+        bottom: false,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+          children: [
+            TextField(
+              controller: _name,
+              autofocus: true,
+              maxLength: kMaxCategoryNameLength,
+              maxLengthEnforcement: MaxLengthEnforcement.enforced,
+              // 완료(return) 키는 제출이 아니라 키보드만 닫는다.
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => FocusScope.of(context).unfocus(),
+              decoration: InputDecoration(
+                labelText: '이름',
+                hintText: '예: 본당 행사, 전례',
+                errorText: _nameError ? '이름을 입력하세요' : null,
+                prefixIcon: const Icon(Icons.label_outline),
+              ),
+              onChanged: (_) {
+                if (_nameError) setState(() => _nameError = false);
+              },
             ),
-            onChanged: (_) {
-              if (_nameError) setState(() => _nameError = false);
-            },
-            onSubmitted: (_) => _submit(),
-          ),
-          const SizedBox(height: 16),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text('색상', style: theme.textTheme.titleSmall),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              for (final c in kCategoryColors)
-                GestureDetector(
-                  onTap: () => setState(() => _color = c),
-                  child: _Swatch(
-                    color: Color(c),
-                    size: 34,
-                    selected: c == _color,
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text('색상', style: theme.textTheme.titleSmall),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                for (final c in kCategoryColors)
+                  GestureDetector(
+                    onTap: () => setState(() => _color = c),
+                    child: _Swatch(
+                      color: Color(c),
+                      size: 34,
+                      selected: c == _color,
+                    ),
                   ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      // 추가/저장 버튼은 화면 하단에 고정(일정 추가 버튼과 동일).
+      bottomNavigationBar: SafeArea(
+        top: false,
+        bottom: !adsEnabled,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+          child: SizedBox(
+            height: 54,
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _submit,
+              style: FilledButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
                 ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          FilledButton(
-            onPressed: _submit,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
+                textStyle: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               child: Text(_isEditing ? '저장' : '추가'),
             ),
           ),
-        ],
+        ),
       ),
     );
   }

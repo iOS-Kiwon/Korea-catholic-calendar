@@ -1,4 +1,4 @@
-# Firebase Firestore + App Check 설정 체크리스트
+# Firebase Firestore + App Check + Analytics 설정 체크리스트
 
 이 앱은 사용자가 새 카테고리를 추가할 때 카테고리 이름을 Firestore에 기록할 수 있습니다.
 앱 코드에는 Firebase API 키 같은 공개 설정값만 들어가며, 별도의 관리자 토큰은 넣지 않습니다.
@@ -71,7 +71,14 @@ service cloud.firestore {
 4. Firestore에 대해 App Check enforcement를 켭니다.
    - 앱에 App Check가 정상 적용되고 실제 쓰기 확인 후 켜는 것을 권장합니다.
 
-## 4. 개인정보/심사 문구
+## 4. Analytics 확인
+
+1. Firebase Console > Analytics가 프로젝트에서 활성화되어 있는지 확인합니다.
+2. Flutter에서는 iOS `FirebaseApp.configure()`를 직접 호출하지 않고, Dart 진입점에서 `Firebase.initializeApp()`과 `firebase_analytics` 플러그인을 통해 초기화합니다.
+3. iOS DebugView 확인이 필요하면 Xcode scheme 실행 인자에 `-FIRAnalyticsDebugEnabled`를 추가해서 실제 기기나 시뮬레이터에서 실행합니다.
+4. 일반 Analytics 대시보드는 실시간 DebugView와 달리 반영까지 시간이 걸릴 수 있습니다.
+
+## 5. 개인정보/심사 문구
 
 카테고리명은 사용자가 직접 입력하는 데이터입니다. 개인정보 처리방침과 앱 심사 메모에 다음 내용을 반영하세요.
 

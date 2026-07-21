@@ -104,7 +104,7 @@ struct SmallTodayWidgetView: View {
         VStack(alignment: .leading, spacing: 5) {
             Text(today.dateLabel)
                 .font(.system(size: 21, weight: .bold))
-                .foregroundStyle(.primary)
+                .foregroundStyle(Color.black)
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
 
@@ -117,7 +117,7 @@ struct SmallTodayWidgetView: View {
             if let eventText {
                 Text(eventText)
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.black)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
             }
@@ -125,8 +125,6 @@ struct SmallTodayWidgetView: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(.horizontal, 4)
-        .padding(.vertical, 5)
     }
 }
 
@@ -140,7 +138,7 @@ struct MonthWidgetView: View {
         VStack(spacing: 2) {
             Text(month.title)
                 .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(.primary)
+                .foregroundStyle(Color.black)
                 .frame(height: 21)
                 .frame(maxWidth: .infinity)
 
@@ -148,7 +146,7 @@ struct MonthWidgetView: View {
                 ForEach(Array(weekdays.enumerated()), id: \.offset) { _, weekday in
                     Text(weekday)
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color(red: 0.36, green: 0.36, blue: 0.36))
                         .frame(height: 15)
                 }
             }
@@ -159,9 +157,6 @@ struct MonthWidgetView: View {
                 }
             }
         }
-        .padding(.horizontal, 3)
-        .padding(.top, 4)
-        .padding(.bottom, 3)
     }
 }
 
@@ -184,7 +179,7 @@ struct MonthDayCell: View {
 
             Text(title)
                 .font(.system(size: 8, weight: day.eventTitle.isEmpty ? .regular : .semibold))
-                .foregroundStyle(day.eventTitle.isEmpty ? color(for: day.liturgicalColor) : .primary)
+                .foregroundStyle(day.eventTitle.isEmpty ? color(for: day.liturgicalColor) : Color.black)
                 .lineLimit(2)
                 .minimumScaleFactor(0.65)
                 .multilineTextAlignment(.center)
@@ -197,11 +192,12 @@ struct MonthDayCell: View {
     }
 
     private var numberColor: Color {
-        if day.isToday { return Color(red: 0.85, green: 0.28, blue: 0.11) }
-        if !day.inMonth { return .secondary.opacity(0.45) }
+        // 오늘은 빨간색 대신 검정(배경 하이라이트로 오늘을 구분).
+        if day.isToday { return .black }
+        if !day.inMonth { return Color(red: 0.62, green: 0.62, blue: 0.62) }
         if day.weekday == 7 { return Color(red: 0.78, green: 0.16, blue: 0.16) }
         if day.weekday == 6 { return Color(red: 0.08, green: 0.39, blue: 0.75) }
-        return .primary
+        return Color.black
     }
 }
 
@@ -216,7 +212,6 @@ struct TodayWidget: Widget {
         .configurationDisplayName("가톨릭 달력")
         .description("오늘의 전례와 이번 달 달력을 보여줍니다.")
         .supportedFamilies([.systemSmall, .systemLarge])
-        .contentMarginsDisabled()
     }
 }
 
