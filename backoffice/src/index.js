@@ -2055,6 +2055,21 @@ async function handleRequest(req, res) {
     return;
   }
 
+  if (url.pathname === `${basePath}/saints` && req.method === 'GET') {
+    await handleSaints(req, res, url);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/saints/edit` && req.method === 'GET') {
+    await handleSaintEdit(req, res, url);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/saints/edit/commit` && req.method === 'POST') {
+    await handleSaintSave(req, res);
+    return;
+  }
+
   if (url.pathname === `${basePath}/calendar/delete` && req.method === 'POST') {
     await handlePost(req, res, 'delete');
     return;
