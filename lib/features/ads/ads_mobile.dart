@@ -11,6 +11,11 @@ bool get _adsSupported => Platform.isAndroid || Platform.isIOS;
 
 const bool adsEnabled = bool.fromEnvironment('ADS_ENABLED', defaultValue: true);
 
+/// Height reserved for the anchored bottom banner (standard 320x50 banner).
+/// Used to offset the keyboard inset so no gap appears above the keyboard while
+/// the banner stays pinned to the bottom.
+const double bottomAdBannerHeight = 50.0;
+
 Future<void>? _initAdsFuture;
 
 /// Sets up ads on mobile in the required order:

@@ -98,19 +98,39 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
       theme: AppTheme.light(),
       themeMode: ThemeMode.light, // 다크 모드 미지원 — 항상 라이트 테마
       routerConfig: _router,
-      // 모든 화면 하단(SafeArea.bottom 바로 위)에 배너 광고 배치.
-      // 키보드가 올라오면 광고를 접어(Offstage) 입력 영역 위 공백을 없앤다.
-      // (Offstage는 상태를 유지하므로 광고를 다시 로드하지 않는다.)
-      builder: (context, child) => Column(
-        children: [
-          Expanded(child: child ?? const SizedBox.shrink()),
-          if (adsEnabled)
-            Offstage(
-              offstage: MediaQuery.viewInsetsOf(context).bottom > 0,
-              child: const BottomAdBanner(),
+      // 배너 광고는 화면 하단(SafeArea.bottom 바로 위)에 항상 고정한다.
+      // 키보드가 뜨면 각 화면이 키보드 높이만큼 인셋을 잡는데, 그 아래에 광고가
+      // 있어 광고 높이만큼 이중으로 밀려 공백이 생긴다. 그래서 자식에게 전달하는
+      // 하단 인셋을 광고 높이만큼 줄여 공백을 없앤다(광고는 그대로 하단 고정).
+      builder: (context, child) {
+        final content = child ?? const SizedBox.shrink();
+        if (!adsEnabled) return content;
+        return Column(
+          children: [
+            Expanded(
+              child: Builder(
+                builder: (context) {
+                  final media = MediaQuery.of(context);
+                  final reduced = (media.viewInsets.bottom - bottomAdBannerHeight)
+                      .clamp(0.0, double.infinity);
+                  return MediaQuery(
+                    data: media.copyWith(
+                      viewInsets: EdgeInsets.fromLTRB(
+                        media.viewInsets.left,
+                        media.viewInsets.top,
+                        media.viewInsets.right,
+                        reduced,
+                      ),
+                    ),
+                    child: content,
+                  );
+                },
+              ),
             ),
-        ],
-      ),
+            const BottomAdBanner(),
+          ],
+        );
+      },
       locale: const Locale('ko'),
       supportedLocales: const [Locale('ko'), Locale('en')],
       localizationsDelegates: const [

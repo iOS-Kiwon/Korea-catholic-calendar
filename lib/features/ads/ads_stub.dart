@@ -2,6 +2,9 @@ import 'package:flutter/widgets.dart';
 
 const bool adsEnabled = false;
 
+/// The bottom banner reserves no height off mobile.
+const double bottomAdBannerHeight = 0.0;
+
 /// No-op ad support for platforms without AdMob (web/desktop).
 Future<void> initAds() async {}
 
