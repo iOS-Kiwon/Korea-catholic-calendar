@@ -9,6 +9,7 @@ import 'package:catholic_calendar/features/calendar/presentation/pages/calendar_
 import 'package:catholic_calendar/features/calendar/presentation/widgets/day_detail_view.dart';
 import 'package:catholic_calendar/features/events/analytics/category_log_service.dart';
 import 'package:catholic_calendar/features/events/application/event_providers.dart';
+import 'package:catholic_calendar/features/events/data/personal_cloud_backup_store.dart';
 import 'package:catholic_calendar/features/events/model/calendar_event.dart';
 import 'package:catholic_calendar/features/events/notifications/notifications.dart';
 import 'package:catholic_calendar/features/events/presentation/category_manager_page.dart'
@@ -34,10 +35,25 @@ class _FakeNotifications implements NotificationService {
   Future<void> sync(Map<String, List<CalendarEvent>> events) async {}
 }
 
+/// A backup store that never touches platform channels; reports cloud backup
+/// as available so the first-run notice renders a simple 확인 dialog.
+class _FakeBackupStore extends PersonalCloudBackupStore {
+  const _FakeBackupStore();
+  @override
+  Future<CloudBackupAvailability> checkAvailability() async =>
+      CloudBackupAvailability.available;
+  @override
+  Future<bool> promptSetup() async => false;
+  @override
+  Future<String?> loadSnapshotJson() async => null;
+  @override
+  Future<bool> saveSnapshotJson(String snapshotJson) async => true;
+}
+
 Widget _wrap(Widget child) => ProviderScope(
   // Inject the engine-only service (no CBCK snapshot) and disable the remote
   // gateway so tests never hit the network → falls back to the computed engine.
-  // Notifications are stubbed to avoid platform channels.
+  // Notifications and cloud backup are stubbed to avoid platform channels.
   overrides: [
     liturgicalCalendarProvider.overrideWith(
       (ref) => CalendarService(engine: LiturgicalCalendar()),
@@ -48,6 +64,9 @@ Widget _wrap(Widget child) => ProviderScope(
     notificationServiceProvider.overrideWithValue(_FakeNotifications()),
     categoryLogServiceProvider.overrideWithValue(
       const NoopCategoryLogService(),
+    ),
+    personalCloudBackupStoreProvider.overrideWithValue(
+      const _FakeBackupStore(),
     ),
   ],
   child: MaterialApp(theme: AppTheme.light(), home: child),
@@ -158,7 +177,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Back on the detail view, the new event is listed under its category name.
-    expect(find.text('전례'), findsOneWidget);
+    expect(find.text('전례'), findsAtLeastNWidgets(1));
     expect(find.text('등록된 일정이 없습니다.'), findsNothing);
   });
 
@@ -179,6 +198,49 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('레지오'), findsOneWidget);
+  });
+
+  testWidgets('adding the first event shows the backup notice once', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      _wrap(const CalendarPage(month: YearMonth(2026, 7))),
+    );
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(CalendarPage)),
+    );
+    const first = CalendarEvent(
+      id: '1',
+      date: '2026-07-16',
+      categoryId: 'c',
+      categoryName: '전례',
+      categoryColor: 0xFF2E7D32,
+    );
+    await container.read(eventStoreProvider.notifier).add(first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('내 일정 백업'), findsOneWidget);
+    await tester.tap(find.text('확인'));
+    await tester.pumpAndSettle();
+
+    // A second add must not re-show the (once-only) notice.
+    await container.read(eventStoreProvider.notifier).add(
+      const CalendarEvent(
+        id: '2',
+        date: '2026-07-17',
+        categoryId: 'c',
+        categoryName: '전례',
+        categoryColor: 0xFF2E7D32,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('내 일정 백업'), findsNothing);
   });
 
   testWidgets('category screen edit mode deletes an unused category on save', (

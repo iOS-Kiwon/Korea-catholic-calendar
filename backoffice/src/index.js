@@ -1,0 +1,1816 @@
+import http from 'node:http';
+import crypto from 'node:crypto';
+import pg from 'pg';
+
+const port = Number(process.env.BACKOFFICE_PORT || 3000);
+const host = process.env.BACKOFFICE_HOST || '0.0.0.0';
+const basePath = normalizeBasePath(process.env.BACKOFFICE_BASE_PATH || '/kcc');
+const adminToken = process.env.ADMIN_TOKEN || '';
+const adminUsername = process.env.ADMIN_USERNAME || 'admin';
+const adminCredentials = parseAdminCredentials();
+const authMaxFailures = Number(process.env.ADMIN_AUTH_MAX_FAILURES || 5);
+const authLockMs = Number(process.env.ADMIN_AUTH_LOCK_SECONDS || 300) * 1000;
+const apiBaseUrl =
+  process.env.API_INTERNAL_BASE_URL ||
+  `http://api:${process.env.API_PORT || 8080}/kcc/v1`;
+const failedAuthAttempts = new Map();
+
+const db = new pg.Pool({
+  host: process.env.POSTGRES_HOST || 'db',
+  port: Number(process.env.POSTGRES_PORT || 5432),
+  database: process.env.POSTGRES_DB,
+  user: process.env.POSTGRES_USER,
+  password: process.env.POSTGRES_PASSWORD,
+});
+
+async function ensureSchema() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS calendar_month_revisions (
+      id bigserial PRIMARY KEY,
+      year integer NOT NULL,
+      month integer NOT NULL,
+      action text NOT NULL,
+      source text NOT NULL,
+      available boolean NOT NULL,
+      payload_json jsonb NOT NULL,
+      note text,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      CHECK (year >= 1900 AND year <= 2200),
+      CHECK (month >= 1 AND month <= 12)
+    )
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS calendar_month_revisions_year_month_idx
+    ON calendar_month_revisions (year, month, created_at DESC)
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS admin_audit_logs (
+      id bigserial PRIMARY KEY,
+      admin_user text NOT NULL,
+      action text NOT NULL,
+      target_type text NOT NULL,
+      target_id text NOT NULL,
+      details_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+      ip text,
+      user_agent text,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS admin_audit_logs_created_at_idx
+    ON admin_audit_logs (created_at DESC, id DESC)
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS app_update_policy (
+      id integer PRIMARY KEY DEFAULT 1,
+      update_mode text NOT NULL DEFAULT 'none',
+      ios_update_mode text NOT NULL DEFAULT 'none',
+      ios_update_version text NOT NULL DEFAULT '',
+      android_update_mode text NOT NULL DEFAULT 'none',
+      android_update_version text NOT NULL DEFAULT '',
+      force_update_title text NOT NULL DEFAULT '업데이트가 필요합니다',
+      force_update_message text NOT NULL DEFAULT '',
+      recommended_update_title text NOT NULL DEFAULT '새 버전이 있습니다',
+      update_message text NOT NULL DEFAULT '',
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      CHECK (id = 1),
+      CHECK (update_mode IN ('none', 'recommended', 'force')),
+      CHECK (ios_update_mode IN ('none', 'recommended', 'force')),
+      CHECK (android_update_mode IN ('none', 'recommended', 'force'))
+    )
+  `);
+
+  await db.query(`
+    ALTER TABLE app_update_policy
+    ADD COLUMN IF NOT EXISTS ios_update_mode text NOT NULL DEFAULT 'none'
+  `);
+
+  await db.query(`
+    ALTER TABLE app_update_policy
+    ADD COLUMN IF NOT EXISTS ios_update_version text NOT NULL DEFAULT ''
+  `);
+
+  await db.query(`
+    ALTER TABLE app_update_policy
+    ADD COLUMN IF NOT EXISTS android_update_mode text NOT NULL DEFAULT 'none'
+  `);
+
+  await db.query(`
+    ALTER TABLE app_update_policy
+    ADD COLUMN IF NOT EXISTS android_update_version text NOT NULL DEFAULT ''
+  `);
+
+  await db.query(`
+    ALTER TABLE app_update_policy
+    ADD COLUMN IF NOT EXISTS force_update_title text NOT NULL DEFAULT '업데이트가 필요합니다'
+  `);
+
+  await db.query(`
+    ALTER TABLE app_update_policy
+    ADD COLUMN IF NOT EXISTS recommended_update_title text NOT NULL DEFAULT '새 버전이 있습니다'
+  `);
+}
+
+function normalizeBasePath(value) {
+  const trimmed = value.trim().replace(/\/+$/, '');
+  if (!trimmed) return '';
+  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+}
+
+function parseAdminCredentials() {
+  const entries = [];
+  const rawCredentials = process.env.ADMIN_CREDENTIALS || '';
+
+  if (adminToken) {
+    entries.push([adminUsername, adminToken]);
+  }
+
+  for (const item of rawCredentials.split(/[\n,]+/)) {
+    const trimmed = item.trim();
+    if (!trimmed) continue;
+    const separator = trimmed.indexOf(':');
+    if (separator <= 0) continue;
+    const username = trimmed.slice(0, separator).trim();
+    const password = trimmed.slice(separator + 1);
+    if (username && password) {
+      entries.push([username, password]);
+    }
+  }
+
+  return entries;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function normalizeJsonText(payload) {
+  return `${JSON.stringify(payload, null, 2)}\n`;
+}
+
+function diffLines(beforeText, afterText) {
+  const before = beforeText.split('\n');
+  const after = afterText.split('\n');
+  const rows = [];
+  let i = 0;
+  let j = 0;
+  let beforeLine = 1;
+  let afterLine = 1;
+
+  while (i < before.length || j < after.length) {
+    if (i < before.length && j < after.length && before[i] === after[j]) {
+      rows.push({
+        type: 'same',
+        before: before[i],
+        after: after[j],
+        beforeLine,
+        afterLine,
+      });
+      i += 1;
+      j += 1;
+      beforeLine += 1;
+      afterLine += 1;
+      continue;
+    }
+
+    const nextBeforeMatchesAfter =
+      i + 1 < before.length && j < after.length && before[i + 1] === after[j];
+    const beforeMatchesNextAfter =
+      i < before.length && j + 1 < after.length && before[i] === after[j + 1];
+
+    if (nextBeforeMatchesAfter) {
+      rows.push({
+        type: 'removed',
+        before: before[i],
+        after: '',
+        beforeLine,
+        afterLine: '',
+      });
+      i += 1;
+      beforeLine += 1;
+      continue;
+    }
+
+    if (beforeMatchesNextAfter) {
+      rows.push({
+        type: 'added',
+        before: '',
+        after: after[j],
+        beforeLine: '',
+        afterLine,
+      });
+      j += 1;
+      afterLine += 1;
+      continue;
+    }
+
+    if (i < before.length && j < after.length) {
+      rows.push({
+        type: 'changed',
+        before: before[i],
+        after: after[j],
+        beforeLine,
+        afterLine,
+      });
+      i += 1;
+      j += 1;
+      beforeLine += 1;
+      afterLine += 1;
+      continue;
+    }
+
+    if (i < before.length) {
+      rows.push({
+        type: 'removed',
+        before: before[i],
+        after: '',
+        beforeLine,
+        afterLine: '',
+      });
+      i += 1;
+      beforeLine += 1;
+      continue;
+    }
+
+    rows.push({
+      type: 'added',
+      before: '',
+      after: after[j],
+      beforeLine: '',
+      afterLine,
+    });
+    j += 1;
+    afterLine += 1;
+  }
+
+  return rows;
+}
+
+function sendHtml(res, status, body) {
+  res.writeHead(status, {
+    'content-type': 'text/html; charset=utf-8',
+    'cache-control': 'no-store',
+  });
+  res.end(body);
+}
+
+function sendJson(res, status, body) {
+  res.writeHead(status, {
+    'content-type': 'application/json; charset=utf-8',
+    'cache-control': 'no-store',
+  });
+  res.end(JSON.stringify(body));
+}
+
+function redirect(res, location) {
+  res.writeHead(303, { location });
+  res.end();
+}
+
+function safeEqual(a, b) {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  if (left.length !== right.length) return false;
+  return crypto.timingSafeEqual(left, right);
+}
+
+function authKey(req, username = '') {
+  return `${clientIp(req)}:${username}`;
+}
+
+function getAuthLock(req, username = '') {
+  const key = authKey(req, username);
+  const entry = failedAuthAttempts.get(key);
+  if (!entry) return null;
+
+  const now = Date.now();
+  if (entry.lockedUntil && entry.lockedUntil > now) {
+    return entry;
+  }
+
+  if (entry.resetAt <= now) {
+    failedAuthAttempts.delete(key);
+    return null;
+  }
+
+  return entry;
+}
+
+function recordAuthSuccess(req, username) {
+  failedAuthAttempts.delete(authKey(req, username));
+  failedAuthAttempts.delete(authKey(req, ''));
+}
+
+function recordAuthFailure(req, username = '') {
+  const key = authKey(req, username);
+  const now = Date.now();
+  const entry = failedAuthAttempts.get(key) || {
+    count: 0,
+    resetAt: now + authLockMs,
+    lockedUntil: 0,
+  };
+
+  if (entry.resetAt <= now) {
+    entry.count = 0;
+    entry.resetAt = now + authLockMs;
+    entry.lockedUntil = 0;
+  }
+
+  entry.count += 1;
+  if (entry.count >= authMaxFailures) {
+    entry.lockedUntil = now + authLockMs;
+  }
+  failedAuthAttempts.set(key, entry);
+  return entry;
+}
+
+function parseBasicAuth(req) {
+  const header = req.headers.authorization || '';
+  if (!header.startsWith('Basic ')) {
+    return { username: '', password: '' };
+  }
+
+  let decoded = '';
+  try {
+    decoded = Buffer.from(header.slice('Basic '.length), 'base64').toString(
+      'utf8',
+    );
+  } catch {
+    return { username: '', password: '' };
+  }
+  const separator = decoded.indexOf(':');
+  const username = separator >= 0 ? decoded.slice(0, separator) : decoded;
+  const password = separator >= 0 ? decoded.slice(separator + 1) : '';
+  return { username, password };
+}
+
+function authenticate(req) {
+  if (adminCredentials.length === 0) {
+    return { ok: true, username: 'local' };
+  }
+
+  const { username, password } = parseBasicAuth(req);
+  const lock = getAuthLock(req, username) || getAuthLock(req, '');
+  if (lock?.lockedUntil && lock.lockedUntil > Date.now()) {
+    return { ok: false, username, lockedUntil: lock.lockedUntil };
+  }
+
+  for (const [candidateUser, candidatePassword] of adminCredentials) {
+    if (safeEqual(username, candidateUser) && safeEqual(password, candidatePassword)) {
+      recordAuthSuccess(req, username);
+      return { ok: true, username };
+    }
+  }
+
+  const failed = recordAuthFailure(req, username);
+  return { ok: false, username, lockedUntil: failed.lockedUntil || 0 };
+}
+
+function requireAuth(req, res) {
+  const auth = authenticate(req);
+  if (auth.ok) {
+    req.adminUser = auth.username;
+    return true;
+  }
+
+  const headers = {
+    'www-authenticate': 'Basic realm="KCC Backoffice"',
+    'content-type': 'text/plain; charset=utf-8',
+  };
+
+  let message = 'Authentication required';
+  if (auth.lockedUntil && auth.lockedUntil > Date.now()) {
+    headers['retry-after'] = String(Math.ceil((auth.lockedUntil - Date.now()) / 1000));
+    message = 'Too many failed login attempts. Try again later.';
+  }
+
+  res.writeHead(401, headers);
+  res.end(message);
+  return false;
+}
+
+function clientIp(req) {
+  const forwardedFor = req.headers['x-forwarded-for'];
+  if (typeof forwardedFor === 'string' && forwardedFor.trim()) {
+    return forwardedFor.split(',')[0].trim();
+  }
+  const cfConnectingIp = req.headers['cf-connecting-ip'];
+  if (typeof cfConnectingIp === 'string' && cfConnectingIp.trim()) {
+    return cfConnectingIp.trim();
+  }
+  return req.socket.remoteAddress || '';
+}
+
+async function readForm(req) {
+  const chunks = [];
+  for await (const chunk of req) {
+    chunks.push(chunk);
+  }
+  return new URLSearchParams(Buffer.concat(chunks).toString('utf8'));
+}
+
+function parseYearMonth(params) {
+  const year = Number(params.get('year'));
+  const month = Number(params.get('month'));
+  if (!Number.isInteger(year) || year < 1900 || year > 2200) {
+    throw new Error('invalid_year');
+  }
+  if (!Number.isInteger(month) || month < 1 || month > 12) {
+    throw new Error('invalid_month');
+  }
+  return { year, month };
+}
+
+async function listCalendarMonths() {
+  const result = await db.query(`
+    SELECT
+      year,
+      month,
+      available,
+      source,
+      fetched_at,
+      updated_at,
+      jsonb_array_length(COALESCE(payload_json->'days', '[]'::jsonb)) AS day_count
+    FROM calendar_months
+    ORDER BY year DESC, month DESC
+  `);
+  return result.rows;
+}
+
+async function listAuditLogs() {
+  const result = await db.query(`
+    SELECT
+      id,
+      admin_user,
+      action,
+      target_type,
+      target_id,
+      details_json,
+      ip,
+      user_agent,
+      created_at
+    FROM admin_audit_logs
+    ORDER BY created_at DESC, id DESC
+    LIMIT 200
+  `);
+  return result.rows;
+}
+
+async function logAdminAction(req, action, targetType, targetId, details = {}) {
+  await db.query(
+    `
+      INSERT INTO admin_audit_logs (
+        admin_user, action, target_type, target_id, details_json, ip, user_agent
+      )
+      VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
+    `,
+    [
+      req.adminUser || 'unknown',
+      action,
+      targetType,
+      targetId,
+      JSON.stringify(details),
+      clientIp(req),
+      req.headers['user-agent'] || '',
+    ],
+  );
+}
+
+async function getAppUpdatePolicy() {
+  const result = await db.query(`
+    SELECT
+      update_mode,
+      ios_update_mode,
+      ios_update_version,
+      android_update_mode,
+      android_update_version,
+      force_update_title,
+      force_update_message,
+      recommended_update_title,
+      update_message,
+      updated_at
+    FROM app_update_policy
+    WHERE id = 1
+  `);
+
+  return (
+    result.rows[0] || {
+      update_mode: 'none',
+      ios_update_mode: 'none',
+      ios_update_version: '',
+      android_update_mode: 'none',
+      android_update_version: '',
+      force_update_title: '업데이트가 필요합니다',
+      force_update_message: '',
+      recommended_update_title: '새 버전이 있습니다',
+      update_message: '',
+      updated_at: null,
+    }
+  );
+}
+
+async function upsertAppUpdatePolicy(policy) {
+  await db.query(
+    `
+      INSERT INTO app_update_policy (
+        id,
+        update_mode,
+        ios_update_mode,
+        ios_update_version,
+        android_update_mode,
+        android_update_version,
+        force_update_title,
+        force_update_message,
+        recommended_update_title,
+        update_message,
+        updated_at
+      )
+      VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, now())
+      ON CONFLICT (id)
+      DO UPDATE SET
+        update_mode = EXCLUDED.update_mode,
+        ios_update_mode = EXCLUDED.ios_update_mode,
+        ios_update_version = EXCLUDED.ios_update_version,
+        android_update_mode = EXCLUDED.android_update_mode,
+        android_update_version = EXCLUDED.android_update_version,
+        force_update_title = EXCLUDED.force_update_title,
+        force_update_message = EXCLUDED.force_update_message,
+        recommended_update_title = EXCLUDED.recommended_update_title,
+        update_message = EXCLUDED.update_message,
+        updated_at = now()
+    `,
+    [
+      policy.updateMode,
+      policy.iosUpdateMode,
+      policy.iosUpdateVersion,
+      policy.androidUpdateMode,
+      policy.androidUpdateVersion,
+      policy.forceUpdateTitle,
+      policy.forceUpdateMessage,
+      policy.recommendedUpdateTitle,
+      policy.updateMessage,
+    ],
+  );
+}
+
+async function deleteCalendarMonth(year, month, options = {}) {
+  if (options.saveRevision !== false) {
+    await saveCalendarRevision(year, month, 'delete', '삭제 전 자동 저장');
+  }
+
+  await db.query('DELETE FROM calendar_months WHERE year = $1 AND month = $2', [
+    year,
+    month,
+  ]);
+}
+
+async function getCalendarMonth(year, month) {
+  const result = await db.query(
+    `
+      SELECT year, month, available, source, payload_json, fetched_at, updated_at
+      FROM calendar_months
+      WHERE year = $1 AND month = $2
+    `,
+    [year, month],
+  );
+  return result.rows[0] || null;
+}
+
+async function getCalendarRevision(id) {
+  const result = await db.query(
+    `
+      SELECT id, year, month, action, source, available, payload_json, note, created_at
+      FROM calendar_month_revisions
+      WHERE id = $1
+    `,
+    [id],
+  );
+  return result.rows[0] || null;
+}
+
+async function listCalendarRevisions(year, month) {
+  const result = await db.query(
+    `
+      SELECT
+        id,
+        year,
+        month,
+        action,
+        source,
+        available,
+        note,
+        created_at,
+        jsonb_array_length(COALESCE(payload_json->'days', '[]'::jsonb)) AS day_count
+      FROM calendar_month_revisions
+      WHERE year = $1 AND month = $2
+      ORDER BY created_at DESC, id DESC
+    `,
+    [year, month],
+  );
+  return result.rows;
+}
+
+async function saveCalendarRevision(year, month, action, note = '') {
+  const row = await getCalendarMonth(year, month);
+  if (!row) return;
+
+  await db.query(
+    `
+      INSERT INTO calendar_month_revisions (
+        year, month, action, source, available, payload_json, note
+      )
+      VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
+    `,
+    [
+      year,
+      month,
+      action,
+      row.source,
+      row.available,
+      JSON.stringify(row.payload_json),
+      note,
+    ],
+  );
+}
+
+async function updateCalendarMonth(year, month, payload) {
+  await saveCalendarRevision(year, month, 'manual_update', '수동 수정 전 자동 저장');
+
+  await db.query(
+    `
+      UPDATE calendar_months
+      SET
+        available = $3,
+        source = 'manual',
+        payload_json = $4::jsonb,
+        updated_at = now()
+      WHERE year = $1 AND month = $2
+    `,
+    [year, month, payload.available !== false, JSON.stringify(payload)],
+  );
+}
+
+async function restoreCalendarRevision(id) {
+  const revision = await getCalendarRevision(id);
+  if (!revision) {
+    throw new Error('revision_not_found');
+  }
+
+  await saveCalendarRevision(
+    revision.year,
+    revision.month,
+    'restore',
+    `revision ${revision.id} 되돌리기 전 자동 저장`,
+  );
+
+  await db.query(
+    `
+      INSERT INTO calendar_months (
+        year, month, available, source, payload_json, fetched_at, updated_at
+      )
+      VALUES ($1, $2, $3, 'manual', $4::jsonb, now(), now())
+      ON CONFLICT (year, month)
+      DO UPDATE SET
+        available = EXCLUDED.available,
+        source = EXCLUDED.source,
+        payload_json = EXCLUDED.payload_json,
+        updated_at = now()
+    `,
+    [
+      revision.year,
+      revision.month,
+      revision.available,
+      JSON.stringify(revision.payload_json),
+    ],
+  );
+
+  return revision;
+}
+
+async function refreshCalendarMonth(year, month) {
+  await saveCalendarRevision(year, month, 'refresh', '재갱신 전 자동 저장');
+  await deleteCalendarMonth(year, month, { saveRevision: false });
+  const url = `${apiBaseUrl.replace(/\/+$/, '')}/calendar/${year}/${month}`;
+  const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!response.ok) {
+    throw new Error(`refresh_failed_${response.status}`);
+  }
+  await response.arrayBuffer();
+}
+
+function navItem(activeNav, key, href, label) {
+  const active = activeNav === key ? ' active' : '';
+  return `<a class="nav-item${active}" href="${href}">${label}</a>`;
+}
+
+function layout(title, content, activeNav = 'calendar') {
+  const authNote =
+    adminCredentials.length > 0
+      ? `Basic Auth enabled · ${adminCredentials.length} admin account(s)`
+      : 'ADMIN_TOKEN/ADMIN_CREDENTIALS is not set. Local access only.';
+
+  return `<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${escapeHtml(title)}</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f8;
+      --surface: #ffffff;
+      --line: #d8dde3;
+      --text: #17202a;
+      --muted: #66717f;
+      --primary: #0a6b58;
+      --danger: #b42318;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 232px minmax(0, 1fr);
+    }
+    aside {
+      background: var(--surface);
+      border-right: 1px solid var(--line);
+      padding: 20px 16px;
+    }
+    .brand {
+      margin-bottom: 20px;
+      padding: 0 8px;
+    }
+    nav {
+      display: grid;
+      gap: 6px;
+    }
+    .nav-item {
+      display: block;
+      border-radius: 6px;
+      padding: 10px 12px;
+      color: var(--text);
+      text-decoration: none;
+      font-weight: 700;
+    }
+    .nav-item:hover {
+      background: #eef4f2;
+    }
+    .nav-item.active {
+      background: var(--primary);
+      color: #fff;
+    }
+    .content {
+      min-width: 0;
+    }
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+      padding: 18px 24px;
+    }
+    main {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.2;
+    }
+    .sub {
+      margin-top: 6px;
+      color: var(--muted);
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: end;
+      margin-bottom: 18px;
+      padding: 16px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    label {
+      display: grid;
+      gap: 4px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    input {
+      width: 110px;
+      min-height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 7px 9px;
+      color: var(--text);
+      background: #fff;
+      font: inherit;
+    }
+    input.wide {
+      width: min(420px, 100%);
+    }
+    input[type="checkbox"], input[type="radio"] {
+      width: auto;
+      min-height: auto;
+    }
+    button, .button {
+      min-height: 36px;
+      border: 1px solid var(--primary);
+      border-radius: 6px;
+      padding: 7px 11px;
+      background: var(--primary);
+      color: #fff;
+      font: inherit;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    a.button {
+      display: inline-flex;
+      align-items: center;
+    }
+    .button.secondary {
+      background: #fff;
+      color: var(--primary);
+    }
+    button.secondary {
+      background: #fff;
+      color: var(--primary);
+    }
+    button.danger {
+      border-color: var(--danger);
+      background: var(--danger);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      background: #fbfbfc;
+    }
+    tr:last-child td { border-bottom: 0; }
+    .actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+    .empty {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 22px;
+      color: var(--muted);
+    }
+    .message {
+      margin-bottom: 14px;
+      color: var(--primary);
+      font-weight: 700;
+    }
+    .editor {
+      display: grid;
+      gap: 14px;
+      padding: 16px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    .editor textarea {
+      width: 100%;
+      min-height: 62vh;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 12px;
+      color: var(--text);
+      background: #fff;
+      font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      tab-size: 2;
+    }
+    .editor textarea.compact {
+      min-height: 88px;
+    }
+    .form-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+    .platform-panel {
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfbfc;
+    }
+    .platform-panel h2 {
+      margin: 0;
+      font-size: 16px;
+    }
+    .form-row {
+      display: grid;
+      gap: 6px;
+    }
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text);
+      font-size: 14px;
+    }
+    .editor-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .warning {
+      color: var(--danger);
+      font-weight: 700;
+    }
+    .diff-wrap {
+      display: grid;
+      gap: 14px;
+    }
+    .diff-table {
+      table-layout: fixed;
+    }
+    .diff-table td {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      vertical-align: top;
+      font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .diff-table .line-no {
+      width: 72px;
+      color: var(--muted);
+      text-align: right;
+      user-select: none;
+    }
+    .diff-added td {
+      background: #e9f8f0;
+    }
+    .diff-removed td {
+      background: #fff0ee;
+    }
+    .diff-changed td {
+      background: #fff8db;
+    }
+    .hidden-payload {
+      display: none;
+    }
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    @media (max-width: 760px) {
+      .shell {
+        grid-template-columns: 1fr;
+      }
+      aside {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+      nav {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .nav-item {
+        text-align: center;
+      }
+      main { padding: 16px; }
+      table { display: block; overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside>
+      <div class="brand">
+        <h1>KCC Backoffice</h1>
+        <div class="sub">${escapeHtml(authNote)}</div>
+      </div>
+      <nav>
+        ${navItem(activeNav, 'calendar', basePath || '/', '전례력 캐시')}
+        ${navItem(activeNav, 'app-update', `${basePath}/app-update-policy`, '업데이트 정책')}
+        ${navItem(activeNav, 'audit', `${basePath}/audit-logs`, '감사 로그')}
+      </nav>
+    </aside>
+    <div class="content">
+      <header>
+        <h1>${escapeHtml(title)}</h1>
+      </header>
+      <main>${content}</main>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+function monthRows(rows) {
+  if (rows.length === 0) {
+    return '<div class="empty">저장된 전례력 월별 캐시가 없습니다.</div>';
+  }
+
+  const cells = rows
+    .map((row) => {
+      const year = Number(row.year);
+      const month = Number(row.month);
+      return `<tr>
+        <td>${year}</td>
+        <td>${month}</td>
+        <td>${escapeHtml(row.source)}</td>
+        <td>${row.available ? 'yes' : 'no'}</td>
+        <td>${Number(row.day_count || 0)}</td>
+        <td>${escapeHtml(new Date(row.fetched_at).toLocaleString('ko-KR'))}</td>
+        <td>${escapeHtml(new Date(row.updated_at).toLocaleString('ko-KR'))}</td>
+        <td>
+          <div class="actions">
+            <a class="button secondary" href="${basePath}/calendar/edit?year=${year}&month=${month}">수정</a>
+            <a class="button secondary" href="${basePath}/calendar/revisions?year=${year}&month=${month}">이력</a>
+            <form method="post" action="${basePath}/calendar/refresh">
+              <input type="hidden" name="year" value="${year}">
+              <input type="hidden" name="month" value="${month}">
+              <button class="secondary" type="submit">재갱신</button>
+            </form>
+            <form method="post" action="${basePath}/calendar/delete">
+              <input type="hidden" name="year" value="${year}">
+              <input type="hidden" name="month" value="${month}">
+              <button class="danger" type="submit">삭제</button>
+            </form>
+          </div>
+        </td>
+      </tr>`;
+    })
+    .join('');
+
+  return `<table>
+    <thead>
+      <tr>
+        <th>연도</th>
+        <th>월</th>
+        <th>출처</th>
+        <th>사용 가능</th>
+        <th>일수</th>
+        <th>가져온 시각</th>
+        <th>수정 시각</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>${cells}</tbody>
+  </table>`;
+}
+
+async function handleIndex(req, res, url) {
+  const rows = await listCalendarMonths();
+  const message = url.searchParams.get('message');
+  const content = `
+    ${message ? `<div class="message">${escapeHtml(message)}</div>` : ''}
+    <form class="toolbar" method="post" action="${basePath}/calendar/refresh">
+      <label>연도 <input name="year" inputmode="numeric" value="2026"></label>
+      <label>월 <input name="month" inputmode="numeric" value="7"></label>
+      <button type="submit">캐시 생성/재갱신</button>
+    </form>
+    ${monthRows(rows)}
+  `;
+  sendHtml(res, 200, layout('전례력 캐시', content, 'calendar'));
+}
+
+function auditLogRows(rows) {
+  if (rows.length === 0) {
+    return '<div class="empty">저장된 감사 로그가 없습니다.</div>';
+  }
+
+  const cells = rows
+    .map((row) => {
+      const detailsText = normalizeJsonText(row.details_json || {});
+      return `<tr>
+        <td>${Number(row.id)}</td>
+        <td>${escapeHtml(new Date(row.created_at).toLocaleString('ko-KR'))}</td>
+        <td>${escapeHtml(row.admin_user)}</td>
+        <td>${escapeHtml(row.action)}</td>
+        <td>${escapeHtml(row.target_type)}</td>
+        <td>${escapeHtml(row.target_id)}</td>
+        <td>${escapeHtml(row.ip || '')}</td>
+        <td>${escapeHtml(row.user_agent || '')}</td>
+        <td><pre>${escapeHtml(detailsText)}</pre></td>
+      </tr>`;
+    })
+    .join('');
+
+  return `<table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>시각</th>
+        <th>관리자</th>
+        <th>작업</th>
+        <th>대상</th>
+        <th>대상 ID</th>
+        <th>IP</th>
+        <th>User-Agent</th>
+        <th>세부 정보</th>
+      </tr>
+    </thead>
+    <tbody>${cells}</tbody>
+  </table>`;
+}
+
+async function handleAuditLogs(req, res) {
+  const rows = await listAuditLogs();
+  const content = `
+    <div class="toolbar">
+      <a class="button secondary" href="${basePath}">목록으로</a>
+    </div>
+    <div class="editor">
+      <div>
+        <h2>감사 로그</h2>
+        <div class="sub">최근 관리자 변경 작업 200건입니다. JSON 검증 실패나 diff 확인만 한 경우는 기록하지 않습니다.</div>
+      </div>
+      ${auditLogRows(rows)}
+    </div>
+  `;
+  sendHtml(res, 200, layout('감사 로그', content, 'audit'));
+}
+
+
+function platformModeChecked(policy, platform, mode) {
+  const key = platform === 'ios' ? 'ios_update_mode' : 'android_update_mode';
+  return policy[key] === mode ? ' checked' : '';
+}
+
+function appUpdatePolicyForm(policy) {
+  return `
+    <form class="editor" method="post" action="${basePath}/app-update-policy/save">
+      <input type="hidden" name="updateMode" value="none">
+      <div>
+        <h2>업데이트 정책</h2>
+        <div class="sub">앱 버전은 1.2.3 형식으로 입력합니다. 현재 앱 버전이 설정 버전보다 낮을 때만 업데이트 안내가 표시됩니다.</div>
+      </div>
+      <div class="form-grid">
+        <div class="platform-panel">
+          <h2>iOS</h2>
+          <label class="form-row">
+            업데이트 기준 버전
+            <input name="iosUpdateVersion" class="wide" value="${escapeHtml(policy.ios_update_version)}" placeholder="1.0.1">
+          </label>
+          <label class="check-row">
+            <input type="radio" name="iosUpdateMode" value="none"${platformModeChecked(policy, 'ios', 'none')}>
+            안내 없음
+          </label>
+          <label class="check-row">
+            <input type="radio" name="iosUpdateMode" value="recommended"${platformModeChecked(policy, 'ios', 'recommended')}>
+            권장 업데이트
+          </label>
+          <label class="check-row">
+            <input type="radio" name="iosUpdateMode" value="force"${platformModeChecked(policy, 'ios', 'force')}>
+            강제 업데이트
+          </label>
+        </div>
+        <div class="platform-panel">
+          <h2>Android</h2>
+          <label class="form-row">
+            업데이트 기준 버전
+            <input name="androidUpdateVersion" class="wide" value="${escapeHtml(policy.android_update_version)}" placeholder="1.0.1">
+          </label>
+          <label class="check-row">
+            <input type="radio" name="androidUpdateMode" value="none"${platformModeChecked(policy, 'android', 'none')}>
+            안내 없음
+          </label>
+          <label class="check-row">
+            <input type="radio" name="androidUpdateMode" value="recommended"${platformModeChecked(policy, 'android', 'recommended')}>
+            권장 업데이트
+          </label>
+          <label class="check-row">
+            <input type="radio" name="androidUpdateMode" value="force"${platformModeChecked(policy, 'android', 'force')}>
+            강제 업데이트
+          </label>
+        </div>
+      </div>
+      <div class="form-grid">
+        <label class="form-row">
+          강제 업데이트 타이틀
+          <input name="forceUpdateTitle" class="wide" value="${escapeHtml(policy.force_update_title)}" placeholder="업데이트가 필요합니다">
+        </label>
+        <label class="form-row">
+          권장 업데이트 타이틀
+          <input name="recommendedUpdateTitle" class="wide" value="${escapeHtml(policy.recommended_update_title)}" placeholder="새 버전이 있습니다">
+        </label>
+      </div>
+      <label class="form-row">
+        강제 업데이트 메시지
+        <textarea class="compact" name="forceUpdateMessage" spellcheck="false">${escapeHtml(policy.force_update_message)}</textarea>
+      </label>
+      <label class="form-row">
+        권장 업데이트 메시지
+        <textarea class="compact" name="updateMessage" spellcheck="false">${escapeHtml(policy.update_message)}</textarea>
+      </label>
+      <div class="editor-actions">
+        <div class="sub">강제 업데이트: 업데이트 버튼 1개. 권장 업데이트: 다음에, 업데이트 버튼 2개. 버튼 문구와 스토어 URL은 앱에 고정되어 있습니다.</div>
+        <button type="submit">저장</button>
+      </div>
+    </form>`;
+}
+
+async function handleAppUpdatePolicy(req, res, url) {
+  const policy = await getAppUpdatePolicy();
+  const message = url.searchParams.get('message');
+  const content = `
+    ${message ? `<div class="message">${escapeHtml(message)}</div>` : ''}
+    <div class="diff-wrap">
+      ${appUpdatePolicyForm(policy)}
+    </div>
+  `;
+  sendHtml(res, 200, layout('업데이트 정책', content, 'app-update'));
+}
+
+function renderEditForm(year, month, payload, message = '') {
+  const draftKey = `kcc-calendar-editor-${year}-${month}`;
+  const content = `
+    <form class="editor" method="post" action="${basePath}/calendar/edit/preview">
+      <input type="hidden" name="year" value="${year}">
+      <input type="hidden" name="month" value="${month}">
+      <div>
+        <h2>${year}년 ${month}월 JSON 수정</h2>
+        <div class="sub">먼저 JSON 문법을 검증하고 diff를 확인한 뒤, 최종 확인을 눌러야 저장됩니다. 저장하면 이 월의 출처가 <strong>manual</strong>로 바뀝니다.</div>
+      </div>
+      ${message ? `<div class="message">${escapeHtml(message)}</div>` : ''}
+      <textarea id="payload-editor" name="payload" spellcheck="false">${escapeHtml(payload)}</textarea>
+      <div class="editor-actions">
+        <a class="button secondary" data-clear-draft="true" href="${basePath}">목록으로</a>
+        <div class="warning">JSON 문법이 틀리면 diff 확인 단계로 넘어가지 않습니다.</div>
+        <button type="submit">JSON 검증 및 diff 확인</button>
+      </div>
+    </form>
+    <script>
+      (() => {
+        const key = ${JSON.stringify(draftKey)};
+        const editor = document.getElementById('payload-editor');
+        const draft = sessionStorage.getItem(key);
+        if (draft !== null && draft !== editor.value) {
+          editor.value = draft;
+        }
+        editor.addEventListener('input', () => {
+          sessionStorage.setItem(key, editor.value);
+        });
+        document.querySelectorAll('[data-clear-draft="true"]').forEach((node) => {
+          node.addEventListener('click', () => sessionStorage.removeItem(key));
+        });
+      })();
+    </script>
+  `;
+  return layout('KCC Backoffice', content);
+}
+
+function revisionRows(rows) {
+  if (rows.length === 0) {
+    return '<div class="empty">저장된 수정 이력이 없습니다.</div>';
+  }
+
+  const cells = rows
+    .map((row) => {
+      const id = Number(row.id);
+      const year = Number(row.year);
+      const month = Number(row.month);
+      return `<tr>
+        <td>${id}</td>
+        <td>${escapeHtml(row.action)}</td>
+        <td>${escapeHtml(row.source)}</td>
+        <td>${row.available ? 'yes' : 'no'}</td>
+        <td>${Number(row.day_count || 0)}</td>
+        <td>${escapeHtml(row.note || '')}</td>
+        <td>${escapeHtml(new Date(row.created_at).toLocaleString('ko-KR'))}</td>
+        <td>
+          <form method="post" action="${basePath}/calendar/revisions/restore">
+            <input type="hidden" name="id" value="${id}">
+            <button type="submit">되돌리기</button>
+          </form>
+        </td>
+        <td>
+          <a class="button secondary" href="${basePath}/calendar/revisions/view?id=${id}&year=${year}&month=${month}">보기</a>
+        </td>
+      </tr>`;
+    })
+    .join('');
+
+  return `<table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>작업</th>
+        <th>이전 출처</th>
+        <th>사용 가능</th>
+        <th>일수</th>
+        <th>메모</th>
+        <th>저장 시각</th>
+        <th></th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>${cells}</tbody>
+  </table>`;
+}
+
+async function handleRevisions(req, res, url) {
+  const { year, month } = parseYearMonth(url.searchParams);
+  const rows = await listCalendarRevisions(year, month);
+  const message = url.searchParams.get('message');
+  const content = `
+    ${message ? `<div class="message">${escapeHtml(message)}</div>` : ''}
+    <div class="toolbar">
+      <a class="button secondary" href="${basePath}">목록으로</a>
+      <a class="button secondary" href="${basePath}/calendar/edit?year=${year}&month=${month}">현재 JSON 수정</a>
+    </div>
+    <div class="editor">
+      <div>
+        <h2>${year}년 ${month}월 수정 이력</h2>
+        <div class="sub">수정, 삭제, 재갱신, 되돌리기 전에 자동 저장된 이전 버전입니다.</div>
+      </div>
+      ${revisionRows(rows)}
+    </div>
+  `;
+  sendHtml(res, 200, layout('KCC Backoffice', content));
+}
+
+async function handleRevisionView(req, res, url) {
+  const id = Number(url.searchParams.get('id'));
+  if (!Number.isInteger(id) || id < 1) {
+    throw new Error('invalid_revision_id');
+  }
+
+  const revision = await getCalendarRevision(id);
+  if (!revision) {
+    sendHtml(
+      res,
+      404,
+      layout('KCC Backoffice', '<div class="empty">수정 이력을 찾을 수 없습니다.</div>'),
+    );
+    return;
+  }
+
+  const payload = normalizeJsonText(revision.payload_json);
+  const content = `
+    <div class="editor">
+      <div>
+        <h2>Revision #${Number(revision.id)}</h2>
+        <div class="sub">${Number(revision.year)}년 ${Number(revision.month)}월 · ${escapeHtml(revision.action)} · ${escapeHtml(new Date(revision.created_at).toLocaleString('ko-KR'))}</div>
+      </div>
+      <textarea readonly spellcheck="false">${escapeHtml(payload)}</textarea>
+      <div class="editor-actions">
+        <a class="button secondary" href="${basePath}/calendar/revisions?year=${Number(revision.year)}&month=${Number(revision.month)}">이력으로</a>
+        <form method="post" action="${basePath}/calendar/revisions/restore">
+          <input type="hidden" name="id" value="${Number(revision.id)}">
+          <button type="submit">이 버전으로 되돌리기</button>
+        </form>
+      </div>
+    </div>
+  `;
+  sendHtml(res, 200, layout('KCC Backoffice', content));
+}
+
+async function handleRevisionRestore(req, res) {
+  const form = await readForm(req);
+  const id = Number(form.get('id'));
+  if (!Number.isInteger(id) || id < 1) {
+    throw new Error('invalid_revision_id');
+  }
+
+  const revision = await restoreCalendarRevision(id);
+  await logAdminAction(
+    req,
+    'calendar_restore_revision',
+    'calendar_month',
+    `${Number(revision.year)}-${Number(revision.month)}`,
+    { revision_id: Number(revision.id) },
+  );
+  redirect(
+    res,
+    `${basePath}/calendar/revisions?year=${Number(revision.year)}&month=${Number(revision.month)}&message=${encodeURIComponent('선택한 이력으로 되돌렸습니다.')}`,
+  );
+}
+
+function normalizeUpdateMode(value) {
+  const mode = String(value || '').trim();
+  if (mode !== 'none' && mode !== 'recommended' && mode !== 'force') {
+    throw new Error('invalid_update_mode');
+  }
+  return mode;
+}
+
+function normalizePolicyVersion(value, updateMode) {
+  const version = String(value || '').trim();
+  if (updateMode === 'none' && version === '') return '';
+  if (!/^\d+\.\d+\.\d+$/.test(version)) {
+    throw new Error('invalid_update_version');
+  }
+  return version;
+}
+
+async function handleAppUpdatePolicySave(req, res) {
+  const form = await readForm(req);
+  let policy;
+  try {
+    const iosUpdateMode = normalizeUpdateMode(form.get('iosUpdateMode'));
+    const androidUpdateMode = normalizeUpdateMode(form.get('androidUpdateMode'));
+    policy = {
+      updateMode: normalizeUpdateMode(form.get('updateMode')),
+      iosUpdateMode,
+      iosUpdateVersion: normalizePolicyVersion(
+        form.get('iosUpdateVersion'),
+        iosUpdateMode,
+      ),
+      androidUpdateMode,
+      androidUpdateVersion: normalizePolicyVersion(
+        form.get('androidUpdateVersion'),
+        androidUpdateMode,
+      ),
+      forceUpdateTitle:
+        String(form.get('forceUpdateTitle') || '').trim() ||
+        '업데이트가 필요합니다',
+      forceUpdateMessage: String(form.get('forceUpdateMessage') || '').trim(),
+      recommendedUpdateTitle:
+        String(form.get('recommendedUpdateTitle') || '').trim() ||
+        '새 버전이 있습니다',
+      updateMessage: String(form.get('updateMessage') || '').trim(),
+    };
+  } catch (error) {
+    sendHtml(
+      res,
+      400,
+      layout(
+        'KCC Backoffice',
+        `<div class="empty">업데이트 정책을 저장하지 않았습니다. 안내 방식은 없음, 권장, 강제 중 하나여야 하며, 기준 버전은 1.2.3 형식이어야 합니다.</div>
+        <div class="toolbar"><a class="button secondary" href="${basePath}/app-update-policy">업데이트 정책으로 돌아가기</a></div>`,
+        'app-update',
+      ),
+    );
+    return;
+  }
+
+  await upsertAppUpdatePolicy(policy);
+  await logAdminAction(req, 'app_update_policy_update', 'app_update_policy', 'global', {
+    update_mode: policy.updateMode,
+    ios_update_mode: policy.iosUpdateMode,
+    ios_update_version: policy.iosUpdateVersion,
+    android_update_mode: policy.androidUpdateMode,
+    android_update_version: policy.androidUpdateVersion,
+  });
+  redirect(
+    res,
+    `${basePath}/app-update-policy?message=${encodeURIComponent('업데이트 정책을 저장했습니다.')}`,
+  );
+}
+
+async function handleEdit(req, res, url) {
+  const { year, month } = parseYearMonth(url.searchParams);
+  const row = await getCalendarMonth(year, month);
+  if (!row) {
+    sendHtml(
+      res,
+      404,
+      layout('KCC Backoffice', '<div class="empty">캐시를 찾을 수 없습니다.</div>'),
+    );
+    return;
+  }
+
+  const payload = normalizeJsonText(row.payload_json);
+  sendHtml(res, 200, renderEditForm(year, month, payload));
+}
+
+async function handleEditRestore(req, res) {
+  const form = await readForm(req);
+  const { year, month } = parseYearMonth(form);
+  const payload = form.get('payload') || '';
+  sendHtml(
+    res,
+    200,
+    renderEditForm(
+      year,
+      month,
+      payload,
+      'diff 확인 화면에서 돌아왔습니다. 입력하던 내용은 아직 저장되지 않았습니다.',
+    ),
+  );
+}
+
+function renderDiffTable(rows) {
+  const visibleRows = rows.filter((row) => row.type !== 'same');
+  if (visibleRows.length === 0) {
+    return '<div class="empty">변경된 내용이 없습니다.</div>';
+  }
+
+  const body = visibleRows
+    .map((row) => {
+      const klass = `diff-${row.type}`;
+      const marker =
+        row.type === 'added' ? '+' : row.type === 'removed' ? '-' : '~';
+      return `<tr class="${klass}">
+        <td class="line-no">${escapeHtml(row.beforeLine)}</td>
+        <td>${marker}</td>
+        <td>${escapeHtml(row.before)}</td>
+        <td class="line-no">${escapeHtml(row.afterLine)}</td>
+        <td>${escapeHtml(row.after)}</td>
+      </tr>`;
+    })
+    .join('');
+
+  return `<table class="diff-table">
+    <thead>
+      <tr>
+        <th>이전 줄</th>
+        <th></th>
+        <th>이전 값</th>
+        <th>수정 줄</th>
+        <th>수정 값</th>
+      </tr>
+    </thead>
+    <tbody>${body}</tbody>
+  </table>`;
+}
+
+async function handleEditPreview(req, res) {
+  const form = await readForm(req);
+  const { year, month } = parseYearMonth(form);
+  const row = await getCalendarMonth(year, month);
+  if (!row) {
+    sendHtml(
+      res,
+      404,
+      layout('KCC Backoffice', '<div class="empty">캐시를 찾을 수 없습니다.</div>'),
+    );
+    return;
+  }
+
+  const payloadText = form.get('payload') || '';
+  let payload;
+  try {
+    payload = JSON.parse(payloadText);
+  } catch (error) {
+    sendHtml(
+      res,
+      400,
+      layout(
+        'KCC Backoffice',
+        `<div class="empty">JSON 문법 오류로 저장하지 않았습니다: ${escapeHtml(error.message)}</div>
+        <form method="post" action="${basePath}/calendar/edit/restore">
+          <input type="hidden" name="year" value="${year}">
+          <input type="hidden" name="month" value="${month}">
+          <textarea class="hidden-payload" name="payload">${escapeHtml(payloadText)}</textarea>
+          <button class="secondary" type="submit">수정 화면으로 돌아가기</button>
+        </form>`,
+      ),
+    );
+    return;
+  }
+
+  const beforeText = normalizeJsonText(row.payload_json);
+  const afterText = normalizeJsonText(payload);
+  const draftKey = `kcc-calendar-editor-${year}-${month}`;
+  const rows = diffLines(beforeText, afterText);
+  const hasChanges = rows.some((row) => row.type !== 'same');
+  const content = `
+    <div class="diff-wrap">
+      <div class="editor">
+        <div>
+          <h2>${year}년 ${month}월 수정 diff 확인</h2>
+          <div class="sub">JSON 문법 검증을 통과했습니다. 아래 변경 내용을 확인한 뒤 최종 저장을 눌러야 DB에 반영됩니다.</div>
+        </div>
+        ${renderDiffTable(rows)}
+        <div class="editor-actions">
+          <form method="post" action="${basePath}/calendar/edit/restore">
+            <input type="hidden" name="year" value="${year}">
+            <input type="hidden" name="month" value="${month}">
+            <textarea class="hidden-payload" name="payload">${escapeHtml(afterText)}</textarea>
+            <button class="secondary" type="submit">수정 화면으로 돌아가기</button>
+          </form>
+          <form method="post" action="${basePath}/calendar/edit/commit">
+            <input type="hidden" name="year" value="${year}">
+            <input type="hidden" name="month" value="${month}">
+            <textarea class="hidden-payload" name="payload">${escapeHtml(afterText)}</textarea>
+            <button data-clear-draft="true" type="submit"${hasChanges ? '' : ' disabled'}>최종 저장</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    <script>
+      (() => {
+        const key = ${JSON.stringify(draftKey)};
+        document.querySelectorAll('[data-clear-draft="true"]').forEach((node) => {
+          node.addEventListener('click', () => sessionStorage.removeItem(key));
+        });
+      })();
+    </script>
+  `;
+  sendHtml(res, 200, layout('KCC Backoffice', content));
+}
+
+async function handlePost(req, res, action) {
+  const form = await readForm(req);
+  const { year, month } = parseYearMonth(form);
+
+  if (action === 'delete') {
+    await deleteCalendarMonth(year, month);
+    await logAdminAction(req, 'calendar_delete', 'calendar_month', `${year}-${month}`, {
+      year,
+      month,
+    });
+    redirect(res, `${basePath}?message=${encodeURIComponent('캐시를 삭제했습니다.')}`);
+    return;
+  }
+
+  if (action === 'refresh') {
+    await refreshCalendarMonth(year, month);
+    await logAdminAction(req, 'calendar_refresh', 'calendar_month', `${year}-${month}`, {
+      year,
+      month,
+    });
+    redirect(res, `${basePath}?message=${encodeURIComponent('캐시를 재갱신했습니다.')}`);
+    return;
+  }
+
+  if (action === 'edit') {
+    const payloadText = form.get('payload') || '';
+    let payload;
+    try {
+      payload = JSON.parse(payloadText);
+    } catch (error) {
+      sendHtml(
+        res,
+        400,
+        layout(
+          'KCC Backoffice',
+          `<div class="empty">JSON 문법 오류로 저장하지 않았습니다: ${escapeHtml(error.message)}</div>
+          <form method="post" action="${basePath}/calendar/edit/restore">
+            <input type="hidden" name="year" value="${year}">
+            <input type="hidden" name="month" value="${month}">
+            <textarea class="hidden-payload" name="payload">${escapeHtml(payloadText)}</textarea>
+            <button class="secondary" type="submit">수정 화면으로 돌아가기</button>
+          </form>`,
+        ),
+      );
+      return;
+    }
+
+    await updateCalendarMonth(year, month, payload);
+    await logAdminAction(req, 'calendar_manual_update', 'calendar_month', `${year}-${month}`, {
+      year,
+      month,
+      available: payload.available !== false,
+    });
+    redirect(res, `${basePath}?message=${encodeURIComponent('수동 수정 내용을 최종 저장했습니다.')}`);
+    return;
+  }
+
+  sendJson(res, 404, { error: 'not_found' });
+}
+
+async function handleRequest(req, res) {
+  const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+  if (url.pathname === '/health' && req.method === 'GET') {
+    await db.query('SELECT 1');
+    sendJson(res, 200, { ok: true, service: 'catholic-calendar-backoffice' });
+    return;
+  }
+
+  if (!requireAuth(req, res)) return;
+
+  if ((url.pathname === '/' || url.pathname === basePath) && req.method === 'GET') {
+    await handleIndex(req, res, url);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/calendar/edit` && req.method === 'GET') {
+    await handleEdit(req, res, url);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/calendar/revisions` && req.method === 'GET') {
+    await handleRevisions(req, res, url);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/calendar/revisions/view` && req.method === 'GET') {
+    await handleRevisionView(req, res, url);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/audit-logs` && req.method === 'GET') {
+    await handleAuditLogs(req, res);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/app-update-policy` && req.method === 'GET') {
+    await handleAppUpdatePolicy(req, res, url);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/app-update-policy/save` && req.method === 'POST') {
+    await handleAppUpdatePolicySave(req, res);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/calendar/delete` && req.method === 'POST') {
+    await handlePost(req, res, 'delete');
+    return;
+  }
+
+  if (url.pathname === `${basePath}/calendar/revisions/restore` && req.method === 'POST') {
+    await handleRevisionRestore(req, res);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/calendar/edit/preview` && req.method === 'POST') {
+    await handleEditPreview(req, res);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/calendar/edit/restore` && req.method === 'POST') {
+    await handleEditRestore(req, res);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/calendar/edit/commit` && req.method === 'POST') {
+    await handlePost(req, res, 'edit');
+    return;
+  }
+
+  if (url.pathname === `${basePath}/calendar/refresh` && req.method === 'POST') {
+    await handlePost(req, res, 'refresh');
+    return;
+  }
+
+  sendJson(res, 404, { error: 'not_found' });
+}
+
+const server = http.createServer((req, res) => {
+  handleRequest(req, res).catch((error) => {
+    console.error('Unhandled backoffice error', error);
+    sendHtml(
+      res,
+      500,
+      layout(
+        'KCC Backoffice Error',
+        `<div class="empty">오류가 발생했습니다: ${escapeHtml(error.message)}</div>`,
+      ),
+    );
+  });
+});
+
+ensureSchema()
+  .then(() => {
+    server.listen(port, host, () => {
+      console.log(`catholic-calendar backoffice listening on ${host}:${port}`);
+    });
+  })
+  .catch((error) => {
+    console.error('Failed to initialize backoffice storage', error);
+    process.exit(1);
+  });
+
+function shutdown(signal) {
+  console.log(`Received ${signal}, shutting down`);
+  server.close(() => {
+    db.end()
+      .catch((error) => {
+        console.error('Failed to close database pool', error);
+      })
+      .finally(() => {
+        process.exit(0);
+      });
+  });
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

@@ -38,4 +38,31 @@ void main() {
     final sun = service.day(DateTime(2026, 6, 28));
     expect(sun.specialDay, '교황 주일');
   });
+
+  test('remote data merged later overrides bundled snapshot days', () {
+    const snapshot = '''
+    {"source":"test","days":[
+      {"date":"2026-07-15","color":"green","title":"번들 스냅샷 제목"}
+    ]}''';
+    final service = CalendarService(
+      engine: engine,
+      cbck: CalendarService.parseSnapshot(snapshot),
+    );
+
+    service.merge(
+      CalendarService.parseDays(const [
+        {
+          'date': '2026-07-15',
+          'color': 'white',
+          'title': '서버 수정 제목',
+          'readings': ['① 이사 10,5-7.13-16'],
+        },
+      ]),
+    );
+
+    final d = service.day(DateTime(2026, 7, 15));
+    expect(d.title, '서버 수정 제목');
+    expect(d.color, LiturgicalColor.white);
+    expect(d.scriptureReadings, hasLength(1));
+  });
 }

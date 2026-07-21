@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.sidore.catholic-calendar-backup</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/YOUR_USER/Git/Korea-catholic-calendar/scripts/server-backup.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/YOUR_USER/Git/Korea-catholic-calendar</string>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>3</integer>
+    <key>Minute</key>
+    <integer>20</integer>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/catholic-calendar-backup-launchd.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/tmp/catholic-calendar-backup-launchd.err.log</string>
+</dict>
+</plist>

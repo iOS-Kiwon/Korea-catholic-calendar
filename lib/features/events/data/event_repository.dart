@@ -14,12 +14,12 @@ class EventRepository {
 
   final SharedPreferences _prefs;
 
-  static const _key = 'events_v1';
+  static const storageKey = 'events_v1';
 
   /// Reads the full date-keyed event map. Empty when nothing is stored or the
   /// stored value is unreadable.
   Map<String, List<CalendarEvent>> load() {
-    final raw = _prefs.getString(_key);
+    final raw = _prefs.getString(storageKey);
     if (raw == null || raw.isEmpty) return {};
     try {
       final doc = jsonDecode(raw) as Map<String, dynamic>;
@@ -39,13 +39,13 @@ class EventRepository {
   /// Persists the full date-keyed event map. An empty map clears the store.
   Future<void> save(Map<String, List<CalendarEvent>> map) async {
     if (map.isEmpty) {
-      await _prefs.remove(_key);
+      await _prefs.remove(storageKey);
       return;
     }
     final doc = <String, dynamic>{
       for (final entry in map.entries)
         entry.key: [for (final e in entry.value) e.toJson()],
     };
-    await _prefs.setString(_key, jsonEncode(doc));
+    await _prefs.setString(storageKey, jsonEncode(doc));
   }
 }

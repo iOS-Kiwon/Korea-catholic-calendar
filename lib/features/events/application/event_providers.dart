@@ -1,6 +1,11 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../data/personal_cloud_backup_store.dart';
+import '../data/personal_data_backup_repository.dart';
 import '../data/event_repository.dart';
 import '../model/calendar_event.dart';
 import '../model/event_category.dart';
@@ -16,6 +21,62 @@ final sharedPreferencesProvider = FutureProvider<SharedPreferences>(
 final notificationServiceProvider = Provider<NotificationService>(
   (ref) => createNotificationService(),
 );
+
+final personalCloudBackupStoreProvider = Provider<PersonalCloudBackupStore>(
+  (ref) => const PersonalCloudBackupStore(),
+);
+
+final personalCloudBackupControllerProvider =
+    Provider<PersonalCloudBackupController>(PersonalCloudBackupController.new);
+
+class PersonalCloudBackupController {
+  PersonalCloudBackupController(this._ref);
+
+  final Ref _ref;
+
+  Future<bool> restoreIfAvailable() async {
+    final store = _ref.read(personalCloudBackupStoreProvider);
+    final snapshotJson = await store.loadSnapshotJson();
+    if (snapshotJson == null) {
+      debugPrint('[KCC backup] No cloud personal-data snapshot found');
+      return false;
+    }
+
+    try {
+      final prefs = await _ref.read(sharedPreferencesProvider.future);
+      final snapshot = PersonalDataSnapshot.fromJson(
+        jsonDecode(snapshotJson) as Map<String, dynamic>,
+      );
+      await PersonalDataBackupRepository(prefs).restoreSnapshot(snapshot);
+      _ref.invalidate(eventStoreProvider);
+      debugPrint(
+        '[KCC backup] Restored cloud personal-data snapshot exportedAt=${snapshot.exportedAt.toIso8601String()}',
+      );
+      return true;
+    } catch (error, stackTrace) {
+      debugPrint('[KCC backup] Failed to restore cloud snapshot: $error');
+      debugPrint('$stackTrace');
+      return false;
+    }
+  }
+
+  Future<void> backupNow() async {
+    try {
+      final prefs = await _ref.read(sharedPreferencesProvider.future);
+      final snapshot = PersonalDataBackupRepository(prefs).exportSnapshot();
+      final snapshotJson = jsonEncode(snapshot.toJson());
+      final saved = await _ref
+          .read(personalCloudBackupStoreProvider)
+          .saveSnapshotJson(snapshotJson);
+      debugPrint(
+        '[KCC backup] Cloud personal-data backup ${saved ? 'saved' : 'skipped'} exportedAt=${snapshot.exportedAt.toIso8601String()}',
+      );
+    } catch (error, stackTrace) {
+      debugPrint('[KCC backup] Failed to save cloud snapshot: $error');
+      debugPrint('$stackTrace');
+    }
+  }
+}
 
 /// The on-device store of personal events, keyed by `YYYY-MM-DD`.
 ///
@@ -48,11 +109,7 @@ class EventStore extends AsyncNotifier<Map<String, List<CalendarEvent>>> {
   /// Adds a new event.
   Future<void> add(CalendarEvent event) async {
     final map = await _mutableMap();
-    map.update(
-      event.date,
-      (list) => [...list, event],
-      ifAbsent: () => [event],
-    );
+    map.update(event.date, (list) => [...list, event], ifAbsent: () => [event]);
     await _persistAndSync(map);
   }
 
@@ -67,11 +124,7 @@ class EventStore extends AsyncNotifier<Map<String, List<CalendarEvent>>> {
         map[key] = next;
       }
     }
-    map.update(
-      event.date,
-      (list) => [...list, event],
-      ifAbsent: () => [event],
-    );
+    map.update(event.date, (list) => [...list, event], ifAbsent: () => [event]);
     await _persistAndSync(map);
   }
 
@@ -116,13 +169,16 @@ class EventStore extends AsyncNotifier<Map<String, List<CalendarEvent>>> {
   /// for [build] to finish first so [_repo]/[_notifications] are ready.
   Future<Map<String, List<CalendarEvent>>> _mutableMap() async {
     final current = await future;
-    return {for (final e in current.entries) e.key: [...e.value]};
+    return {
+      for (final e in current.entries) e.key: [...e.value],
+    };
   }
 
   Future<void> _persistAndSync(Map<String, List<CalendarEvent>> map) async {
     await _repo.save(map);
     state = AsyncData(map);
     await _notifications.sync(map);
+    await ref.read(personalCloudBackupControllerProvider).backupNow();
   }
 }
 
