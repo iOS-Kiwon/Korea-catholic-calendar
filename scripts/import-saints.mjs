@@ -40,24 +40,47 @@ const HEADERS = {
 };
 
 const KIND_LABELS = { 성: '성인', 복: '복자', 천: '천사', 가: '가경자' };
-const SEARCH_ALIASES_BY_ID = loadAliases(aliasFile);
+const SEARCH_ALIASES = loadAliases(aliasFile);
 
 function loadAliases(file) {
   try {
     const raw = fs.readFileSync(file, 'utf8');
     const parsed = JSON.parse(raw);
-    return Object.fromEntries(
-      Object.entries(parsed).map(([id, aliases]) => [
-        Number(id),
-        Array.isArray(aliases) ? aliases.map(String).map((s) => s.trim()).filter(Boolean) : [],
-      ]),
-    );
+    if (parsed.byName || parsed.byId) {
+      return {
+        byName: normalizeAliasMap(parsed.byName || {}),
+        byId: normalizeAliasMap(parsed.byId || {}),
+      };
+    }
+    return { byName: {}, byId: normalizeAliasMap(parsed) };
   } catch (error) {
     if (error.code !== 'ENOENT') {
       console.warn(`성인 별칭 파일을 읽지 못했습니다: ${file} (${error.message})`);
     }
-    return {};
+    return { byName: {}, byId: {} };
   }
+}
+
+function normalizeAliasMap(value) {
+  return Object.fromEntries(
+    Object.entries(value).map(([key, aliases]) => [
+      String(key).trim(),
+      Array.isArray(aliases)
+        ? [...new Set(aliases.map(String).map((s) => s.trim()).filter(Boolean))]
+        : [],
+    ]),
+  );
+}
+
+function aliasesForSaint(id, nameKo, nameLatin) {
+  const aliases = new Set(SEARCH_ALIASES.byId[String(id)] || []);
+  const haystack = `${nameKo} ${nameLatin}`;
+  for (const [name, values] of Object.entries(SEARCH_ALIASES.byName)) {
+    if (name && haystack.includes(name)) {
+      for (const alias of values) aliases.add(alias);
+    }
+  }
+  return [...aliases];
 }
 
 function parseArgs(argv) {
@@ -155,7 +178,7 @@ function parseRows(html) {
       yearText,
       detailUrl: `${BASE}/sa_ho/list/view.asp?menugubun=saint&Orggubun=101&ctxtSaintId=${id}`,
       url: `https://m.mariasarang.net/saint/bbs_view.asp?index=bbs_saint&no=${id}`,
-      searchText: [nameKo, nameLatin, status, kind, regionKo, regionEn, yearText, ...(SEARCH_ALIASES_BY_ID[id] || [])]
+      searchText: [nameKo, nameLatin, status, kind, regionKo, regionEn, yearText, ...aliasesForSaint(id, nameKo, nameLatin)]
         .filter(Boolean)
         .join(' '),
     });

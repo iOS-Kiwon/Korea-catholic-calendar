@@ -159,8 +159,9 @@ async function ensureSchema() {
     WHERE search_text = ''
   `);
 
-  for (const entry of loadSaintAliases()) {
-    for (const alias of entry.aliases) {
+  const saintAliases = loadSaintAliasDoc();
+  for (const [id, aliases] of Object.entries(saintAliases.byId)) {
+    for (const alias of aliases) {
       await db.query(
         `
           UPDATE saints
@@ -168,7 +169,21 @@ async function ensureSchema() {
           WHERE source_saint_id = $1
             AND search_text NOT ILIKE '%' || $2 || '%'
         `,
-        [entry.id, alias],
+        [Number(id), alias],
+      );
+    }
+  }
+
+  for (const [name, aliases] of Object.entries(saintAliases.byName)) {
+    for (const alias of aliases) {
+      await db.query(
+        `
+          UPDATE saints
+          SET search_text = trim(concat_ws(' ', search_text, $2))
+          WHERE (name_ko ILIKE '%' || $1 || '%' OR name_latin ILIKE '%' || $1 || '%')
+            AND search_text NOT ILIKE '%' || $2 || '%'
+        `,
+        [name, alias],
       );
     }
   }
@@ -182,48 +197,67 @@ async function ensureSchema() {
   `);
 }
 
-function loadSaintAliases() {
-  return Object.entries(loadSaintAliasMap())
-    .map(([id, aliases]) => ({
-      id: Number(id),
-      aliases,
-    }))
-    .filter((entry) => Number.isInteger(entry.id) && entry.aliases.length > 0);
-}
-
-function loadSaintAliasMap() {
+function loadSaintAliasDoc() {
   try {
     const parsed = JSON.parse(fs.readFileSync(saintsAliasFile, 'utf8'));
-    return Object.fromEntries(
-      Object.entries(parsed).map(([id, aliases]) => [
-        String(Number(id)),
-        Array.isArray(aliases)
-          ? [...new Set(aliases.map(String).map((s) => s.trim()).filter(Boolean))]
-          : [],
-      ]),
-    );
+    const byName = parsed.byName || {};
+    const byId = parsed.byId || (parsed.byName ? {} : parsed);
+    return {
+      byName: normalizeAliasMap(byName),
+      byId: normalizeAliasMap(byId),
+    };
   } catch (error) {
     if (error.code !== 'ENOENT') {
       console.warn(`Failed to load saint aliases: ${saintsAliasFile}`, error);
     }
-    return {};
+    return { byName: {}, byId: {} };
   }
+}
+
+function normalizeAliasMap(value) {
+  return Object.fromEntries(
+    Object.entries(value).map(([key, aliases]) => [
+      String(key).trim(),
+      Array.isArray(aliases)
+        ? [...new Set(aliases.map(String).map((s) => s.trim()).filter(Boolean))]
+        : [],
+    ]),
+  );
+}
+
+function nameAliasesForSaint(doc, nameKo, nameLatin = '') {
+  const aliases = new Set();
+  const haystack = `${nameKo || ''} ${nameLatin || ''}`;
+  for (const [name, values] of Object.entries(doc.byName)) {
+    if (name && haystack.includes(name)) {
+      for (const alias of values) aliases.add(alias);
+    }
+  }
+  return [...aliases];
 }
 
 function saveSaintAliases(sourceSaintId, aliases) {
   const normalizedId = String(Number(sourceSaintId));
-  const map = loadSaintAliasMap();
+  const doc = loadSaintAliasDoc();
   if (aliases.length === 0) {
-    delete map[normalizedId];
+    delete doc.byId[normalizedId];
   } else {
-    map[normalizedId] = aliases;
+    doc.byId[normalizedId] = aliases;
   }
-  const sorted = Object.fromEntries(
-    Object.entries(map)
+  const sortedByName = Object.fromEntries(
+    Object.entries(doc.byName)
+      .filter(([name, values]) => name && values.length > 0)
+      .sort(([a], [b]) => a.localeCompare(b, 'ko')),
+  );
+  const sortedById = Object.fromEntries(
+    Object.entries(doc.byId)
       .filter(([id, values]) => Number.isInteger(Number(id)) && values.length > 0)
       .sort(([a], [b]) => Number(a) - Number(b)),
   );
-  fs.writeFileSync(saintsAliasFile, `${JSON.stringify(sorted, null, 2)}\n`);
+  fs.writeFileSync(
+    saintsAliasFile,
+    `${JSON.stringify({ byName: sortedByName, byId: sortedById }, null, 2)}\n`,
+  );
 }
 
 function normalizeBasePath(value) {
@@ -2014,12 +2048,13 @@ function saintRows(rows) {
   </table>`;
 }
 
-function saintEditForm(saint, aliases) {
+function saintEditForm(saint, aliases, inheritedAliases) {
   const id = Number(saint.source_saint_id);
   const detail = saint.detail_url
     ? ` · <a href="${escapeHtml(saint.detail_url)}" target="_blank" rel="noopener">원본 보기</a>`
     : '';
   const aliasText = aliases.join(' ');
+  const inherited = inheritedAliases.join(' ');
   return `
     <form class="editor" method="post" action="${basePath}/saints/edit/commit">
       <input type="hidden" name="sourceSaintId" value="${id}">
@@ -2046,7 +2081,8 @@ function saintEditForm(saint, aliases) {
       </div>
       <label class="form-row">연도<input name="yearText" class="wide" value="${escapeHtml(saint.year_text)}"></label>
       <label class="form-row">URL<input name="url" class="wide" value="${escapeHtml(saint.url || '')}"></label>
-      <label class="form-row">별칭<input name="aliases" class="wide" value="${escapeHtml(aliasText)}" placeholder="공백 또는 쉼표로 구분"></label>
+      ${inherited ? `<label class="form-row">공통 별칭<input class="wide" value="${escapeHtml(inherited)}" readonly></label>` : ''}
+      <label class="form-row">개별 별칭<input name="aliases" class="wide" value="${escapeHtml(aliasText)}" placeholder="공백 또는 쉼표로 구분"></label>
       <div class="editor-actions">
         <a class="button secondary" href="${basePath}/saints">목록으로</a>
         <button type="submit">저장</button>
@@ -2124,8 +2160,10 @@ async function handleSaintEdit(req, res, url) {
     );
     return;
   }
-  const aliases = loadSaintAliasMap()[String(id)] || [];
-  sendHtml(res, 200, layout(`${saint.name_ko} 수정`, saintEditForm(saint, aliases), 'saints'));
+  const aliasDoc = loadSaintAliasDoc();
+  const aliases = aliasDoc.byId[String(id)] || [];
+  const inheritedAliases = nameAliasesForSaint(aliasDoc, saint.name_ko, saint.name_latin);
+  sendHtml(res, 200, layout(`${saint.name_ko} 수정`, saintEditForm(saint, aliases, inheritedAliases), 'saints'));
 }
 
 async function handleSaintSave(req, res) {
@@ -2146,6 +2184,10 @@ async function handleSaintSave(req, res) {
     );
     return;
   }
+
+  const aliasDoc = loadSaintAliasDoc();
+  const inheritedAliases = nameAliasesForSaint(aliasDoc, saint.nameKo, saint.nameLatin);
+  saint.searchText = buildSaintSearchText(saint, [...inheritedAliases, ...saint.aliases]);
 
   try {
     saveSaintAliases(saint.sourceSaintId, saint.aliases);

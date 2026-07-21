@@ -64,20 +64,29 @@ function calendarUrl(year, month) {
 function loadSaintAliases() {
   try {
     const parsed = JSON.parse(fs.readFileSync(saintsAliasFile, 'utf8'));
-    return Object.entries(parsed)
-      .map(([id, aliases]) => ({
-        id: Number(id),
-        aliases: Array.isArray(aliases)
-          ? aliases.map(String).map((s) => s.trim()).filter(Boolean)
-          : [],
-      }))
-      .filter((entry) => Number.isInteger(entry.id) && entry.aliases.length > 0);
+    const byName = parsed.byName || {};
+    const byId = parsed.byId || (parsed.byName ? {} : parsed);
+    return {
+      byName: normalizeAliasMap(byName),
+      byId: normalizeAliasMap(byId),
+    };
   } catch (error) {
     if (error.code !== 'ENOENT') {
       console.warn(`Failed to load saint aliases: ${saintsAliasFile}`, error);
     }
-    return [];
+    return { byName: {}, byId: {} };
   }
+}
+
+function normalizeAliasMap(value) {
+  return Object.fromEntries(
+    Object.entries(value).map(([key, aliases]) => [
+      String(key).trim(),
+      Array.isArray(aliases)
+        ? [...new Set(aliases.map(String).map((s) => s.trim()).filter(Boolean))]
+        : [],
+    ]),
+  );
 }
 
 function normalizePlatform(value) {
@@ -227,8 +236,9 @@ async function ensureSchema() {
     WHERE search_text = ''
   `);
 
-  for (const entry of loadSaintAliases()) {
-    for (const alias of entry.aliases) {
+  const saintAliases = loadSaintAliases();
+  for (const [id, aliases] of Object.entries(saintAliases.byId)) {
+    for (const alias of aliases) {
       await db.query(
         `
           UPDATE saints
@@ -236,7 +246,21 @@ async function ensureSchema() {
           WHERE source_saint_id = $1
             AND search_text NOT ILIKE '%' || $2 || '%'
         `,
-        [entry.id, alias],
+        [Number(id), alias],
+      );
+    }
+  }
+
+  for (const [name, aliases] of Object.entries(saintAliases.byName)) {
+    for (const alias of aliases) {
+      await db.query(
+        `
+          UPDATE saints
+          SET search_text = trim(concat_ws(' ', search_text, $2))
+          WHERE (name_ko ILIKE '%' || $1 || '%' OR name_latin ILIKE '%' || $1 || '%')
+            AND search_text NOT ILIKE '%' || $2 || '%'
+        `,
+        [name, alias],
       );
     }
   }
