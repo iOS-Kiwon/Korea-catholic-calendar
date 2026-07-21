@@ -128,6 +128,10 @@ function parseRows(html) {
       regionEn,
       yearText,
       detailUrl: `${BASE}/sa_ho/list/view.asp?menugubun=saint&Orggubun=101&ctxtSaintId=${id}`,
+      url: `https://m.mariasarang.net/saint/bbs_view.asp?index=bbs_saint&no=${id}`,
+      searchText: [nameKo, nameLatin, status, kind, regionKo, regionEn, yearText]
+        .filter(Boolean)
+        .join(' '),
     });
   }
   return rows;
@@ -176,18 +180,29 @@ const CREATE_SQL = `
     region_en text NOT NULL DEFAULT '',
     year_text text NOT NULL DEFAULT '',
     detail_url text NOT NULL DEFAULT '',
+    url text NOT NULL DEFAULT '',
+    search_text text NOT NULL DEFAULT '',
     source text NOT NULL DEFAULT 'maria-import',
     updated_at timestamptz NOT NULL DEFAULT now()
   );
+  ALTER TABLE saints ADD COLUMN IF NOT EXISTS url text NOT NULL DEFAULT '';
+  ALTER TABLE saints ADD COLUMN IF NOT EXISTS search_text text NOT NULL DEFAULT '';
+  UPDATE saints
+  SET url = 'https://m.mariasarang.net/saint/bbs_view.asp?index=bbs_saint&no=' || source_saint_id
+  WHERE url = '';
+  UPDATE saints
+  SET search_text = trim(concat_ws(' ', name_ko, name_latin, status, kind, region_ko, region_en, year_text))
+  WHERE search_text = '';
   CREATE INDEX IF NOT EXISTS idx_saints_feast ON saints (feast_month, feast_day);
   CREATE INDEX IF NOT EXISTS idx_saints_name ON saints (name_ko);
+  CREATE INDEX IF NOT EXISTS idx_saints_search_text ON saints (search_text);
 `;
 
 const UPSERT_SQL = `
   INSERT INTO saints (
     source_saint_id, name_ko, name_latin, feast_month, feast_day,
-    status, kind, region_ko, region_en, year_text, detail_url, source, updated_at
-  ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'maria-import', now())
+    status, kind, region_ko, region_en, year_text, detail_url, url, search_text, source, updated_at
+  ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'maria-import', now())
   ON CONFLICT (source_saint_id) DO UPDATE SET
     name_ko = excluded.name_ko,
     name_latin = excluded.name_latin,
@@ -199,6 +214,8 @@ const UPSERT_SQL = `
     region_en = excluded.region_en,
     year_text = excluded.year_text,
     detail_url = excluded.detail_url,
+    url = excluded.url,
+    search_text = excluded.search_text,
     updated_at = now()
   WHERE saints.source <> 'manual'
   RETURNING (xmax = 0) AS inserted;
@@ -217,6 +234,8 @@ async function upsertRow(pool, r) {
     r.regionEn,
     r.yearText,
     r.detailUrl,
+    r.url,
+    r.searchText,
   ]);
   if (res.rows.length === 0) return 'skipped'; // source='manual' → 보존
   return res.rows[0].inserted ? 'inserted' : 'updated';

@@ -205,11 +205,13 @@ class _LocalNotificationService implements NotificationService {
       0,
     );
 
+    final typeLabel = e.isSaintFeast ? '축일' : '일정';
+
     return [
       if (dayBefore.isAfter(now))
-        _Reminder(dayBefore, '내일 일정 · ${e.title}', '$timeLabel$suffix'),
+        _Reminder(dayBefore, '내일 $typeLabel · ${e.title}', '$timeLabel$suffix'),
       if (dayOf.isAfter(now))
-        _Reminder(dayOf, '오늘 일정 · ${e.title}', '$timeLabel$suffix'),
+        _Reminder(dayOf, '오늘 $typeLabel · ${e.title}', '$timeLabel$suffix'),
     ];
   }
 }

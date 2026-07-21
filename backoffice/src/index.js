@@ -127,9 +127,33 @@ async function ensureSchema() {
       region_en text NOT NULL DEFAULT '',
       year_text text NOT NULL DEFAULT '',
       detail_url text NOT NULL DEFAULT '',
+      url text NOT NULL DEFAULT '',
+      search_text text NOT NULL DEFAULT '',
       source text NOT NULL DEFAULT 'maria-import',
       updated_at timestamptz NOT NULL DEFAULT now()
     )
+  `);
+
+  await db.query(`
+    ALTER TABLE saints
+    ADD COLUMN IF NOT EXISTS url text NOT NULL DEFAULT ''
+  `);
+
+  await db.query(`
+    ALTER TABLE saints
+    ADD COLUMN IF NOT EXISTS search_text text NOT NULL DEFAULT ''
+  `);
+
+  await db.query(`
+    UPDATE saints
+    SET url = 'https://m.mariasarang.net/saint/bbs_view.asp?index=bbs_saint&no=' || source_saint_id
+    WHERE url = ''
+  `);
+
+  await db.query(`
+    UPDATE saints
+    SET search_text = trim(concat_ws(' ', name_ko, name_latin, status, kind, region_ko, region_en, year_text))
+    WHERE search_text = ''
   `);
 
   await db.query(`
@@ -1729,28 +1753,32 @@ async function handlePost(req, res, action) {
 
 const SAINTS_PAGE_SIZE = 50;
 
-function buildSaintsWhere(q, month) {
+function buildSaintsWhere(q, month, day) {
   const where = [];
   const args = [];
   if (q) {
     args.push(`%${q}%`);
-    where.push(`(name_ko ILIKE $${args.length} OR name_latin ILIKE $${args.length})`);
+    where.push(`(name_ko ILIKE $${args.length} OR name_latin ILIKE $${args.length} OR search_text ILIKE $${args.length})`);
   }
   if (month) {
     args.push(month);
     where.push(`feast_month = $${args.length}`);
   }
+  if (day) {
+    args.push(day);
+    where.push(`feast_day = $${args.length}`);
+  }
   return { clause: where.length ? `WHERE ${where.join(' AND ')}` : '', args };
 }
 
-async function countSaints({ q, month }) {
-  const { clause, args } = buildSaintsWhere(q, month);
+async function countSaints({ q, month, day }) {
+  const { clause, args } = buildSaintsWhere(q, month, day);
   const result = await db.query(`SELECT count(*)::int AS n FROM saints ${clause}`, args);
   return result.rows[0]?.n || 0;
 }
 
-async function listSaints({ q, month, limit, offset }) {
-  const { clause, args } = buildSaintsWhere(q, month);
+async function listSaints({ q, month, day, limit, offset }) {
+  const { clause, args } = buildSaintsWhere(q, month, day);
   args.push(limit);
   const limIdx = args.length;
   args.push(offset);
@@ -1758,7 +1786,7 @@ async function listSaints({ q, month, limit, offset }) {
   const result = await db.query(
     `
       SELECT source_saint_id, name_ko, name_latin, feast_month, feast_day,
-             status, kind, region_ko, region_en, year_text, source, updated_at
+             status, kind, region_ko, region_en, year_text, url, source, updated_at
       FROM saints
       ${clause}
       ORDER BY feast_month NULLS LAST, feast_day NULLS LAST, name_ko
@@ -1779,9 +1807,9 @@ async function upsertSaintManual(s) {
     `
       INSERT INTO saints (
         source_saint_id, name_ko, name_latin, feast_month, feast_day,
-        status, kind, region_ko, region_en, year_text, detail_url, source, updated_at
+        status, kind, region_ko, region_en, year_text, detail_url, url, search_text, source, updated_at
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'manual', now())
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'manual', now())
       ON CONFLICT (source_saint_id) DO UPDATE SET
         name_ko = EXCLUDED.name_ko,
         name_latin = EXCLUDED.name_latin,
@@ -1793,6 +1821,8 @@ async function upsertSaintManual(s) {
         region_en = EXCLUDED.region_en,
         year_text = EXCLUDED.year_text,
         detail_url = EXCLUDED.detail_url,
+        url = EXCLUDED.url,
+        search_text = EXCLUDED.search_text,
         source = 'manual',
         updated_at = now()
     `,
@@ -1808,6 +1838,8 @@ async function upsertSaintManual(s) {
       s.regionEn,
       s.yearText,
       s.detailUrl,
+      s.url,
+      s.searchText,
     ],
   );
 }
@@ -1843,6 +1875,8 @@ function normalizeSaintForm(form) {
     regionEn: String(form.get('regionEn') || '').trim(),
     yearText: String(form.get('yearText') || '').trim(),
     detailUrl: String(form.get('detailUrl') || '').trim(),
+    url: String(form.get('url') || '').trim(),
+    searchText: String(form.get('searchText') || '').trim(),
   };
 }
 
@@ -1860,7 +1894,11 @@ function saintRows(rows) {
         r.source === 'manual'
           ? ' <span style="color:var(--primary);font-size:12px;">· 수정됨</span>'
           : '';
+      const url = r.url
+        ? `<a class="button secondary" href="${escapeHtml(r.url)}" target="_blank" rel="noopener">열기</a>`
+        : '';
       return `<tr>
+        <td>${Number(r.source_saint_id)}</td>
         <td>${escapeHtml(r.name_ko)}${manual}</td>
         <td>${escapeHtml(r.name_latin)}</td>
         <td>${feast}</td>
@@ -1868,6 +1906,7 @@ function saintRows(rows) {
         <td>${escapeHtml(r.kind)}</td>
         <td>${escapeHtml(region)}</td>
         <td>${escapeHtml(r.year_text)}</td>
+        <td>${url}</td>
         <td><a class="button secondary" href="${basePath}/saints/edit?id=${Number(r.source_saint_id)}">수정</a></td>
       </tr>`;
     })
@@ -1875,7 +1914,7 @@ function saintRows(rows) {
   return `<table>
     <thead>
       <tr>
-        <th>이름</th><th>라틴/영문</th><th>축일</th><th>신분</th><th>등급</th><th>지역</th><th>연도</th><th></th>
+        <th>ID</th><th>이름</th><th>라틴/영문</th><th>축일</th><th>신분</th><th>등급</th><th>지역</th><th>연도</th><th>URL</th><th></th>
       </tr>
     </thead>
     <tbody>${cells}</tbody>
@@ -1912,6 +1951,8 @@ function saintEditForm(saint) {
         <label class="form-row">지역 (영문)<input name="regionEn" class="wide" value="${escapeHtml(saint.region_en)}"></label>
       </div>
       <label class="form-row">연도<input name="yearText" class="wide" value="${escapeHtml(saint.year_text)}"></label>
+      <label class="form-row">URL<input name="url" class="wide" value="${escapeHtml(saint.url || '')}"></label>
+      <label class="form-row">검색어<input name="searchText" class="wide" value="${escapeHtml(saint.search_text || '')}" placeholder="별칭을 공백으로 구분해 추가"></label>
       <div class="editor-actions">
         <a class="button secondary" href="${basePath}/saints">목록으로</a>
         <button type="submit">저장</button>
@@ -1926,14 +1967,20 @@ async function handleSaints(req, res, url) {
     monthRaw && Number.isInteger(Number(monthRaw)) && Number(monthRaw) >= 1 && Number(monthRaw) <= 12
       ? Number(monthRaw)
       : null;
+  const dayRaw = String(url.searchParams.get('day') || '').trim();
+  const day =
+    dayRaw && Number.isInteger(Number(dayRaw)) && Number(dayRaw) >= 1 && Number(dayRaw) <= 31
+      ? Number(dayRaw)
+      : null;
   const page = Math.max(1, Number(url.searchParams.get('page') || 1) || 1);
 
-  const total = await countSaints({ q, month });
+  const total = await countSaints({ q, month, day });
   const totalPages = Math.max(1, Math.ceil(total / SAINTS_PAGE_SIZE));
   const current = Math.min(page, totalPages);
   const rows = await listSaints({
     q,
     month,
+    day,
     limit: SAINTS_PAGE_SIZE,
     offset: (current - 1) * SAINTS_PAGE_SIZE,
   });
@@ -1943,6 +1990,7 @@ async function handleSaints(req, res, url) {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
     if (month) params.set('month', String(month));
+    if (day) params.set('day', String(day));
     params.set('page', String(p));
     return `${basePath}/saints?${params.toString()}`;
   };
@@ -1951,8 +1999,9 @@ async function handleSaints(req, res, url) {
     <form class="toolbar" method="get" action="${basePath}/saints">
       <label>검색 <input name="q" value="${escapeHtml(q)}" placeholder="이름(한/영)"></label>
       <label>축일 월 <input name="month" inputmode="numeric" value="${month ?? ''}" style="width:64px"></label>
+      <label>축일 일 <input name="day" inputmode="numeric" value="${day ?? ''}" style="width:64px"></label>
       <button type="submit">검색</button>
-      ${q || month ? `<a class="button secondary" href="${basePath}/saints">초기화</a>` : ''}
+      ${q || month || day ? `<a class="button secondary" href="${basePath}/saints">초기화</a>` : ''}
     </form>`;
   const pager = `
     <div class="toolbar">

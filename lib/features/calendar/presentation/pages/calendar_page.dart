@@ -6,7 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/theme/liturgical_colors.dart';
 import '../../../../core/date/year_month.dart';
 import '../../../ads/ads.dart';
-import '../../../events/presentation/event_editor_sheet.dart';
+import '../../../events/presentation/add_event_choice.dart';
 import '../../../support/presentation/support_sheet.dart';
 import '../../application/calendar_providers.dart';
 import '../../data/calendar_service.dart';
@@ -226,7 +226,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
       backgroundColor: color,
       foregroundColor: Colors.white,
       tooltip: '일정 추가',
-      onPressed: () => showEventEditor(context, date: _focusDate),
+      onPressed: () => showAddEventChoice(context, date: _focusDate),
       child: const Icon(Icons.add),
     );
   }
@@ -312,9 +312,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   /// 대신 전체 화면 라우트를 쌓는다.
   void _openDetailPage(CalendarService s, DateTime date) {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => DayDetailPage(day: s.day(date)),
-      ),
+      MaterialPageRoute<void>(builder: (_) => DayDetailPage(day: s.day(date))),
     );
   }
 }
