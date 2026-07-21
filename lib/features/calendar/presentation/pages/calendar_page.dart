@@ -6,8 +6,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/theme/liturgical_colors.dart';
 import '../../../../core/date/year_month.dart';
 import '../../../ads/ads.dart';
-import '../../../events/application/event_providers.dart';
-import '../../../events/presentation/backup_notice.dart';
 import '../../../events/presentation/event_editor_sheet.dart';
 import '../../../support/presentation/support_sheet.dart';
 import '../../application/calendar_providers.dart';
@@ -93,14 +91,6 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
 
   @override
   Widget build(BuildContext context) {
-    // 최초로 개인 일정이 추가되는 순간(0 → 1)에 백업 안내를 1회 노출.
-    ref.listen(eventStoreProvider, (prev, next) {
-      final was = prev?.value;
-      final now = next.value;
-      if (was != null && was.isEmpty && now != null && now.isNotEmpty) {
-        maybeShowBackupNotice(context, ref);
-      }
-    });
     final calendarAsync = ref.watch(calendarControllerProvider);
     final remoteStatuses = ref.watch(remoteMonthStatusProvider);
     return Scaffold(

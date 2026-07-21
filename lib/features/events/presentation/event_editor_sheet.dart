@@ -6,6 +6,7 @@ import '../application/category_providers.dart';
 import '../application/event_providers.dart';
 import '../model/calendar_event.dart';
 import '../model/event_category.dart';
+import 'backup_notice.dart';
 import 'category_manager_page.dart';
 
 const _weekdays = ['일', '월', '화', '수', '목', '금', '토'];
@@ -235,6 +236,8 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
       await store.updateEvent(event);
     } else {
       await store.add(event);
+      // 최초 1회: 일정 추가 완료 시점에 백업 안내(앱 실행/복원 시엔 뜨지 않음).
+      if (mounted) await maybeShowBackupNotice(context, ref);
     }
     if (mounted) Navigator.of(context).pop();
   }

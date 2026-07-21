@@ -320,46 +320,36 @@ void main() {
     expect(find.byType(DayDetailPage), findsOneWidget);
   });
 
-  testWidgets('adding the first event shows the backup notice once', (
+  testWidgets('backup notice shows once, when the first add completes', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(
-      _wrap(const CalendarPage(month: YearMonth(2026, 7))),
-    );
+    final day = LiturgicalCalendar().day(DateTime(2026, 7, 16));
+    await tester.pumpWidget(_wrap(Scaffold(body: DayDetailView(day: day))));
     await tester.pumpAndSettle();
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(CalendarPage)),
-    );
-    const first = CalendarEvent(
-      id: '1',
-      date: '2026-07-16',
-      categoryId: 'c',
-      categoryName: '전례',
-      categoryColor: 0xFF2E7D32,
-    );
-    await container.read(eventStoreProvider.notifier).add(first);
-    await tester.pumpAndSettle();
+    Future<void> addEventViaEditor() async {
+      await tester.tap(find.widgetWithText(TextButton, '추가')); // 상세의 일정 추가
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('카테고리를 선택하세요')); // 카테고리 화면 열기
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('전례')); // 선택 → 편집 화면으로 복귀
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, '추가')); // 저장
+      await tester.pumpAndSettle();
+    }
 
+    // 첫 추가 완료 시점에 백업 안내 노출.
+    await addEventViaEditor();
     expect(find.text('내 일정 백업'), findsOneWidget);
     await tester.tap(find.text('확인'));
     await tester.pumpAndSettle();
 
-    // A second add must not re-show the (once-only) notice.
-    await container.read(eventStoreProvider.notifier).add(
-      const CalendarEvent(
-        id: '2',
-        date: '2026-07-17',
-        categoryId: 'c',
-        categoryName: '전례',
-        categoryColor: 0xFF2E7D32,
-      ),
-    );
-    await tester.pumpAndSettle();
+    // 두 번째 추가부터는 다시 뜨지 않는다.
+    await addEventViaEditor();
     expect(find.text('내 일정 백업'), findsNothing);
   });
 
