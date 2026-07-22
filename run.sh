@@ -192,10 +192,15 @@ launch() { # $1 = device id, $2 = label
   if [[ "$plat" == ios* && "$emu" == "false" ]]; then
     info "$label: 물리 iOS 기기 → flutter install (설치 전용)"
     warn "이 기기(구형 iOS + 최신 Xcode)는 flutter run 자동 실행이 실패하므로 install만 수행합니다."
+    info "실기기 설치용 iOS 앱 빌드/서명 중..."
+    if ! flutter build ios --release; then
+      err "iOS 앱 빌드/서명 실패 — Xcode의 Signing & Capabilities 설정을 확인하세요."
+      return 1
+    fi
     if flutter install --release -d "$id"; then
       info "설치 완료 ✅  아이폰 홈 화면에서 '가톨릭 달력' 아이콘을 탭해 실행하세요."
     else
-      err "설치 실패 — 아이폰 잠금 해제 후 재시도하세요."
+      err "설치 실패 — 기기 신뢰/개발자 모드 또는 앱 서명 상태를 확인하세요."
     fi
   else
     if [[ "$plat" == ios* && "$emu" == "true" && "$MODE" == "release" ]]; then
