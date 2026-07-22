@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
@@ -29,14 +31,25 @@ class FirestoreCategoryLogService implements CategoryLogService {
     try {
       final packageInfo = await PackageInfo.fromPlatform();
       final firestore = _firestore ?? FirebaseFirestore.instance;
+      final categoryKey = _categoryKey(trimmed);
       await firestore.collection('category_add_logs').add({
+        'categoryKey': categoryKey,
         'name': trimmed,
+        'normalizedName': _normalizedName(trimmed),
         'color': color,
         'platform': _platformName(),
         'appVersion': packageInfo.version,
         'buildNumber': packageInfo.buildNumber,
         'createdAt': FieldValue.serverTimestamp(),
       });
+      await firestore.collection('category_stats').doc(categoryKey).set({
+        'name': trimmed,
+        'normalizedName': _normalizedName(trimmed),
+        'lastColor': color,
+        'count': FieldValue.increment(1),
+        'platformCounts.${_platformName()}': FieldValue.increment(1),
+        'lastAddedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
     } catch (e) {
       if (kDebugMode) {
         debugPrint('Failed to log category add: $e');
@@ -52,6 +65,12 @@ class FirestoreCategoryLogService implements CategoryLogService {
       _ => 'unknown',
     };
   }
+
+  String _normalizedName(String value) =>
+      value.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+
+  String _categoryKey(String value) =>
+      base64Url.encode(utf8.encode(_normalizedName(value))).replaceAll('=', '');
 }
 
 class NoopCategoryLogService implements CategoryLogService {
