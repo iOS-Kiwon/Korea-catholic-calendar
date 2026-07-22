@@ -1897,6 +1897,15 @@ async function getSaint(id) {
   return result.rows[0] || null;
 }
 
+async function nextManualSaintId() {
+  const result = await db.query(`
+    SELECT COALESCE(MAX(source_saint_id), 9990000) + 1 AS id
+    FROM saints
+    WHERE source_saint_id >= 9990000
+  `);
+  return Number(result.rows[0]?.id || 9990001);
+}
+
 async function upsertSaintManual(s) {
   await db.query(
     `
@@ -1985,8 +1994,9 @@ function normalizeSaintForm(form) {
     throw new Error('invalid_day');
   }
 
-  return {
+  const saint = {
     sourceSaintId,
+    isNew: String(form.get('formMode') || '') === 'new',
     nameKo,
     nameLatin: String(form.get('nameLatin') || '').trim(),
     feastMonth,
@@ -2048,21 +2058,62 @@ function saintRows(rows) {
   </table>`;
 }
 
-function saintEditForm(saint, aliases, inheritedAliases) {
+function manualSaintTemplate(template, fallbackId) {
+  if (template === 'stephania') {
+    return {
+      source_saint_id: 9991226,
+      name_ko: '스테파니아',
+      name_latin: 'Stephania',
+      feast_month: 12,
+      feast_day: 26,
+      status: '순교자',
+      kind: '성인',
+      region_ko: '예루살렘',
+      region_en: 'Jerusalem',
+      year_text: '+34년경',
+      detail_url: '',
+      url: '',
+      source: 'manual',
+    };
+  }
+
+  return {
+    source_saint_id: fallbackId,
+    name_ko: '',
+    name_latin: '',
+    feast_month: null,
+    feast_day: null,
+    status: '',
+    kind: '',
+    region_ko: '',
+    region_en: '',
+    year_text: '',
+    detail_url: '',
+    url: '',
+    source: 'manual',
+  };
+}
+
+function saintEditForm(saint, aliases, inheritedAliases, options = {}) {
   const id = Number(saint.source_saint_id);
   const detail = saint.detail_url
     ? ` · <a href="${escapeHtml(saint.detail_url)}" target="_blank" rel="noopener">원본 보기</a>`
     : '';
   const aliasText = aliases.join(' ');
   const inherited = inheritedAliases.join(' ');
+  const isNew = options.mode === 'new';
+  const title = isNew ? '성인 수동 추가' : `${escapeHtml(saint.name_ko)} 수정`;
+  const help = isNew
+    ? '자동 임포트에 없거나 보완이 필요한 성인을 직접 추가합니다. 저장하면 출처가 <strong>manual</strong>로 보존됩니다.'
+    : `원본 ID ${id}${detail} · 저장하면 출처가 <strong>manual</strong>로 바뀌어 재가져오기 시 덮어쓰지 않습니다.`;
   return `
     <form class="editor" method="post" action="${basePath}/saints/edit/commit">
-      <input type="hidden" name="sourceSaintId" value="${id}">
-      <input type="hidden" name="detailUrl" value="${escapeHtml(saint.detail_url || '')}">
+      <input type="hidden" name="formMode" value="${isNew ? 'new' : 'edit'}">
       <div>
-        <h2>${escapeHtml(saint.name_ko)} 수정</h2>
-        <div class="sub">원본 ID ${id}${detail} · 저장하면 출처가 <strong>manual</strong>로 바뀌어 재가져오기 시 덮어쓰지 않습니다.</div>
+        <h2>${title}</h2>
+        <div class="sub">${help}</div>
       </div>
+      <label class="form-row">ID<input name="sourceSaintId" class="wide" inputmode="numeric" value="${id}" ${isNew ? '' : 'readonly'}></label>
       <div class="form-grid">
         <label class="form-row">한글명<input name="nameKo" class="wide" value="${escapeHtml(saint.name_ko)}"></label>
         <label class="form-row">라틴/영문명<input name="nameLatin" class="wide" value="${escapeHtml(saint.name_latin)}"></label>
@@ -2080,6 +2131,7 @@ function saintEditForm(saint, aliases, inheritedAliases) {
         <label class="form-row">지역 (영문)<input name="regionEn" class="wide" value="${escapeHtml(saint.region_en)}"></label>
       </div>
       <label class="form-row">연도<input name="yearText" class="wide" value="${escapeHtml(saint.year_text)}"></label>
+      <label class="form-row">원본 링크<input name="detailUrl" class="wide" value="${escapeHtml(saint.detail_url || '')}"></label>
       <label class="form-row">URL<input name="url" class="wide" value="${escapeHtml(saint.url || '')}"></label>
       ${inherited ? `<label class="form-row">공통 별칭<input class="wide" value="${escapeHtml(inherited)}" readonly></label>` : ''}
       <label class="form-row">개별 별칭<input name="aliases" class="wide" value="${escapeHtml(aliasText)}" placeholder="공백 또는 쉼표로 구분"></label>
@@ -2132,6 +2184,8 @@ async function handleSaints(req, res, url) {
       <label>축일 일 <input name="day" inputmode="numeric" value="${day ?? ''}" style="width:64px"></label>
       <button type="submit">검색</button>
       ${q || month || day ? `<a class="button secondary" href="${basePath}/saints">초기화</a>` : ''}
+      <a class="button secondary" href="${basePath}/saints/new">수동 추가</a>
+      <a class="button secondary" href="${basePath}/saints/new?template=stephania">스테파니아 입력</a>
     </form>`;
   const pager = `
     <div class="toolbar">
@@ -2147,6 +2201,21 @@ async function handleSaints(req, res, url) {
     ${pager}
   `;
   sendHtml(res, 200, layout('성인', content, 'saints'));
+}
+
+async function handleSaintNew(req, res, url) {
+  const template = String(url.searchParams.get('template') || '').trim();
+  const fallbackId = await nextManualSaintId();
+  const saint = manualSaintTemplate(template, fallbackId);
+  const existing = await getSaint(Number(saint.source_saint_id));
+  if (existing && template) {
+    redirect(res, `${basePath}/saints/edit?id=${Number(saint.source_saint_id)}&message=${encodeURIComponent('이미 등록된 성인입니다.')}`);
+    return;
+  }
+  const aliasDoc = loadSaintAliasDoc();
+  const aliases = template === 'stephania' ? ['스테파노', '스데파노', '스티븐', '스테판'] : [];
+  const inheritedAliases = nameAliasesForSaint(aliasDoc, saint.name_ko, saint.name_latin);
+  sendHtml(res, 200, layout('성인 수동 추가', saintEditForm(saint, aliases, inheritedAliases, { mode: 'new' }), 'saints'));
 }
 
 async function handleSaintEdit(req, res, url) {
@@ -2188,6 +2257,20 @@ async function handleSaintSave(req, res) {
   const aliasDoc = loadSaintAliasDoc();
   const inheritedAliases = nameAliasesForSaint(aliasDoc, saint.nameKo, saint.nameLatin);
   saint.searchText = buildSaintSearchText(saint, [...inheritedAliases, ...saint.aliases]);
+
+  if (saint.isNew && (await getSaint(saint.sourceSaintId))) {
+    sendHtml(
+      res,
+      409,
+      layout(
+        '성인',
+        `<div class="empty">이미 같은 ID의 성인이 있습니다. 다른 ID를 사용하거나 기존 항목을 수정하세요.</div>
+        <div class="toolbar"><a class="button secondary" href="${basePath}/saints/edit?id=${saint.sourceSaintId}">기존 항목 수정</a><a class="button secondary" href="${basePath}/saints/new">새 ID로 추가</a></div>`,
+        'saints',
+      ),
+    );
+    return;
+  }
 
   try {
     saveSaintAliases(saint.sourceSaintId, saint.aliases);
@@ -2259,6 +2342,11 @@ async function handleRequest(req, res) {
 
   if (url.pathname === `${basePath}/saints` && req.method === 'GET') {
     await handleSaints(req, res, url);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/saints/new` && req.method === 'GET') {
+    await handleSaintNew(req, res, url);
     return;
   }
 
