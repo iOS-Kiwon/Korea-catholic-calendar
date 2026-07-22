@@ -33,6 +33,10 @@ struct DaySnapshot: Decodable, Identifiable {
     let liturgicalColor: String
     let eventTitle: String
     let extraEventCount: Int
+    // 위젯이 이 날을 '오늘'로 판정했을 때 작은 위젯에 쓰는 전체 정보.
+    // (구버전 스냅샷 호환을 위해 optional)
+    let titleFull: String?
+    let dateLabel: String?
 }
 
 struct TodayEntry: TimelineEntry {
@@ -50,11 +54,22 @@ struct TodayProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<TodayEntry>) -> Void) {
+        // 자정마다 위젯이 다시 그려지도록 향후 며칠의 '자정' 엔트리를 만든다.
+        // 각 엔트리 날짜(entry.date)를 기준으로 뷰가 '오늘'을 직접 판정하므로,
+        // 자정이 지나면 스냅샷의 42칸 격자에서 해당 날을 찾아 그린다.
+        // 타임존/서머타임 변경까지 반영하도록 autoupdatingCurrent 사용.
+        let snapshot = Self.loadSnapshot()
+        let calendar = Calendar.autoupdatingCurrent
         let now = Date()
-        let nextUpdate = Calendar.current.date(byAdding: .hour, value: 6, to: now) ?? now
-        completion(Timeline(entries: [
-            TodayEntry(date: now, snapshot: Self.loadSnapshot())
-        ], policy: .after(nextUpdate)))
+        var entries: [TodayEntry] = [TodayEntry(date: now, snapshot: snapshot)]
+        let startOfToday = calendar.startOfDay(for: now)
+        for offset in 1...8 {
+            if let midnight = calendar.date(byAdding: .day, value: offset, to: startOfToday) {
+                entries.append(TodayEntry(date: midnight, snapshot: snapshot))
+            }
+        }
+        // 마지막 엔트리 이후 WidgetKit이 새 타임라인을 요청한다.
+        completion(Timeline(entries: entries, policy: .atEnd))
     }
 
     private static func loadSnapshot() -> WidgetSnapshot {
@@ -76,12 +91,14 @@ struct TodayWidgetView: View {
     let entry: TodayEntry
 
     var body: some View {
+        // baked된 today/isToday 대신 엔트리(현재) 날짜로 '오늘'을 판정한다.
+        let todayKey = widgetDateKey(for: entry.date)
         Group {
             switch family {
             case .systemLarge:
-                MonthWidgetView(month: entry.snapshot.month)
+                MonthWidgetView(month: entry.snapshot.month, todayKey: todayKey)
             default:
-                SmallTodayWidgetView(today: entry.snapshot.today)
+                SmallTodayWidgetView(snapshot: entry.snapshot, todayKey: todayKey)
             }
         }
         .containerBackground(.white, for: .widget)
@@ -90,27 +107,53 @@ struct TodayWidgetView: View {
 }
 
 struct SmallTodayWidgetView: View {
-    let today: TodaySnapshot
+    let snapshot: WidgetSnapshot
+    let todayKey: String
 
-    var eventText: String? {
-        guard !today.eventTitle.isEmpty else { return nil }
-        if today.extraEventCount > 0 {
-            return "\(today.eventTitle) 외 \(today.extraEventCount)개"
+    // 격자에서 오늘 날짜 셀을 찾는다. 없으면(예외적) baked된 today로 폴백.
+    private var day: DaySnapshot? {
+        snapshot.month.days.first { $0.dateKey == todayKey }
+    }
+
+    private var dateLabel: String {
+        day?.dateLabel ?? snapshot.today.dateLabel
+    }
+
+    private var liturgicalTitle: String {
+        day?.titleFull ?? snapshot.today.liturgicalTitle
+    }
+
+    private var liturgicalColor: String {
+        day?.liturgicalColor ?? snapshot.today.liturgicalColor
+    }
+
+    private var eventTitle: String {
+        day?.eventTitle ?? snapshot.today.eventTitle
+    }
+
+    private var extraEventCount: Int {
+        day?.extraEventCount ?? snapshot.today.extraEventCount
+    }
+
+    private var eventText: String? {
+        guard !eventTitle.isEmpty else { return nil }
+        if extraEventCount > 0 {
+            return "\(eventTitle) 외 \(extraEventCount)개"
         }
-        return today.eventTitle
+        return eventTitle
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(today.dateLabel)
+            Text(dateLabel)
                 .font(.system(size: 21, weight: .bold))
                 .foregroundStyle(Color.black)
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
 
-            Text(today.liturgicalTitle)
+            Text(liturgicalTitle)
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(color(for: today.liturgicalColor))
+                .foregroundStyle(color(for: liturgicalColor))
                 .lineLimit(2)
                 .minimumScaleFactor(0.75)
 
@@ -133,6 +176,7 @@ struct MonthWidgetView: View {
     private let weekdays = ["일", "월", "화", "수", "목", "금", "토"]
 
     let month: MonthSnapshot
+    let todayKey: String
 
     var body: some View {
         VStack(spacing: 2) {
@@ -153,7 +197,7 @@ struct MonthWidgetView: View {
 
             LazyVGrid(columns: columns, spacing: 0) {
                 ForEach(month.days.prefix(42)) { day in
-                    MonthDayCell(day: day)
+                    MonthDayCell(day: day, isToday: day.dateKey == todayKey)
                 }
             }
         }
@@ -162,6 +206,8 @@ struct MonthWidgetView: View {
 
 struct MonthDayCell: View {
     let day: DaySnapshot
+    // baked된 day.isToday 대신 현재 날짜 기준으로 계산된 값을 받는다.
+    let isToday: Bool
 
     private var title: String {
         if !day.eventTitle.isEmpty {
@@ -188,12 +234,12 @@ struct MonthDayCell: View {
         .padding(.horizontal, 0.5)
         .padding(.top, 1)
         .frame(height: 43, alignment: .top)
-        .background(day.isToday ? Color(red: 1.0, green: 0.88, blue: 0.66) : .clear)
+        .background(isToday ? Color(red: 1.0, green: 0.88, blue: 0.66) : .clear)
     }
 
     private var numberColor: Color {
         // 오늘은 빨간색 대신 검정(배경 하이라이트로 오늘을 구분).
-        if day.isToday { return .black }
+        if isToday { return .black }
         if !day.inMonth { return Color(red: 0.62, green: 0.62, blue: 0.62) }
         if day.weekday == 7 { return Color(red: 0.78, green: 0.16, blue: 0.16) }
         if day.weekday == 6 { return Color(red: 0.08, green: 0.39, blue: 0.75) }
@@ -213,6 +259,22 @@ struct TodayWidget: Widget {
         .description("오늘의 전례와 이번 달 달력을 보여줍니다.")
         .supportedFamilies([.systemSmall, .systemLarge])
     }
+}
+
+// 스냅샷의 dateKey(YYYY-MM-DD, Dart eventDateKey와 동일 포맷)를 로컬 날짜 기준으로 만든다.
+private enum WidgetDateKey {
+    static let formatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = TimeZone.current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+}
+
+private func widgetDateKey(for date: Date) -> String {
+    WidgetDateKey.formatter.string(from: date)
 }
 
 private func color(for name: String) -> Color {
@@ -255,16 +317,20 @@ extension WidgetSnapshot {
                 title: "\(year).\(month)",
                 days: (0..<42).map { index in
                     let date = calendar.date(byAdding: .day, value: index, to: start) ?? start
+                    let weekday = calendar.component(.weekday, from: date)
+                    let names = ["일", "월", "화", "수", "목", "금", "토"]
                     return DaySnapshot(
-                        dateKey: "\(index)",
+                        dateKey: widgetDateKey(for: date),
                         day: calendar.component(.day, from: date),
-                        weekday: calendar.component(.weekday, from: date),
+                        weekday: weekday,
                         inMonth: calendar.component(.month, from: date) == month,
                         isToday: calendar.isDate(date, inSameDayAs: today),
                         liturgicalTitle: index % 5 == 0 ? "전례" : "",
                         liturgicalColor: "green",
                         eventTitle: index % 8 == 0 ? "일정" : "",
-                        extraEventCount: index % 16 == 0 ? 1 : 0
+                        extraEventCount: index % 16 == 0 ? 1 : 0,
+                        titleFull: "오늘의 전례",
+                        dateLabel: "\(calendar.component(.month, from: date))/\(calendar.component(.day, from: date)) \(names[(weekday - 1) % 7])요일"
                     )
                 }
             )

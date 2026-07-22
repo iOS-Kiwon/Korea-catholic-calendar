@@ -1,8 +1,10 @@
 package com.sidore.catholiccalendar
 
+import android.app.AlarmManager
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
@@ -13,6 +15,7 @@ import android.widget.RemoteViews
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -37,7 +40,31 @@ open class TodayWidgetProvider : AppWidgetProvider() {
         )
     }
 
+    override fun onReceive(context: Context, intent: Intent) {
+        super.onReceive(context, intent)
+        // 자정 자체 갱신 알람 + 재부팅/시간·시간대 변경 시 위젯을 다시 그리고 알람을 재예약.
+        when (intent.action) {
+            ACTION_MIDNIGHT_UPDATE,
+            Intent.ACTION_BOOT_COMPLETED,
+            "android.intent.action.QUICKBOOT_POWERON",
+            Intent.ACTION_MY_PACKAGE_REPLACED,
+            Intent.ACTION_TIMEZONE_CHANGED,
+            Intent.ACTION_TIME_CHANGED,
+            Intent.ACTION_DATE_CHANGED -> refreshAllWidgets(context)
+        }
+    }
+
+    override fun onDisabled(context: Context) {
+        super.onDisabled(context)
+        // 이 크기의 마지막 위젯이 제거됨. 다른 크기 위젯이 남아있지 않으면 알람도 취소.
+        refreshAllWidgets(context)
+    }
+
     companion object {
+        // 자정 자체 갱신 알람이 위젯 provider로 보내는 커스텀 액션.
+        const val ACTION_MIDNIGHT_UPDATE =
+            "com.sidore.catholiccalendar.action.WIDGET_MIDNIGHT_UPDATE"
+
         fun updateWidgets(
             context: Context,
             appWidgetManager: AppWidgetManager,
@@ -49,6 +76,75 @@ open class TodayWidgetProvider : AppWidgetProvider() {
                     buildViews(context, appWidgetManager, appWidgetId)
                 )
             }
+            // 위젯을 그릴 때마다 다음 자정 갱신을 (재)예약한다.
+            scheduleMidnightUpdate(context)
+        }
+
+        // 두 크기 provider의 모든 위젯을 다시 그린다. 남은 위젯이 없으면 알람을 취소.
+        private fun refreshAllWidgets(context: Context) {
+            val manager = AppWidgetManager.getInstance(context)
+            val components = listOf(
+                ComponentName(context, TodayWidgetTwoByTwoProvider::class.java),
+                ComponentName(context, TodayWidgetFourByFourProvider::class.java)
+            )
+            var hasAny = false
+            for (component in components) {
+                val ids = manager.getAppWidgetIds(component)
+                if (ids.isNotEmpty()) {
+                    hasAny = true
+                    updateWidgets(context, manager, ids)
+                }
+            }
+            if (!hasAny) cancelMidnightUpdate(context)
+        }
+
+        private fun scheduleMidnightUpdate(context: Context) {
+            val alarmManager =
+                context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+            val pending = midnightPendingIntent(context)
+            alarmManager.cancel(pending)
+            // 부정확 예약(setAndAllowWhileIdle): SCHEDULE_EXACT_ALARM 권한이 필요 없고
+            // 배터리에 안전하다. 초 단위 정확도는 보장되지 않지만 자정 직후 가까운 시점에
+            // 위젯이 다시 그려진다. 앱 실행 시에도 재렌더링되므로 실사용상 충분하다.
+            try {
+                alarmManager.setAndAllowWhileIdle(
+                    AlarmManager.RTC,
+                    nextMidnightMillis(),
+                    pending
+                )
+            } catch (_: Exception) {
+                // 일부 기기에서 예약이 거부될 수 있으나 앱 실행/12시간 주기 갱신으로 보완됨.
+            }
+        }
+
+        private fun cancelMidnightUpdate(context: Context) {
+            val alarmManager =
+                context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+            alarmManager.cancel(midnightPendingIntent(context))
+        }
+
+        private fun midnightPendingIntent(context: Context): PendingIntent {
+            // 매니페스트에 등록된 리시버(2x2)로 보낸다. 명시적 인텐트이므로 항상 전달되며,
+            // 처리 시 두 크기 위젯을 모두 다시 그린다.
+            val intent = Intent(context, TodayWidgetTwoByTwoProvider::class.java).apply {
+                action = ACTION_MIDNIGHT_UPDATE
+            }
+            return PendingIntent.getBroadcast(
+                context,
+                1,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        }
+
+        private fun nextMidnightMillis(): Long {
+            val cal = Calendar.getInstance()
+            cal.add(Calendar.DAY_OF_MONTH, 1)
+            cal.set(Calendar.HOUR_OF_DAY, 0)
+            cal.set(Calendar.MINUTE, 0)
+            cal.set(Calendar.SECOND, 1)
+            cal.set(Calendar.MILLISECOND, 0)
+            return cal.timeInMillis
         }
 
         private fun buildViews(
@@ -57,16 +153,18 @@ open class TodayWidgetProvider : AppWidgetProvider() {
             appWidgetId: Int
         ): RemoteViews {
             val snapshot = readSnapshot(context)
+            // baked된 today/isToday 대신 현재 날짜로 '오늘'을 판정한다.
+            val todayKey = todayKey()
             val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
             val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
             val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT)
             val mode = widgetMode(minWidth, minHeight)
 
             val views = when (mode) {
-                WidgetMode.Tiny -> buildSmallViews(context, snapshot, mode)
-                WidgetMode.WideShort -> buildSmallViews(context, snapshot, mode)
-                WidgetMode.Compact -> buildSmallViews(context, snapshot, mode)
-                WidgetMode.Calendar -> buildLargeViews(context, snapshot)
+                WidgetMode.Tiny -> buildSmallViews(context, snapshot, mode, todayKey)
+                WidgetMode.WideShort -> buildSmallViews(context, snapshot, mode, todayKey)
+                WidgetMode.Compact -> buildSmallViews(context, snapshot, mode, todayKey)
+                WidgetMode.Calendar -> buildLargeViews(context, snapshot, todayKey)
             }
 
             views.setOnClickPendingIntent(R.id.today_widget_root, openAppIntent(context))
@@ -76,25 +174,42 @@ open class TodayWidgetProvider : AppWidgetProvider() {
         private fun buildSmallViews(
             context: Context,
             snapshot: JSONObject,
-            mode: WidgetMode
+            mode: WidgetMode,
+            todayKey: String
         ): RemoteViews {
-            val today = snapshot.optJSONObject("today") ?: JSONObject()
             val views = RemoteViews(context.packageName, R.layout.today_widget_small)
-            val eventTitle = today.optString("eventTitle")
-            val extraCount = today.optInt("extraEventCount")
+
+            // 스냅샷의 42칸 격자에서 오늘 셀을 찾는다. 없으면(예외적) baked된 today로 폴백.
+            val dayCell = findDayByKey(snapshot, todayKey)
+            val dateLabel: String
+            val liturgyTitle: String
+            val liturgyColor: String
+            val eventTitle: String
+            val extraCount: Int
+            if (dayCell != null) {
+                dateLabel = dayCell.optString("dateLabel").ifBlank { fallbackDateLabel() }
+                liturgyTitle = dayCell.optString("titleFull").ifBlank { "오늘의 전례" }
+                liturgyColor = dayCell.optString("liturgicalColor")
+                eventTitle = dayCell.optString("eventTitle")
+                extraCount = dayCell.optInt("extraEventCount")
+            } else {
+                val today = snapshot.optJSONObject("today") ?: JSONObject()
+                dateLabel = today.optString("dateLabel", fallbackDateLabel())
+                liturgyTitle = today.optString("liturgicalTitle", "오늘의 전례")
+                liturgyColor = today.optString("liturgicalColor")
+                eventTitle = today.optString("eventTitle")
+                extraCount = today.optInt("extraEventCount")
+            }
 
             applySmallMode(context, views, mode)
             views.setTextViewText(
                 R.id.today_widget_date,
-                dateLabelForMode(today.optString("dateLabel", fallbackDateLabel()), mode)
+                dateLabelForMode(dateLabel, mode)
             )
-            views.setTextViewText(
-                R.id.today_widget_liturgy,
-                today.optString("liturgicalTitle", "오늘의 전례")
-            )
+            views.setTextViewText(R.id.today_widget_liturgy, liturgyTitle)
             views.setTextColor(
                 R.id.today_widget_liturgy,
-                liturgicalColor(today.optString("liturgicalColor"))
+                liturgicalColor(liturgyColor)
             )
             if (eventTitle.isBlank() || mode == WidgetMode.Tiny) {
                 views.setViewVisibility(R.id.today_widget_event, View.GONE)
@@ -149,7 +264,11 @@ open class TodayWidgetProvider : AppWidgetProvider() {
             }
         }
 
-        private fun buildLargeViews(context: Context, snapshot: JSONObject): RemoteViews {
+        private fun buildLargeViews(
+            context: Context,
+            snapshot: JSONObject,
+            todayKey: String
+        ): RemoteViews {
             val month = snapshot.optJSONObject("month") ?: JSONObject()
             val days = month.optJSONArray("days") ?: JSONArray()
             val views = RemoteViews(context.packageName, R.layout.today_widget_large)
@@ -160,17 +279,18 @@ open class TodayWidgetProvider : AppWidgetProvider() {
                 val row = RemoteViews(context.packageName, R.layout.today_widget_month_row)
                 for (colIndex in 0 until 7) {
                     val day = days.optJSONObject(rowIndex * 7 + colIndex) ?: JSONObject()
-                    row.addView(R.id.today_widget_month_row, buildDayCell(context, day))
+                    row.addView(R.id.today_widget_month_row, buildDayCell(context, day, todayKey))
                 }
                 views.addView(R.id.today_widget_month_rows, row)
             }
             return views
         }
 
-        private fun buildDayCell(context: Context, day: JSONObject): RemoteViews {
+        private fun buildDayCell(context: Context, day: JSONObject, todayKey: String): RemoteViews {
             val cell = RemoteViews(context.packageName, R.layout.today_widget_day_cell)
             val inMonth = day.optBoolean("inMonth")
-            val isToday = day.optBoolean("isToday")
+            // baked된 isToday 대신 현재 날짜 기준으로 판정.
+            val isToday = day.optString("dateKey") == todayKey
             val eventTitle = day.optString("eventTitle")
             val liturgyTitle = day.optString("liturgicalTitle")
             val extraCount = day.optInt("extraEventCount")
@@ -200,6 +320,16 @@ open class TodayWidgetProvider : AppWidgetProvider() {
             return cell
         }
 
+        // 스냅샷 격자(month.days)에서 dateKey가 일치하는 날 셀을 찾는다.
+        private fun findDayByKey(snapshot: JSONObject, todayKey: String): JSONObject? {
+            val days = snapshot.optJSONObject("month")?.optJSONArray("days") ?: return null
+            for (i in 0 until days.length()) {
+                val day = days.optJSONObject(i) ?: continue
+                if (day.optString("dateKey") == todayKey) return day
+            }
+            return null
+        }
+
         private fun readSnapshot(context: Context): JSONObject {
             val raw = context
                 .getSharedPreferences("widget_snapshot", Context.MODE_PRIVATE)
@@ -222,6 +352,10 @@ open class TodayWidgetProvider : AppWidgetProvider() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
         }
+
+        // 오늘 날짜 키(YYYY-MM-DD, Dart eventDateKey와 동일 포맷, 로컬 시간대).
+        private fun todayKey(): String =
+            SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
 
         private fun fallbackDateLabel(): String =
             SimpleDateFormat("M/d EEEE", Locale.KOREAN).format(Date())

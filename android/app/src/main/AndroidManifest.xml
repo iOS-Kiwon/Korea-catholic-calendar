@@ -46,6 +46,10 @@
             android:label="@string/today_widget_2x2_name">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <!-- 재부팅/앱 업데이트 후 자정 갱신 알람을 다시 예약(위젯이 전날을 가리키지 않도록). -->
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
