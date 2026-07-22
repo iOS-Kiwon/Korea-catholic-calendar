@@ -2,7 +2,7 @@
 
 백오피스(`/kcc/saints`)에 **수동으로 추가/수정할 성인 항목**을 정리해 두는 문서입니다.
 maria.catholic.or.kr 자동 임포트에 없거나 보완이 필요한 성인을 여기에 먼저 정리한 뒤,
-백오피스 폼에 옮겨 넣습니다. (수동 저장 시 `source='manual'`이 되어 재임포트해도 덮어써지지 않습니다.)
+백오피스의 **JSON 가져오기** 화면에서 검증 후 추가합니다. (수동 저장 시 `source='manual'`이 되어 재임포트해도 덮어써지지 않습니다.)
 
 ## 현재 스키마로 담을 수 있는 필드
 
@@ -10,7 +10,7 @@ maria.catholic.or.kr 자동 임포트에 없거나 보완이 필요한 성인을
 
 | 폼 필드 | 설명 |
 |---------|------|
-| `sourceSaintId` | 기본키(정수, 필수). 수동 항목은 import ID와 겹치지 않는 큰 정수 사용 |
+| `sourceSaintId` | 기본키(정수, 선택). 비우면 백오피스가 `9999999`부터 역순으로 자동 발급 |
 | `nameKo` | 한글명(필수) |
 | `nameLatin` | 라틴/영문명 |
 | `feastMonth` / `feastDay` | 축일 월(1-12) / 일(1-31), 비워도 됨 |
@@ -19,11 +19,43 @@ maria.catholic.or.kr 자동 임포트에 없거나 보완이 필요한 성인을
 | `regionKo` / `regionEn` | 지역(한글 / 영문) |
 | `yearText` | 연도 원문(예: `+34년경`) |
 | `detailUrl` / `url` | 상세/원문 링크(선택) |
+| `aliases` | 검색 별칭 배열 또는 공백/쉼표 구분 문자열(선택) |
 
 > ⚠️ **설명 본문(약력/묵상 등 긴 텍스트)을 담는 필드는 아직 없습니다.**
 > 아래 각 항목의 "설명 본문"을 실제로 저장하려면 `saints`에 `description text` 컬럼과
 > 백오피스 textarea 입력란을 추가해야 합니다(추후 결정). 또한 앱은 아직 성인 데이터를
 > 화면에 노출하지 않으므로, 저장하더라도 앱에는 당장 보이지 않습니다.
+
+---
+
+## JSON 가져오기 형식
+
+`/kcc/saints`의 **JSON 가져오기**에서 아래처럼 붙여넣거나 `.json` 파일을 선택합니다.
+검증 화면에서 자동 발급된 ID, ID 중복, 필수값, 축일 범위를 확인한 뒤 최종 저장합니다.
+
+```json
+{
+  "saints": [
+    {
+      "nameKo": "스테파니아",
+      "nameLatin": "Stephania",
+      "feastMonth": 12,
+      "feastDay": 26,
+      "status": "순교자",
+      "kind": "성인",
+      "regionKo": "예루살렘",
+      "regionEn": "Jerusalem",
+      "yearText": "+34년경",
+      "detailUrl": "",
+      "url": "",
+      "aliases": ["스테파노", "스데파노", "스티븐", "스테판"]
+    }
+  ]
+}
+```
+
+배열만 넣는 형식도 허용합니다. 필드명은 `sourceSaintId`와 `source_saint_id`처럼 camelCase/snake_case 둘 다 사용할 수 있습니다.
+`sourceSaintId`를 생략하면 백오피스가 `9999999`, `9999998`, `9999997` 순서로 비어 있는 수동 ID를 배정합니다.
 
 ---
 
@@ -35,7 +67,7 @@ maria.catholic.or.kr 자동 임포트에 없거나 보완이 필요한 성인을
 
 | 필드 | 값 |
 |------|-----|
-| sourceSaintId | `9991226` (수동용 임의 정수 - import ID와 겹치지 않으면 됨) |
+| sourceSaintId | 비워도 됨. 저장 시 백오피스가 자동 발급 |
 | nameKo | `스테파니아` |
 | nameLatin | `Stephania` |
 | feastMonth | `12` |
