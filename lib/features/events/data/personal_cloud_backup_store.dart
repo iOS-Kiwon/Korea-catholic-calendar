@@ -34,6 +34,7 @@ class PersonalCloudBackupStore {
   static const _driveScopes = [drive.DriveApi.driveAppdataScope];
   static const _driveFileName = 'personalDataSnapshotV1.json';
   static Future<void>? _googleSignInInitialization;
+  static GoogleSignInAccount? _activeGoogleAccount;
 
   /// Checks whether cloud backup is set up, without prompting the user.
   /// iOS → iCloud account present; Android → a Google account already signed in.
@@ -168,11 +169,7 @@ class PersonalCloudBackupStore {
       await _ensureGoogleSignInInitialized();
 
       final googleSignIn = GoogleSignIn.instance;
-      GoogleSignInAccount? account;
-      final lightweight = googleSignIn.attemptLightweightAuthentication();
-      if (lightweight != null) {
-        account = await lightweight;
-      }
+      GoogleSignInAccount? account = _activeGoogleAccount;
 
       if (account == null &&
           promptIfNeeded &&
@@ -181,9 +178,10 @@ class PersonalCloudBackupStore {
       }
 
       if (account == null) {
-        debugPrint('[KCC backup] Google account is not signed in');
+        debugPrint('[KCC backup] Google account is not active in this session');
         return null;
       }
+      _activeGoogleAccount = account;
 
       final authorization =
           await account.authorizationClient.authorizationForScopes(
