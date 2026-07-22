@@ -52,9 +52,16 @@ class _FakeBackupStore extends PersonalCloudBackupStore {
   @override
   Future<bool> promptSetup() async => false;
   @override
-  Future<String?> loadSnapshotJson() async => null;
+  Future<String?> loadSnapshotJson({
+    bool promptIfNeeded = false,
+    bool allowSilentGoogleDrive = false,
+  }) async => null;
   @override
-  Future<bool> saveSnapshotJson(String snapshotJson) async => true;
+  Future<bool> saveSnapshotJson(
+    String snapshotJson, {
+    bool promptIfNeeded = false,
+    bool allowSilentGoogleDrive = false,
+  }) async => true;
 }
 
 Widget _wrap(
@@ -234,9 +241,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final summary = tester.widget<Text>(
-      find.text('19:30 · 성경 공부 · 루카복음 긴 메모'),
-    );
+    final summary = tester.widget<Text>(find.text('19:30 · 성경 공부 · 루카복음 긴 메모'));
     expect(summary.maxLines, 1);
     expect(summary.overflow, TextOverflow.ellipsis);
   });
@@ -296,7 +301,10 @@ void main() {
     await tester.tap(find.widgetWithText(FloatingActionButton, '카테고리 추가'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField).first, '12345678901234567890');
+    await tester.enterText(
+      find.byType(TextField).first,
+      '12345678901234567890',
+    );
     await tester.tap(find.widgetWithText(FilledButton, '추가'));
     await tester.pumpAndSettle();
 

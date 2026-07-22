@@ -35,20 +35,58 @@ class PersonalCloudBackupController {
 
   final Ref _ref;
 
-  Future<bool> restoreIfAvailable() async {
-    final store = _ref.read(personalCloudBackupStoreProvider);
-    final snapshotJson = await store.loadSnapshotJson();
-    if (snapshotJson == null) {
+  Future<bool> restoreIfAvailable({bool promptIfNeeded = false}) async {
+    final snapshot = await findRestorableSnapshot(
+      promptIfNeeded: promptIfNeeded,
+    );
+    if (snapshot == null) {
       debugPrint('[KCC backup] No cloud personal-data snapshot found');
       return false;
     }
 
+    return restoreSnapshot(snapshot);
+  }
+
+  Future<PersonalDataSnapshot?> findRestorableSnapshot({
+    bool promptIfNeeded = false,
+    bool includeSilentGoogleDriveProbe = false,
+  }) async {
+    final store = _ref.read(personalCloudBackupStoreProvider);
+    final prefs = await _ref.read(sharedPreferencesProvider.future);
+    final allowSilentGoogleDrive =
+        !promptIfNeeded &&
+        (includeSilentGoogleDriveProbe ||
+            (prefs.getBool(kGoogleDriveBackupEnabledKey) ?? false));
+    final snapshotJson = await store.loadSnapshotJson(
+      promptIfNeeded: promptIfNeeded,
+      allowSilentGoogleDrive: allowSilentGoogleDrive,
+    );
+    if (snapshotJson == null) return null;
+
     try {
-      final prefs = await _ref.read(sharedPreferencesProvider.future);
       final snapshot = PersonalDataSnapshot.fromJson(
         jsonDecode(snapshotJson) as Map<String, dynamic>,
       );
+      if (snapshot.events.isEmpty && snapshot.categories.isEmpty) return null;
+      return snapshot;
+    } catch (error, stackTrace) {
+      debugPrint('[KCC backup] Failed to parse cloud snapshot: $error');
+      debugPrint('$stackTrace');
+      return null;
+    }
+  }
+
+  Future<bool> restoreSnapshot(
+    PersonalDataSnapshot snapshot, {
+    bool enableGoogleDriveBackup = false,
+  }) async {
+    try {
+      final prefs = await _ref.read(sharedPreferencesProvider.future);
       await PersonalDataBackupRepository(prefs).restoreSnapshot(snapshot);
+      if (enableGoogleDriveBackup &&
+          defaultTargetPlatform == TargetPlatform.android) {
+        await prefs.setBool(kGoogleDriveBackupEnabledKey, true);
+      }
       _ref.invalidate(eventStoreProvider);
       debugPrint(
         '[KCC backup] Restored cloud personal-data snapshot exportedAt=${snapshot.exportedAt.toIso8601String()}',
@@ -61,14 +99,24 @@ class PersonalCloudBackupController {
     }
   }
 
-  Future<void> backupNow() async {
+  Future<void> backupNow({bool promptIfNeeded = false}) async {
     try {
       final prefs = await _ref.read(sharedPreferencesProvider.future);
+      final allowSilentGoogleDrive =
+          !promptIfNeeded &&
+          (prefs.getBool(kGoogleDriveBackupEnabledKey) ?? false);
       final snapshot = PersonalDataBackupRepository(prefs).exportSnapshot();
       final snapshotJson = jsonEncode(snapshot.toJson());
       final saved = await _ref
           .read(personalCloudBackupStoreProvider)
-          .saveSnapshotJson(snapshotJson);
+          .saveSnapshotJson(
+            snapshotJson,
+            promptIfNeeded: promptIfNeeded,
+            allowSilentGoogleDrive: allowSilentGoogleDrive,
+          );
+      if (promptIfNeeded && saved) {
+        await prefs.setBool(kGoogleDriveBackupEnabledKey, true);
+      }
       if (saved) {
         await BackupPrefs.writeNow(
           prefs,

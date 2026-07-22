@@ -19,6 +19,8 @@ enum CloudBackupAvailability {
   unsupported,
 }
 
+const kGoogleDriveBackupEnabledKey = 'google_drive_backup_enabled_v1';
+
 class PersonalCloudBackupStore {
   const PersonalCloudBackupStore({MethodChannel? channel})
     : _channel =
@@ -38,17 +40,7 @@ class PersonalCloudBackupStore {
   Future<CloudBackupAvailability> checkAvailability() async {
     if (kIsWeb) return CloudBackupAvailability.unsupported;
     if (_usesGoogleDriveBackup) {
-      try {
-        await _ensureGoogleSignInInitialized();
-        final lightweight = GoogleSignIn.instance
-            .attemptLightweightAuthentication();
-        final account = lightweight == null ? null : await lightweight;
-        return account != null
-            ? CloudBackupAvailability.available
-            : CloudBackupAvailability.notConfigured;
-      } catch (_) {
-        return CloudBackupAvailability.notConfigured;
-      }
+      return CloudBackupAvailability.notConfigured;
     }
     if (defaultTargetPlatform == TargetPlatform.iOS) {
       try {
@@ -88,8 +80,12 @@ class PersonalCloudBackupStore {
     return false;
   }
 
-  Future<String?> loadSnapshotJson() async {
+  Future<String?> loadSnapshotJson({
+    bool promptIfNeeded = false,
+    bool allowSilentGoogleDrive = false,
+  }) async {
     if (_usesGoogleDriveBackup) {
+      if (!promptIfNeeded && !allowSilentGoogleDrive) return null;
       return _loadGoogleDriveSnapshotJson();
     }
 
@@ -106,9 +102,17 @@ class PersonalCloudBackupStore {
     }
   }
 
-  Future<bool> saveSnapshotJson(String snapshotJson) async {
+  Future<bool> saveSnapshotJson(
+    String snapshotJson, {
+    bool promptIfNeeded = false,
+    bool allowSilentGoogleDrive = false,
+  }) async {
     if (_usesGoogleDriveBackup) {
-      return _saveGoogleDriveSnapshotJson(snapshotJson);
+      if (!promptIfNeeded && !allowSilentGoogleDrive) return false;
+      return _saveGoogleDriveSnapshotJson(
+        snapshotJson,
+        promptIfNeeded: promptIfNeeded,
+      );
     }
 
     try {
@@ -231,8 +235,11 @@ class PersonalCloudBackupStore {
     }
   }
 
-  Future<bool> _saveGoogleDriveSnapshotJson(String snapshotJson) async {
-    final session = await _driveSession(promptIfNeeded: true);
+  Future<bool> _saveGoogleDriveSnapshotJson(
+    String snapshotJson, {
+    required bool promptIfNeeded,
+  }) async {
+    final session = await _driveSession(promptIfNeeded: promptIfNeeded);
     if (session == null) return false;
 
     try {

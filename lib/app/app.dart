@@ -6,11 +6,12 @@ import 'package:go_router/go_router.dart';
 
 import '../features/app_update/app_update_service.dart';
 import '../features/ads/ads.dart';
-import '../features/events/application/category_providers.dart';
+import '../features/app_metadata/app_metadata_service.dart';
 import '../features/events/application/event_providers.dart';
+import '../features/events/presentation/backup_notice.dart';
 import '../features/events/presentation/backup_reminder.dart';
-import '../features/calendar/application/calendar_providers.dart';
 import '../features/widgets/widget_snapshot_service.dart';
+import '../features/calendar/application/calendar_providers.dart';
 import 'router.dart';
 import 'theme/app_theme.dart';
 
@@ -40,17 +41,19 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
       WidgetsBinding.instance.addPostFrameCallback((_) => initAds());
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(personalCloudBackupControllerProvider).restoreIfAvailable().then(
-        (restored) async {
-          if (!mounted) return;
-          if (restored) ref.invalidate(categoriesProvider);
-          final reminderContext = _rootNavigatorKey.currentContext;
-          if (reminderContext == null || !reminderContext.mounted) return;
-          await maybeShowBackupReminder(reminderContext, ref);
-        },
-      );
+      final context = _rootNavigatorKey.currentContext;
+      if (context == null || !context.mounted) return;
+      maybeShowBackupRestoreNotice(context, ref).then((_) async {
+        if (!mounted) return;
+        final reminderContext = _rootNavigatorKey.currentContext;
+        if (reminderContext == null || !reminderContext.mounted) return;
+        await maybeShowBackupReminder(reminderContext, ref);
+      });
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkAppUpdate());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(appMetadataProvider.future);
+    });
   }
 
   Future<void> _checkAppUpdate() async {
@@ -118,9 +121,12 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
                   // 광고 배너는 하단에 '배너 높이 + 세이프영역'만큼 고정되어 있으므로
                   // (maintainBottomViewPadding), 자식의 키보드 인셋을 그만큼 줄여야
                   // 버튼과 키보드 사이에 공백이 생기지 않는다.
-                  final adReserved = bottomAdBannerHeight + media.viewPadding.bottom;
-                  final reduced = (media.viewInsets.bottom - adReserved)
-                      .clamp(0.0, double.infinity);
+                  final adReserved =
+                      bottomAdBannerHeight + media.viewPadding.bottom;
+                  final reduced = (media.viewInsets.bottom - adReserved).clamp(
+                    0.0,
+                    double.infinity,
+                  );
                   return MediaQuery(
                     data: media.copyWith(
                       viewInsets: EdgeInsets.fromLTRB(

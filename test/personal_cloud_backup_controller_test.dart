@@ -4,6 +4,7 @@ import 'package:catholic_calendar/features/events/application/event_providers.da
 import 'package:catholic_calendar/features/events/data/category_repository.dart';
 import 'package:catholic_calendar/features/events/data/event_repository.dart';
 import 'package:catholic_calendar/features/events/data/personal_cloud_backup_store.dart';
+import 'package:catholic_calendar/features/events/data/personal_data_backup_repository.dart';
 import 'package:catholic_calendar/features/events/model/calendar_event.dart';
 import 'package:catholic_calendar/features/events/model/event_category.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,13 +16,30 @@ class FakePersonalCloudBackupStore extends PersonalCloudBackupStore {
 
   String? remoteSnapshotJson;
   String? savedSnapshotJson;
+  bool? lastLoadPromptIfNeeded;
+  bool? lastLoadAllowSilentGoogleDrive;
+  bool? lastPromptIfNeeded;
+  bool? lastAllowSilentGoogleDrive;
 
   @override
-  Future<String?> loadSnapshotJson() async => remoteSnapshotJson;
+  Future<String?> loadSnapshotJson({
+    bool promptIfNeeded = false,
+    bool allowSilentGoogleDrive = false,
+  }) async {
+    lastLoadPromptIfNeeded = promptIfNeeded;
+    lastLoadAllowSilentGoogleDrive = allowSilentGoogleDrive;
+    return remoteSnapshotJson;
+  }
 
   @override
-  Future<bool> saveSnapshotJson(String snapshotJson) async {
+  Future<bool> saveSnapshotJson(
+    String snapshotJson, {
+    bool promptIfNeeded = false,
+    bool allowSilentGoogleDrive = false,
+  }) async {
     savedSnapshotJson = snapshotJson;
+    lastPromptIfNeeded = promptIfNeeded;
+    lastAllowSilentGoogleDrive = allowSilentGoogleDrive;
     return true;
   }
 }
@@ -68,6 +86,57 @@ void main() {
     expect(saved['categoriesSeeded'], isTrue);
   });
 
+  test(
+    'enables future Google Drive auto backups after prompted backup',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      await EventRepository(prefs).save({
+        '2026-07-19': [_event(id: '1', date: '2026-07-19')],
+      });
+
+      final fakeStore = FakePersonalCloudBackupStore();
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWith((ref) async => prefs),
+          personalCloudBackupStoreProvider.overrideWithValue(fakeStore),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container
+          .read(personalCloudBackupControllerProvider)
+          .backupNow(promptIfNeeded: true);
+
+      expect(prefs.getBool(kGoogleDriveBackupEnabledKey), isTrue);
+      expect(fakeStore.lastPromptIfNeeded, isTrue);
+    },
+  );
+
+  test('uses silent Google Drive backup after setup is enabled', () async {
+    SharedPreferences.setMockInitialValues({
+      kGoogleDriveBackupEnabledKey: true,
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await EventRepository(prefs).save({
+      '2026-07-19': [_event(id: '1', date: '2026-07-19')],
+    });
+
+    final fakeStore = FakePersonalCloudBackupStore();
+    final container = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWith((ref) async => prefs),
+        personalCloudBackupStoreProvider.overrideWithValue(fakeStore),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(personalCloudBackupControllerProvider).backupNow();
+
+    expect(fakeStore.lastPromptIfNeeded, isFalse);
+    expect(fakeStore.lastAllowSilentGoogleDrive, isTrue);
+  });
+
   test('restores a cloud snapshot into local personal-data storage', () async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
@@ -106,4 +175,73 @@ void main() {
     expect(CategoryRepository(prefs).load().single.name, '미사');
     expect(prefs.getBool(CategoryRepository.seededStorageKey), isTrue);
   });
+
+  test(
+    'quietly probes for reinstall backup without stored setup flag',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final remoteSnapshot = jsonEncode({
+        'schemaVersion': 1,
+        'exportedAt': '2026-07-19T00:00:00.000Z',
+        'events': {
+          '2026-07-19': [_event(id: 'remote-1', date: '2026-07-19').toJson()],
+        },
+        'categories': const [],
+        'categoriesSeeded': false,
+      });
+      final fakeStore = FakePersonalCloudBackupStore(
+        remoteSnapshotJson: remoteSnapshot,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWith((ref) async => prefs),
+          personalCloudBackupStoreProvider.overrideWithValue(fakeStore),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final snapshot = await container
+          .read(personalCloudBackupControllerProvider)
+          .findRestorableSnapshot(includeSilentGoogleDriveProbe: true);
+
+      expect(snapshot, isNotNull);
+      expect(fakeStore.lastLoadPromptIfNeeded, isFalse);
+      expect(fakeStore.lastLoadAllowSilentGoogleDrive, isTrue);
+    },
+  );
+
+  test(
+    'enables future silent backup after restoring reinstall backup',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final snapshot = PersonalDataSnapshot(
+        schemaVersion: 1,
+        exportedAt: DateTime.parse('2026-07-19T00:00:00.000Z'),
+        events: {
+          '2026-07-19': [_event(id: 'remote-1', date: '2026-07-19')],
+        },
+        categories: const [],
+        categoriesSeeded: false,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWith((ref) async => prefs),
+          personalCloudBackupStoreProvider.overrideWithValue(
+            FakePersonalCloudBackupStore(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final restored = await container
+          .read(personalCloudBackupControllerProvider)
+          .restoreSnapshot(snapshot, enableGoogleDriveBackup: true);
+
+      expect(restored, isTrue);
+      expect(EventRepository(prefs).load()['2026-07-19'], hasLength(1));
+      expect(prefs.getBool(kGoogleDriveBackupEnabledKey), isTrue);
+    },
+  );
 }
