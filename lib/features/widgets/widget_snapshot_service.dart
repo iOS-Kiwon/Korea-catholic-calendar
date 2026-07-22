@@ -103,7 +103,12 @@ class WidgetSnapshotService {
       'weekday': date.weekday,
       'inMonth': inMonth,
       'isToday': isToday,
+      // 달력 격자 셀에 표시되는 텍스트(주요 전례일만).
       'liturgicalTitle': notable ? day.title : '',
+      // 위젯이 이 날을 '오늘'로 판정했을 때 작은 위젯에 쓰는 전체 정보.
+      // (자정이 지나면 위젯은 baked된 today가 아니라 이 격자에서 오늘을 찾아 그린다.)
+      'titleFull': day.title,
+      'dateLabel': '${date.month}/${date.day} ${_weekdayLabel(date.weekday)}요일',
       'liturgicalColor': _colorName(day.color),
       'eventTitle': dayEvents.isEmpty ? '' : dayEvents.first.title,
       'extraEventCount': dayEvents.length > 1 ? dayEvents.length - 1 : 0,
