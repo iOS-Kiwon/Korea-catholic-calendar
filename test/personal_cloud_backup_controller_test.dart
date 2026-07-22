@@ -113,7 +113,7 @@ void main() {
     },
   );
 
-  test('uses silent Google Drive backup after setup is enabled', () async {
+  test('skips silent Google Drive backup during automatic save', () async {
     SharedPreferences.setMockInitialValues({
       kGoogleDriveBackupEnabledKey: true,
     });
@@ -134,7 +134,7 @@ void main() {
     await container.read(personalCloudBackupControllerProvider).backupNow();
 
     expect(fakeStore.lastPromptIfNeeded, isFalse);
-    expect(fakeStore.lastAllowSilentGoogleDrive, isTrue);
+    expect(fakeStore.lastAllowSilentGoogleDrive, isFalse);
   });
 
   test('restores a cloud snapshot into local personal-data storage', () async {
@@ -177,7 +177,7 @@ void main() {
   });
 
   test(
-    'quietly probes for reinstall backup without stored setup flag',
+    'does not request silent Google Drive probe during reinstall check',
     () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
@@ -207,7 +207,7 @@ void main() {
 
       expect(snapshot, isNotNull);
       expect(fakeStore.lastLoadPromptIfNeeded, isFalse);
-      expect(fakeStore.lastLoadAllowSilentGoogleDrive, isTrue);
+      expect(fakeStore.lastLoadAllowSilentGoogleDrive, isFalse);
     },
   );
 

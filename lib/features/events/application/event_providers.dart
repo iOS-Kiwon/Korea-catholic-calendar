@@ -55,6 +55,7 @@ class PersonalCloudBackupController {
     final prefs = await _ref.read(sharedPreferencesProvider.future);
     final allowSilentGoogleDrive =
         !promptIfNeeded &&
+        defaultTargetPlatform != TargetPlatform.android &&
         (includeSilentGoogleDriveProbe ||
             (prefs.getBool(kGoogleDriveBackupEnabledKey) ?? false));
     final snapshotJson = await store.loadSnapshotJson(
@@ -104,6 +105,7 @@ class PersonalCloudBackupController {
       final prefs = await _ref.read(sharedPreferencesProvider.future);
       final allowSilentGoogleDrive =
           !promptIfNeeded &&
+          defaultTargetPlatform != TargetPlatform.android &&
           (prefs.getBool(kGoogleDriveBackupEnabledKey) ?? false);
       final snapshot = PersonalDataBackupRepository(prefs).exportSnapshot();
       final snapshotJson = jsonEncode(snapshot.toJson());
