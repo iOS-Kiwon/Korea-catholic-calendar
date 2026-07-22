@@ -162,7 +162,7 @@ version_code() {
 }
 
 prompt_release_version() {
-  local platform file current current_name current_number current_code next_name next_number next_code same_answer
+  local platform file current current_name current_number current_code next_name next_number next_code same_answer android_auto build_choice
   platform="$1"
   file="$2"
   current="$(read_release_version "$file")"
@@ -170,18 +170,18 @@ prompt_release_version() {
   current_number="${current#*+}"
   current_code="$(version_code "$current_name")"
 
+  # Android는 Google Play 규칙상 buildNumber(versionCode)가 앱 버전(versionName)과
+  # 무관하게 업로드마다 반드시 증가해야 한다. 그래서 빌드번호는 입력받지 않고 무조건 +1.
+  # iOS는 앱 버전을 올리면 빌드번호를 0부터 다시 시작할 수 있어 기존처럼 입력받는다.
+  android_auto=0
+  [ "$platform" = "Android" ] && android_auto=1
+
   while true; do
     printf "%s 앱 버전 입력 (현재 %s, 예: 1.2.3): " "$platform" "$current_name"
     read -r next_name
-    printf "%s 빌드번호 입력 (현재 %s, 앱 버전 올림 시 0부터 가능, 예: 42): " "$platform" "$current_number"
-    read -r next_number
 
     if [[ ! "$next_name" =~ ^[0-9]+(\.[0-9]+){2}$ ]]; then
       warn "$platform 앱 버전은 1.2.3 형식이어야 합니다."
-      continue
-    fi
-    if [[ ! "$next_number" =~ ^[0-9]+$ ]]; then
-      warn "$platform 빌드번호는 0 이상의 정수여야 합니다."
       continue
     fi
     next_code="$(version_code "$next_name")"
@@ -189,23 +189,58 @@ prompt_release_version() {
       warn "입력한 $platform 앱 버전($next_name)이 현재 버전($current_name)보다 낮습니다. 다시 입력하세요."
       continue
     fi
-    if ((next_code == current_code && 10#$next_number < 10#$current_number)); then
-      warn "입력한 $platform 빌드번호($next_number)가 현재 빌드번호($current_number)보다 낮습니다. 다시 입력하세요."
-      continue
-    fi
-    if [ "$next_name" = "$current_name" ] && [ "$next_number" = "$current_number" ]; then
+
+    if [ "$android_auto" -eq 1 ]; then
+      # 빌드번호(versionCode)는 앱 버전과 무관하게 관리한다.
+      # 현재 유지 / +1 / 직접 입력 중 선택 (동일 빌드번호로 다시 빌드하는 경우도 있음).
       while true; do
-        printf "입력한 %s 앱 버전과 빌드번호가 현재와 동일합니다 (%s+%s). 이 값으로 빌드할까요? [y/N]: " "$platform" "$next_name" "$next_number"
-        read -r same_answer
-        case "$same_answer" in
-          [Yy]|[Yy][Ee][Ss]) break ;;
-          ""|[Nn]|[Nn][Oo])
-            warn "다시 입력하세요."
-            continue 2
-            ;;
-          *) warn "y 또는 n으로 입력하세요." ;;
+        printf "%s 빌드번호 (현재 %s): [Enter]=+1(%s) / s=현재 유지(%s) / 숫자 직접 입력: " \
+          "$platform" "$current_number" "$((10#$current_number + 1))" "$current_number"
+        read -r build_choice
+        case "$build_choice" in
+          "")
+            next_number=$((10#$current_number + 1)) ;;
+          [Ss])
+            next_number=$((10#$current_number)) ;;
+          *[!0-9]*)
+            warn "Enter(+1) / s(현재 유지) / 0 이상의 정수 중에서 입력하세요."
+            continue ;;
+          *)
+            if ((10#$build_choice < 10#$current_number)); then
+              warn "빌드번호($build_choice)가 현재($current_number)보다 낮습니다. 같은 값 이상이어야 합니다(동일 값은 s)."
+              continue
+            fi
+            next_number=$((10#$build_choice)) ;;
         esac
+        break
       done
+      info "$platform 빌드번호: $current_number -> $next_number (versionCode)"
+    else
+      printf "%s 빌드번호 입력 (현재 %s, 앱 버전 올림 시 0부터 가능, 예: 42): " "$platform" "$current_number"
+      read -r next_number
+
+      if [[ ! "$next_number" =~ ^[0-9]+$ ]]; then
+        warn "$platform 빌드번호는 0 이상의 정수여야 합니다."
+        continue
+      fi
+      if ((next_code == current_code && 10#$next_number < 10#$current_number)); then
+        warn "입력한 $platform 빌드번호($next_number)가 현재 빌드번호($current_number)보다 낮습니다. 다시 입력하세요."
+        continue
+      fi
+      if [ "$next_name" = "$current_name" ] && [ "$next_number" = "$current_number" ]; then
+        while true; do
+          printf "입력한 %s 앱 버전과 빌드번호가 현재와 동일합니다 (%s+%s). 이 값으로 빌드할까요? [y/N]: " "$platform" "$next_name" "$next_number"
+          read -r same_answer
+          case "$same_answer" in
+            [Yy]|[Yy][Ee][Ss]) break ;;
+            ""|[Nn]|[Nn][Oo])
+              warn "다시 입력하세요."
+              continue 2
+              ;;
+            *) warn "y 또는 n으로 입력하세요." ;;
+          esac
+        done
+      fi
     fi
 
     write_release_version "$file" "$next_name" "$next_number"

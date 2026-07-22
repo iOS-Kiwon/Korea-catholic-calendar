@@ -1,4 +1,5 @@
 import http from 'node:http';
+import fs from 'node:fs';
 import pg from 'pg';
 
 const port = Number(process.env.API_PORT || 8080);
@@ -14,6 +15,8 @@ const workerBaseUrl =
   process.env.CLOUDFLARE_WORKER_BASE_URL ||
   'https://catholic-calendar.sidore.workers.dev';
 const apiPrefix = '/kcc/v1';
+const saintsAliasFile =
+  process.env.SAINTS_ALIAS_FILE || '/app/saint-aliases.json';
 
 const startedAt = new Date();
 const db = createDbPool();
@@ -56,6 +59,34 @@ function sendText(res, status, body) {
 
 function calendarUrl(year, month) {
   return `${workerBaseUrl.replace(/\/+$/, '')}/v1/calendar/${year}/${month}`;
+}
+
+function loadSaintAliases() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(saintsAliasFile, 'utf8'));
+    const byName = parsed.byName || {};
+    const byId = parsed.byId || (parsed.byName ? {} : parsed);
+    return {
+      byName: normalizeAliasMap(byName),
+      byId: normalizeAliasMap(byId),
+    };
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      console.warn(`Failed to load saint aliases: ${saintsAliasFile}`, error);
+    }
+    return { byName: {}, byId: {} };
+  }
+}
+
+function normalizeAliasMap(value) {
+  return Object.fromEntries(
+    Object.entries(value).map(([key, aliases]) => [
+      String(key).trim(),
+      Array.isArray(aliases)
+        ? [...new Set(aliases.map(String).map((s) => s.trim()).filter(Boolean))]
+        : [],
+    ]),
+  );
 }
 
 function normalizePlatform(value) {
@@ -163,6 +194,87 @@ async function ensureSchema() {
   await db.query(`
     ALTER TABLE app_update_policy
     ADD COLUMN IF NOT EXISTS recommended_update_title text NOT NULL DEFAULT '새 버전이 있습니다'
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS saints (
+      source_saint_id integer PRIMARY KEY,
+      name_ko text NOT NULL,
+      name_latin text NOT NULL DEFAULT '',
+      feast_month integer,
+      feast_day integer,
+      status text NOT NULL DEFAULT '',
+      kind text NOT NULL DEFAULT '',
+      region_ko text NOT NULL DEFAULT '',
+      region_en text NOT NULL DEFAULT '',
+      year_text text NOT NULL DEFAULT '',
+      detail_url text NOT NULL DEFAULT '',
+      url text NOT NULL DEFAULT '',
+      search_text text NOT NULL DEFAULT '',
+      source text NOT NULL DEFAULT 'maria-import',
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+
+  await db.query(`
+    ALTER TABLE saints ADD COLUMN IF NOT EXISTS url text NOT NULL DEFAULT ''
+  `);
+
+  await db.query(`
+    ALTER TABLE saints ADD COLUMN IF NOT EXISTS search_text text NOT NULL DEFAULT ''
+  `);
+
+  await db.query(`
+    UPDATE saints
+    SET url = 'https://m.mariasarang.net/saint/bbs_view.asp?index=bbs_saint&no=' || source_saint_id
+    WHERE url = ''
+  `);
+
+  await db.query(`
+    UPDATE saints
+    SET search_text = trim(concat_ws(' ', name_ko, name_latin, status, kind, region_ko, region_en, year_text))
+    WHERE search_text = ''
+  `);
+
+  const saintAliases = loadSaintAliases();
+  for (const [id, aliases] of Object.entries(saintAliases.byId)) {
+    for (const alias of aliases) {
+      await db.query(
+        `
+          UPDATE saints
+          SET search_text = trim(concat_ws(' ', search_text, $2))
+          WHERE source_saint_id = $1
+            AND search_text NOT ILIKE '%' || $2 || '%'
+        `,
+        [Number(id), alias],
+      );
+    }
+  }
+
+  for (const [name, aliases] of Object.entries(saintAliases.byName)) {
+    for (const alias of aliases) {
+      await db.query(
+        `
+          UPDATE saints
+          SET search_text = trim(concat_ws(' ', search_text, $2))
+          WHERE (name_ko ILIKE '%' || $1 || '%' OR name_latin ILIKE '%' || $1 || '%')
+            AND search_text NOT ILIKE '%' || $2 || '%'
+        `,
+        [name, alias],
+      );
+    }
+  }
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS saints_feast_idx ON saints (feast_month, feast_day)
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS saints_name_idx ON saints (name_ko)
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS saints_search_text_idx ON saints (search_text)
   `);
 }
 
@@ -383,6 +495,66 @@ async function handleAppVersion(req, res, url) {
   });
 }
 
+async function handleSaints(req, res, url) {
+  if (req.method !== 'GET') {
+    sendJson(res, 405, { error: 'method_not_allowed' }, { allow: 'GET' });
+    return;
+  }
+  if (!db) {
+    sendJson(res, 503, { error: 'database_unavailable' });
+    return;
+  }
+
+  const q = String(url.searchParams.get('q') || '').trim();
+  const month = Number(url.searchParams.get('month') || 0);
+  const day = Number(url.searchParams.get('day') || 0);
+  const limit = Math.min(50, Math.max(1, Number(url.searchParams.get('limit') || 30)));
+  const where = [];
+  const args = [];
+  if (q) {
+    args.push(`%${q}%`);
+    where.push(`(name_ko ILIKE $${args.length} OR name_latin ILIKE $${args.length} OR search_text ILIKE $${args.length})`);
+  }
+  if (Number.isInteger(month) && month >= 1 && month <= 12) {
+    args.push(month);
+    where.push(`feast_month = $${args.length}`);
+  }
+  if (Number.isInteger(day) && day >= 1 && day <= 31) {
+    args.push(day);
+    where.push(`feast_day = $${args.length}`);
+  }
+  args.push(limit);
+  const limitIndex = args.length;
+
+  const result = await db.query(
+    `
+      SELECT source_saint_id, name_ko, name_latin, feast_month, feast_day,
+             status, kind, region_ko, region_en, year_text, url
+      FROM saints
+      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+      ORDER BY feast_month NULLS LAST, feast_day NULLS LAST, name_ko
+      LIMIT $${limitIndex}
+    `,
+    args,
+  );
+
+  sendJson(res, 200, {
+    items: result.rows.map((r) => ({
+      id: Number(r.source_saint_id),
+      nameKo: r.name_ko,
+      nameLatin: r.name_latin,
+      feastMonth: r.feast_month == null ? null : Number(r.feast_month),
+      feastDay: r.feast_day == null ? null : Number(r.feast_day),
+      status: r.status,
+      kind: r.kind,
+      regionKo: r.region_ko,
+      regionEn: r.region_en,
+      yearText: r.year_text,
+      url: r.url,
+    })),
+  });
+}
+
 async function handleRequest(req, res) {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
 
@@ -414,6 +586,11 @@ async function handleRequest(req, res) {
 
   if (url.pathname === `${apiPrefix}/app/version`) {
     await handleAppVersion(req, res, url);
+    return;
+  }
+
+  if (url.pathname === `${apiPrefix}/saints`) {
+    await handleSaints(req, res, url);
     return;
   }
 

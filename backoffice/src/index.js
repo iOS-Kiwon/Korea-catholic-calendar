@@ -1,5 +1,6 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import pg from 'pg';
 
 const port = Number(process.env.BACKOFFICE_PORT || 3000);
@@ -13,6 +14,8 @@ const authLockMs = Number(process.env.ADMIN_AUTH_LOCK_SECONDS || 300) * 1000;
 const apiBaseUrl =
   process.env.API_INTERNAL_BASE_URL ||
   `http://api:${process.env.API_PORT || 8080}/kcc/v1`;
+const saintsAliasFile =
+  process.env.SAINTS_ALIAS_FILE || '/app/saint-aliases.json';
 const failedAuthAttempts = new Map();
 
 const db = new pg.Pool({
@@ -127,10 +130,63 @@ async function ensureSchema() {
       region_en text NOT NULL DEFAULT '',
       year_text text NOT NULL DEFAULT '',
       detail_url text NOT NULL DEFAULT '',
+      url text NOT NULL DEFAULT '',
+      search_text text NOT NULL DEFAULT '',
       source text NOT NULL DEFAULT 'maria-import',
       updated_at timestamptz NOT NULL DEFAULT now()
     )
   `);
+
+  await db.query(`
+    ALTER TABLE saints
+    ADD COLUMN IF NOT EXISTS url text NOT NULL DEFAULT ''
+  `);
+
+  await db.query(`
+    ALTER TABLE saints
+    ADD COLUMN IF NOT EXISTS search_text text NOT NULL DEFAULT ''
+  `);
+
+  await db.query(`
+    UPDATE saints
+    SET url = 'https://m.mariasarang.net/saint/bbs_view.asp?index=bbs_saint&no=' || source_saint_id
+    WHERE url = ''
+  `);
+
+  await db.query(`
+    UPDATE saints
+    SET search_text = trim(concat_ws(' ', name_ko, name_latin, status, kind, region_ko, region_en, year_text))
+    WHERE search_text = ''
+  `);
+
+  const saintAliases = loadSaintAliasDoc();
+  for (const [id, aliases] of Object.entries(saintAliases.byId)) {
+    for (const alias of aliases) {
+      await db.query(
+        `
+          UPDATE saints
+          SET search_text = trim(concat_ws(' ', search_text, $2))
+          WHERE source_saint_id = $1
+            AND search_text NOT ILIKE '%' || $2 || '%'
+        `,
+        [Number(id), alias],
+      );
+    }
+  }
+
+  for (const [name, aliases] of Object.entries(saintAliases.byName)) {
+    for (const alias of aliases) {
+      await db.query(
+        `
+          UPDATE saints
+          SET search_text = trim(concat_ws(' ', search_text, $2))
+          WHERE (name_ko ILIKE '%' || $1 || '%' OR name_latin ILIKE '%' || $1 || '%')
+            AND search_text NOT ILIKE '%' || $2 || '%'
+        `,
+        [name, alias],
+      );
+    }
+  }
 
   await db.query(`
     CREATE INDEX IF NOT EXISTS saints_feast_idx ON saints (feast_month, feast_day)
@@ -139,6 +195,69 @@ async function ensureSchema() {
   await db.query(`
     CREATE INDEX IF NOT EXISTS saints_name_idx ON saints (name_ko)
   `);
+}
+
+function loadSaintAliasDoc() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(saintsAliasFile, 'utf8'));
+    const byName = parsed.byName || {};
+    const byId = parsed.byId || (parsed.byName ? {} : parsed);
+    return {
+      byName: normalizeAliasMap(byName),
+      byId: normalizeAliasMap(byId),
+    };
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      console.warn(`Failed to load saint aliases: ${saintsAliasFile}`, error);
+    }
+    return { byName: {}, byId: {} };
+  }
+}
+
+function normalizeAliasMap(value) {
+  return Object.fromEntries(
+    Object.entries(value).map(([key, aliases]) => [
+      String(key).trim(),
+      Array.isArray(aliases)
+        ? [...new Set(aliases.map(String).map((s) => s.trim()).filter(Boolean))]
+        : [],
+    ]),
+  );
+}
+
+function nameAliasesForSaint(doc, nameKo, nameLatin = '') {
+  const aliases = new Set();
+  const haystack = `${nameKo || ''} ${nameLatin || ''}`;
+  for (const [name, values] of Object.entries(doc.byName)) {
+    if (name && haystack.includes(name)) {
+      for (const alias of values) aliases.add(alias);
+    }
+  }
+  return [...aliases];
+}
+
+function saveSaintAliases(sourceSaintId, aliases) {
+  const normalizedId = String(Number(sourceSaintId));
+  const doc = loadSaintAliasDoc();
+  if (aliases.length === 0) {
+    delete doc.byId[normalizedId];
+  } else {
+    doc.byId[normalizedId] = aliases;
+  }
+  const sortedByName = Object.fromEntries(
+    Object.entries(doc.byName)
+      .filter(([name, values]) => name && values.length > 0)
+      .sort(([a], [b]) => a.localeCompare(b, 'ko')),
+  );
+  const sortedById = Object.fromEntries(
+    Object.entries(doc.byId)
+      .filter(([id, values]) => Number.isInteger(Number(id)) && values.length > 0)
+      .sort(([a], [b]) => Number(a) - Number(b)),
+  );
+  fs.writeFileSync(
+    saintsAliasFile,
+    `${JSON.stringify({ byName: sortedByName, byId: sortedById }, null, 2)}\n`,
+  );
 }
 
 function normalizeBasePath(value) {
@@ -1729,28 +1848,32 @@ async function handlePost(req, res, action) {
 
 const SAINTS_PAGE_SIZE = 50;
 
-function buildSaintsWhere(q, month) {
+function buildSaintsWhere(q, month, day) {
   const where = [];
   const args = [];
   if (q) {
     args.push(`%${q}%`);
-    where.push(`(name_ko ILIKE $${args.length} OR name_latin ILIKE $${args.length})`);
+    where.push(`(name_ko ILIKE $${args.length} OR name_latin ILIKE $${args.length} OR search_text ILIKE $${args.length})`);
   }
   if (month) {
     args.push(month);
     where.push(`feast_month = $${args.length}`);
   }
+  if (day) {
+    args.push(day);
+    where.push(`feast_day = $${args.length}`);
+  }
   return { clause: where.length ? `WHERE ${where.join(' AND ')}` : '', args };
 }
 
-async function countSaints({ q, month }) {
-  const { clause, args } = buildSaintsWhere(q, month);
+async function countSaints({ q, month, day }) {
+  const { clause, args } = buildSaintsWhere(q, month, day);
   const result = await db.query(`SELECT count(*)::int AS n FROM saints ${clause}`, args);
   return result.rows[0]?.n || 0;
 }
 
-async function listSaints({ q, month, limit, offset }) {
-  const { clause, args } = buildSaintsWhere(q, month);
+async function listSaints({ q, month, day, limit, offset }) {
+  const { clause, args } = buildSaintsWhere(q, month, day);
   args.push(limit);
   const limIdx = args.length;
   args.push(offset);
@@ -1758,7 +1881,7 @@ async function listSaints({ q, month, limit, offset }) {
   const result = await db.query(
     `
       SELECT source_saint_id, name_ko, name_latin, feast_month, feast_day,
-             status, kind, region_ko, region_en, year_text, source, updated_at
+             status, kind, region_ko, region_en, year_text, url, source, updated_at
       FROM saints
       ${clause}
       ORDER BY feast_month NULLS LAST, feast_day NULLS LAST, name_ko
@@ -1774,14 +1897,28 @@ async function getSaint(id) {
   return result.rows[0] || null;
 }
 
+async function nextManualSaintId() {
+  const result = await db.query(`
+    SELECT COALESCE(MIN(source_saint_id), 10000000) - 1 AS id
+    FROM saints
+    WHERE source_saint_id BETWEEN 9000000 AND 9999999
+  `);
+  return Number(result.rows[0]?.id || 9999999);
+}
+
+async function nextManualSaintIds(count) {
+  const firstId = await nextManualSaintId();
+  return Array.from({ length: count }, (_, index) => firstId - index);
+}
+
 async function upsertSaintManual(s) {
   await db.query(
     `
       INSERT INTO saints (
         source_saint_id, name_ko, name_latin, feast_month, feast_day,
-        status, kind, region_ko, region_en, year_text, detail_url, source, updated_at
+        status, kind, region_ko, region_en, year_text, detail_url, url, search_text, source, updated_at
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'manual', now())
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'manual', now())
       ON CONFLICT (source_saint_id) DO UPDATE SET
         name_ko = EXCLUDED.name_ko,
         name_latin = EXCLUDED.name_latin,
@@ -1793,6 +1930,8 @@ async function upsertSaintManual(s) {
         region_en = EXCLUDED.region_en,
         year_text = EXCLUDED.year_text,
         detail_url = EXCLUDED.detail_url,
+        url = EXCLUDED.url,
+        search_text = EXCLUDED.search_text,
         source = 'manual',
         updated_at = now()
     `,
@@ -1808,8 +1947,37 @@ async function upsertSaintManual(s) {
       s.regionEn,
       s.yearText,
       s.detailUrl,
+      s.url,
+      s.searchText,
     ],
   );
+}
+
+function parseSaintAliases(value) {
+  return [
+    ...new Set(
+      String(value || '')
+        .split(/[\s,]+/)
+        .map((s) => s.trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
+function buildSaintSearchText(s, aliases) {
+  return [
+    s.nameKo,
+    s.nameLatin,
+    s.status,
+    s.kind,
+    s.regionKo,
+    s.regionEn,
+    s.yearText,
+    ...aliases,
+  ]
+    .map((s) => String(s || '').trim())
+    .filter(Boolean)
+    .join(' ');
 }
 
 function normalizeSaintForm(form) {
@@ -1831,8 +1999,9 @@ function normalizeSaintForm(form) {
     throw new Error('invalid_day');
   }
 
-  return {
+  const saint = {
     sourceSaintId,
+    isNew: String(form.get('formMode') || '') === 'new',
     nameKo,
     nameLatin: String(form.get('nameLatin') || '').trim(),
     feastMonth,
@@ -1843,6 +2012,13 @@ function normalizeSaintForm(form) {
     regionEn: String(form.get('regionEn') || '').trim(),
     yearText: String(form.get('yearText') || '').trim(),
     detailUrl: String(form.get('detailUrl') || '').trim(),
+    url: String(form.get('url') || '').trim(),
+  };
+  const aliases = parseSaintAliases(form.get('aliases'));
+  return {
+    ...saint,
+    aliases,
+    searchText: buildSaintSearchText(saint, aliases),
   };
 }
 
@@ -1860,7 +2036,11 @@ function saintRows(rows) {
         r.source === 'manual'
           ? ' <span style="color:var(--primary);font-size:12px;">· 수정됨</span>'
           : '';
+      const url = r.url
+        ? `<a class="button secondary" href="${escapeHtml(r.url)}" target="_blank" rel="noopener">열기</a>`
+        : '';
       return `<tr>
+        <td>${Number(r.source_saint_id)}</td>
         <td>${escapeHtml(r.name_ko)}${manual}</td>
         <td>${escapeHtml(r.name_latin)}</td>
         <td>${feast}</td>
@@ -1868,6 +2048,7 @@ function saintRows(rows) {
         <td>${escapeHtml(r.kind)}</td>
         <td>${escapeHtml(region)}</td>
         <td>${escapeHtml(r.year_text)}</td>
+        <td>${url}</td>
         <td><a class="button secondary" href="${basePath}/saints/edit?id=${Number(r.source_saint_id)}">수정</a></td>
       </tr>`;
     })
@@ -1875,26 +2056,51 @@ function saintRows(rows) {
   return `<table>
     <thead>
       <tr>
-        <th>이름</th><th>라틴/영문</th><th>축일</th><th>신분</th><th>등급</th><th>지역</th><th>연도</th><th></th>
+        <th>ID</th><th>이름</th><th>라틴/영문</th><th>축일</th><th>신분</th><th>등급</th><th>지역</th><th>연도</th><th>URL</th><th></th>
       </tr>
     </thead>
     <tbody>${cells}</tbody>
   </table>`;
 }
 
-function saintEditForm(saint) {
+function manualSaintTemplate(fallbackId) {
+  return {
+    source_saint_id: fallbackId,
+    name_ko: '',
+    name_latin: '',
+    feast_month: null,
+    feast_day: null,
+    status: '',
+    kind: '',
+    region_ko: '',
+    region_en: '',
+    year_text: '',
+    detail_url: '',
+    url: '',
+    source: 'manual',
+  };
+}
+
+function saintEditForm(saint, aliases, inheritedAliases, options = {}) {
   const id = Number(saint.source_saint_id);
   const detail = saint.detail_url
     ? ` · <a href="${escapeHtml(saint.detail_url)}" target="_blank" rel="noopener">원본 보기</a>`
     : '';
+  const aliasText = aliases.join(' ');
+  const inherited = inheritedAliases.join(' ');
+  const isNew = options.mode === 'new';
+  const title = isNew ? '성인 수동 추가' : `${escapeHtml(saint.name_ko)} 수정`;
+  const help = isNew
+    ? '자동 임포트에 없거나 보완이 필요한 성인을 직접 추가합니다. 저장하면 출처가 <strong>manual</strong>로 보존됩니다.'
+    : `원본 ID ${id}${detail} · 저장하면 출처가 <strong>manual</strong>로 바뀌어 재가져오기 시 덮어쓰지 않습니다.`;
   return `
     <form class="editor" method="post" action="${basePath}/saints/edit/commit">
-      <input type="hidden" name="sourceSaintId" value="${id}">
-      <input type="hidden" name="detailUrl" value="${escapeHtml(saint.detail_url || '')}">
+      <input type="hidden" name="formMode" value="${isNew ? 'new' : 'edit'}">
       <div>
-        <h2>${escapeHtml(saint.name_ko)} 수정</h2>
-        <div class="sub">원본 ID ${id}${detail} · 저장하면 출처가 <strong>manual</strong>로 바뀌어 재가져오기 시 덮어쓰지 않습니다.</div>
+        <h2>${title}</h2>
+        <div class="sub">${help}</div>
       </div>
+      <label class="form-row">${isNew ? 'ID (자동 발급)' : 'ID'}<input name="sourceSaintId" class="wide" inputmode="numeric" value="${id}" readonly></label>
       <div class="form-grid">
         <label class="form-row">한글명<input name="nameKo" class="wide" value="${escapeHtml(saint.name_ko)}"></label>
         <label class="form-row">라틴/영문명<input name="nameLatin" class="wide" value="${escapeHtml(saint.name_latin)}"></label>
@@ -1912,6 +2118,10 @@ function saintEditForm(saint) {
         <label class="form-row">지역 (영문)<input name="regionEn" class="wide" value="${escapeHtml(saint.region_en)}"></label>
       </div>
       <label class="form-row">연도<input name="yearText" class="wide" value="${escapeHtml(saint.year_text)}"></label>
+      <label class="form-row">원본 링크<input name="detailUrl" class="wide" value="${escapeHtml(saint.detail_url || '')}"></label>
+      <label class="form-row">URL<input name="url" class="wide" value="${escapeHtml(saint.url || '')}"></label>
+      ${inherited ? `<label class="form-row">공통 별칭<input class="wide" value="${escapeHtml(inherited)}" readonly></label>` : ''}
+      <label class="form-row">개별 별칭<input name="aliases" class="wide" value="${escapeHtml(aliasText)}" placeholder="공백 또는 쉼표로 구분"></label>
       <div class="editor-actions">
         <a class="button secondary" href="${basePath}/saints">목록으로</a>
         <button type="submit">저장</button>
@@ -1926,14 +2136,20 @@ async function handleSaints(req, res, url) {
     monthRaw && Number.isInteger(Number(monthRaw)) && Number(monthRaw) >= 1 && Number(monthRaw) <= 12
       ? Number(monthRaw)
       : null;
+  const dayRaw = String(url.searchParams.get('day') || '').trim();
+  const day =
+    dayRaw && Number.isInteger(Number(dayRaw)) && Number(dayRaw) >= 1 && Number(dayRaw) <= 31
+      ? Number(dayRaw)
+      : null;
   const page = Math.max(1, Number(url.searchParams.get('page') || 1) || 1);
 
-  const total = await countSaints({ q, month });
+  const total = await countSaints({ q, month, day });
   const totalPages = Math.max(1, Math.ceil(total / SAINTS_PAGE_SIZE));
   const current = Math.min(page, totalPages);
   const rows = await listSaints({
     q,
     month,
+    day,
     limit: SAINTS_PAGE_SIZE,
     offset: (current - 1) * SAINTS_PAGE_SIZE,
   });
@@ -1943,6 +2159,7 @@ async function handleSaints(req, res, url) {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
     if (month) params.set('month', String(month));
+    if (day) params.set('day', String(day));
     params.set('page', String(p));
     return `${basePath}/saints?${params.toString()}`;
   };
@@ -1951,8 +2168,11 @@ async function handleSaints(req, res, url) {
     <form class="toolbar" method="get" action="${basePath}/saints">
       <label>검색 <input name="q" value="${escapeHtml(q)}" placeholder="이름(한/영)"></label>
       <label>축일 월 <input name="month" inputmode="numeric" value="${month ?? ''}" style="width:64px"></label>
+      <label>축일 일 <input name="day" inputmode="numeric" value="${day ?? ''}" style="width:64px"></label>
       <button type="submit">검색</button>
-      ${q || month ? `<a class="button secondary" href="${basePath}/saints">초기화</a>` : ''}
+      ${q || month || day ? `<a class="button secondary" href="${basePath}/saints">초기화</a>` : ''}
+      <a class="button secondary" href="${basePath}/saints/new">수동 추가</a>
+      <a class="button secondary" href="${basePath}/saints/manual-import">JSON 가져오기</a>
     </form>`;
   const pager = `
     <div class="toolbar">
@@ -1970,6 +2190,298 @@ async function handleSaints(req, res, url) {
   sendHtml(res, 200, layout('성인', content, 'saints'));
 }
 
+async function handleSaintNew(req, res, url) {
+  const fallbackId = await nextManualSaintId();
+  const saint = manualSaintTemplate(fallbackId);
+  const aliasDoc = loadSaintAliasDoc();
+  const aliases = [];
+  const inheritedAliases = nameAliasesForSaint(aliasDoc, saint.name_ko, saint.name_latin);
+  sendHtml(res, 200, layout('성인 수동 추가', saintEditForm(saint, aliases, inheritedAliases, { mode: 'new' }), 'saints'));
+}
+
+function saintManualImportSample() {
+  return JSON.stringify(
+    {
+      saints: [
+        {
+          nameKo: '성인명',
+          nameLatin: 'Latin Name',
+          feastMonth: 1,
+          feastDay: 1,
+          status: '신분',
+          kind: '성인',
+          regionKo: '',
+          regionEn: '',
+          yearText: '',
+          detailUrl: '',
+          url: '',
+          aliases: [],
+        },
+      ],
+    },
+    null,
+    2,
+  );
+}
+
+function normalizeManualSaintObject(raw, index) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error(`${index + 1}번째 항목은 객체여야 합니다.`);
+  }
+  const rawSourceSaintId = raw.sourceSaintId ?? raw.source_saint_id;
+  const sourceSaintId =
+    rawSourceSaintId === undefined || rawSourceSaintId === null || rawSourceSaintId === ''
+      ? null
+      : Number(rawSourceSaintId);
+  if (sourceSaintId !== null && (!Number.isInteger(sourceSaintId) || sourceSaintId <= 0)) {
+    throw new Error(`${index + 1}번째 항목의 sourceSaintId가 올바르지 않습니다.`);
+  }
+  const nameKo = String(raw.nameKo ?? raw.name_ko ?? '').trim();
+  if (!nameKo) throw new Error(`${index + 1}번째 항목의 nameKo는 필수입니다.`);
+
+  const rawMonth = raw.feastMonth ?? raw.feast_month;
+  const rawDay = raw.feastDay ?? raw.feast_day;
+  const feastMonth = rawMonth === undefined || rawMonth === null || rawMonth === '' ? null : Number(rawMonth);
+  const feastDay = rawDay === undefined || rawDay === null || rawDay === '' ? null : Number(rawDay);
+  if (feastMonth !== null && (!Number.isInteger(feastMonth) || feastMonth < 1 || feastMonth > 12)) {
+    throw new Error(`${index + 1}번째 항목의 feastMonth는 1-12 사이여야 합니다.`);
+  }
+  if (feastDay !== null && (!Number.isInteger(feastDay) || feastDay < 1 || feastDay > 31)) {
+    throw new Error(`${index + 1}번째 항목의 feastDay는 1-31 사이여야 합니다.`);
+  }
+
+  const aliases = Array.isArray(raw.aliases)
+    ? parseSaintAliases(raw.aliases.join(' '))
+    : parseSaintAliases(raw.aliases || '');
+  const saint = {
+    sourceSaintId,
+    isNew: true,
+    nameKo,
+    nameLatin: String(raw.nameLatin ?? raw.name_latin ?? '').trim(),
+    feastMonth,
+    feastDay,
+    status: String(raw.status ?? '').trim(),
+    kind: String(raw.kind ?? '').trim(),
+    regionKo: String(raw.regionKo ?? raw.region_ko ?? '').trim(),
+    regionEn: String(raw.regionEn ?? raw.region_en ?? '').trim(),
+    yearText: String(raw.yearText ?? raw.year_text ?? '').trim(),
+    detailUrl: String(raw.detailUrl ?? raw.detail_url ?? '').trim(),
+    url: String(raw.url ?? '').trim(),
+    aliases,
+  };
+  return buildManualSaintImportItem(saint);
+}
+
+function buildManualSaintImportItem(saint) {
+  const aliasDoc = loadSaintAliasDoc();
+  const inheritedAliases = nameAliasesForSaint(aliasDoc, saint.nameKo, saint.nameLatin);
+  return {
+    ...saint,
+    searchText: buildSaintSearchText(saint, [...inheritedAliases, ...saint.aliases]),
+  };
+}
+
+async function parseManualSaintsJson(payloadText) {
+  let parsed;
+  try {
+    parsed = JSON.parse(payloadText);
+  } catch (error) {
+    throw new Error(`JSON 문법 오류: ${error.message}`);
+  }
+  const items = Array.isArray(parsed) ? parsed : parsed?.saints;
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new Error('JSON은 배열이거나 { "saints": [...] } 형태여야 합니다.');
+  }
+  const saints = items.map((item, index) => normalizeManualSaintObject(item, index));
+  const autoIds = await nextManualSaintIds(saints.filter((saint) => saint.sourceSaintId === null).length);
+  let autoIndex = 0;
+  const assignedSaints = saints.map((saint) => {
+    if (saint.sourceSaintId !== null) return saint;
+    return buildManualSaintImportItem({
+      ...saint,
+      sourceSaintId: autoIds[autoIndex++],
+    });
+  });
+  const seen = new Set();
+  for (const saint of assignedSaints) {
+    if (seen.has(saint.sourceSaintId)) {
+      throw new Error(`sourceSaintId ${saint.sourceSaintId}가 JSON 안에서 중복됩니다.`);
+    }
+    seen.add(saint.sourceSaintId);
+  }
+  return assignedSaints;
+}
+
+function saintManualImportPayload(saints) {
+  return JSON.stringify(
+    {
+      saints: saints.map((saint) => ({
+        sourceSaintId: saint.sourceSaintId,
+        nameKo: saint.nameKo,
+        nameLatin: saint.nameLatin,
+        feastMonth: saint.feastMonth,
+        feastDay: saint.feastDay,
+        status: saint.status,
+        kind: saint.kind,
+        regionKo: saint.regionKo,
+        regionEn: saint.regionEn,
+        yearText: saint.yearText,
+        detailUrl: saint.detailUrl,
+        url: saint.url,
+        aliases: saint.aliases,
+      })),
+    },
+    null,
+    2,
+  );
+}
+
+async function existingSaintIdSet(ids) {
+  if (ids.length === 0) return new Set();
+  const result = await db.query(
+    'SELECT source_saint_id FROM saints WHERE source_saint_id = ANY($1::int[])',
+    [ids],
+  );
+  return new Set(result.rows.map((row) => Number(row.source_saint_id)));
+}
+
+function saintManualImportRows(saints, conflicts) {
+  const cells = saints
+    .map((s) => {
+      const feast = s.feastMonth ? `${s.feastMonth}월${s.feastDay ? `${s.feastDay}일` : ''}` : '-';
+      const state = conflicts.has(s.sourceSaintId) ? 'ID 중복' : '추가 가능';
+      return `<tr>
+        <td>${s.sourceSaintId}</td>
+        <td>${escapeHtml(s.nameKo)}</td>
+        <td>${escapeHtml(s.nameLatin)}</td>
+        <td>${feast}</td>
+        <td>${escapeHtml(s.status)}</td>
+        <td>${escapeHtml(s.kind)}</td>
+        <td>${escapeHtml([s.regionKo, s.regionEn].filter(Boolean).join(' / '))}</td>
+        <td>${escapeHtml(s.yearText)}</td>
+        <td>${escapeHtml(s.aliases.join(' '))}</td>
+        <td>${state}</td>
+      </tr>`;
+    })
+    .join('');
+  return `<table>
+    <thead>
+      <tr>
+        <th>ID</th><th>이름</th><th>라틴/영문</th><th>축일</th><th>신분</th><th>등급</th><th>지역</th><th>연도</th><th>개별 별칭</th><th>상태</th>
+      </tr>
+    </thead>
+    <tbody>${cells}</tbody>
+  </table>`;
+}
+
+function saintManualImportForm(payload = saintManualImportSample(), error = '') {
+  return `
+    ${error ? `<div class="empty">검증하지 못했습니다: ${escapeHtml(error)}</div>` : ''}
+    <form class="editor" method="post" action="${basePath}/saints/manual-import/preview">
+      <div>
+        <h2>성인 JSON/파일 가져오기</h2>
+        <div class="sub">정형 JSON을 붙여넣거나 .json 파일을 선택한 뒤 검증 화면을 거쳐 최종 저장합니다. 새 항목은 <strong>manual</strong> 출처로 저장됩니다.</div>
+      </div>
+      <label class="form-row">JSON 파일<input id="saint-json-file" type="file" accept="application/json,.json"></label>
+      <textarea id="saint-json-payload" name="payload" spellcheck="false">${escapeHtml(payload)}</textarea>
+      <div class="editor-actions">
+        <a class="button secondary" href="${basePath}/saints">목록으로</a>
+        <button type="submit">JSON 검증</button>
+      </div>
+    </form>
+    <script>
+      (() => {
+        const fileInput = document.getElementById('saint-json-file');
+        const payload = document.getElementById('saint-json-payload');
+        if (!fileInput || !payload) return;
+        fileInput.addEventListener('change', async () => {
+          const file = fileInput.files && fileInput.files[0];
+          if (!file) return;
+          payload.value = await file.text();
+        });
+      })();
+    </script>`;
+}
+
+async function handleSaintManualImport(req, res) {
+  sendHtml(res, 200, layout('성인 JSON/파일 가져오기', saintManualImportForm(), 'saints'));
+}
+
+async function handleSaintManualImportPreview(req, res) {
+  const form = await readForm(req);
+  const payload = String(form.get('payload') || '').trim();
+  let saints;
+  try {
+    saints = await parseManualSaintsJson(payload);
+  } catch (error) {
+    sendHtml(res, 400, layout('성인 JSON/파일 가져오기', saintManualImportForm(payload, error.message), 'saints'));
+    return;
+  }
+  const conflicts = await existingSaintIdSet(saints.map((s) => s.sourceSaintId));
+  const hasConflicts = conflicts.size > 0;
+  const assignedPayload = saintManualImportPayload(saints);
+  const content = `
+    ${hasConflicts ? '<div class="empty">이미 같은 ID의 성인이 있습니다. 충돌을 해결한 뒤 다시 검증하세요.</div>' : '<div class="message">검증을 통과했습니다. 아래 항목을 확인한 뒤 최종 저장하세요.</div>'}
+    ${saintManualImportRows(saints, conflicts)}
+    <div class="toolbar">
+      <form method="post" action="${basePath}/saints/manual-import/commit">
+        <textarea class="hidden-payload" name="payload">${escapeHtml(assignedPayload)}</textarea>
+        <button type="submit" ${hasConflicts ? 'disabled' : ''}>최종 저장</button>
+      </form>
+      <form method="post" action="${basePath}/saints/manual-import/preview">
+        <textarea class="hidden-payload" name="payload">${escapeHtml(assignedPayload)}</textarea>
+        <button class="secondary" type="submit">다시 검증</button>
+      </form>
+      <a class="button secondary" href="${basePath}/saints/manual-import">입력 화면으로</a>
+    </div>`;
+  sendHtml(res, 200, layout('성인 JSON 검증', content, 'saints'));
+}
+
+async function handleSaintManualImportCommit(req, res) {
+  const form = await readForm(req);
+  const payload = String(form.get('payload') || '').trim();
+  let saints;
+  try {
+    saints = await parseManualSaintsJson(payload);
+  } catch (error) {
+    sendHtml(res, 400, layout('성인 JSON/파일 가져오기', saintManualImportForm(payload, error.message), 'saints'));
+    return;
+  }
+  const conflicts = await existingSaintIdSet(saints.map((s) => s.sourceSaintId));
+  if (conflicts.size > 0) {
+    sendHtml(
+      res,
+      409,
+      layout(
+        '성인 JSON 검증',
+        `<div class="empty">저장 직전에 ID 충돌이 발견되어 저장하지 않았습니다.</div>${saintManualImportRows(saints, conflicts)}`,
+        'saints',
+      ),
+    );
+    return;
+  }
+
+  try {
+    for (const saint of saints) {
+      saveSaintAliases(saint.sourceSaintId, saint.aliases);
+      await upsertSaintManual(saint);
+    }
+  } catch (error) {
+    sendHtml(
+      res,
+      500,
+      layout('성인 JSON/파일 가져오기', `<div class="empty">저장하지 못했습니다: ${escapeHtml(error.message)}</div>`, 'saints'),
+    );
+    return;
+  }
+
+  await logAdminAction(req, 'saint_manual_import', 'saint', saints.map((s) => s.sourceSaintId).join(','), {
+    count: saints.length,
+    ids: saints.map((s) => s.sourceSaintId),
+  });
+  redirect(res, `${basePath}/saints?message=${encodeURIComponent(`${saints.length}개 성인을 추가했습니다.`)}`);
+}
+
 async function handleSaintEdit(req, res, url) {
   const id = Number(url.searchParams.get('id'));
   const saint = Number.isInteger(id) ? await getSaint(id) : null;
@@ -1981,7 +2493,10 @@ async function handleSaintEdit(req, res, url) {
     );
     return;
   }
-  sendHtml(res, 200, layout(`${saint.name_ko} 수정`, saintEditForm(saint), 'saints'));
+  const aliasDoc = loadSaintAliasDoc();
+  const aliases = aliasDoc.byId[String(id)] || [];
+  const inheritedAliases = nameAliasesForSaint(aliasDoc, saint.name_ko, saint.name_latin);
+  sendHtml(res, 200, layout(`${saint.name_ko} 수정`, saintEditForm(saint, aliases, inheritedAliases), 'saints'));
 }
 
 async function handleSaintSave(req, res) {
@@ -2003,9 +2518,43 @@ async function handleSaintSave(req, res) {
     return;
   }
 
+  const aliasDoc = loadSaintAliasDoc();
+  const inheritedAliases = nameAliasesForSaint(aliasDoc, saint.nameKo, saint.nameLatin);
+  saint.searchText = buildSaintSearchText(saint, [...inheritedAliases, ...saint.aliases]);
+
+  if (saint.isNew && (await getSaint(saint.sourceSaintId))) {
+    sendHtml(
+      res,
+      409,
+      layout(
+        '성인',
+        `<div class="empty">이미 같은 ID의 성인이 있습니다. 다른 ID를 사용하거나 기존 항목을 수정하세요.</div>
+        <div class="toolbar"><a class="button secondary" href="${basePath}/saints/edit?id=${saint.sourceSaintId}">기존 항목 수정</a><a class="button secondary" href="${basePath}/saints/new">새 ID로 추가</a></div>`,
+        'saints',
+      ),
+    );
+    return;
+  }
+
+  try {
+    saveSaintAliases(saint.sourceSaintId, saint.aliases);
+  } catch (error) {
+    sendHtml(
+      res,
+      500,
+      layout(
+        '성인',
+        `<div class="empty">별칭 파일을 저장하지 못했습니다. <code>${escapeHtml(saintsAliasFile)}</code> 권한을 확인하세요.</div>
+        <div class="toolbar"><a class="button secondary" href="${basePath}/saints/edit?id=${saint.sourceSaintId}">수정 화면으로 돌아가기</a></div>`,
+        'saints',
+      ),
+    );
+    return;
+  }
   await upsertSaintManual(saint);
   await logAdminAction(req, 'saint_update', 'saint', String(saint.sourceSaintId), {
     name_ko: saint.nameKo,
+    aliases: saint.aliases,
   });
   redirect(res, `${basePath}/saints?message=${encodeURIComponent('성인 정보를 저장했습니다.')}`);
 }
@@ -2052,6 +2601,41 @@ async function handleRequest(req, res) {
 
   if (url.pathname === `${basePath}/app-update-policy/save` && req.method === 'POST') {
     await handleAppUpdatePolicySave(req, res);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/saints` && req.method === 'GET') {
+    await handleSaints(req, res, url);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/saints/new` && req.method === 'GET') {
+    await handleSaintNew(req, res, url);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/saints/manual-import` && req.method === 'GET') {
+    await handleSaintManualImport(req, res);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/saints/manual-import/preview` && req.method === 'POST') {
+    await handleSaintManualImportPreview(req, res);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/saints/manual-import/commit` && req.method === 'POST') {
+    await handleSaintManualImportCommit(req, res);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/saints/edit` && req.method === 'GET') {
+    await handleSaintEdit(req, res, url);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/saints/edit/commit` && req.method === 'POST') {
+    await handleSaintSave(req, res);
     return;
   }
 

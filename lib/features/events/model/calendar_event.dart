@@ -14,6 +14,19 @@ DateTime parseEventDate(String key) {
 /// The fallback color for an event whose category has been deleted and which
 /// was created before categories carried a color.
 const int kDefaultEventColor = 0xFF455A64;
+const int kSaintFeastEventColor = 0xFF8D6E63;
+
+enum CalendarEventType {
+  regular,
+  saintFeast;
+
+  static CalendarEventType fromJson(Object? value) {
+    return switch (value) {
+      'saintFeast' => CalendarEventType.saintFeast,
+      _ => CalendarEventType.regular,
+    };
+  }
+}
 
 /// A user-created personal event stored on-device only.
 ///
@@ -33,6 +46,10 @@ class CalendarEvent {
     this.memo,
     this.time,
     this.notify = true,
+    this.type = CalendarEventType.regular,
+    this.saintId,
+    this.saintName,
+    this.saintUrl,
   });
 
   /// Stable local id (millis/micros-based; no external uuid dependency).
@@ -60,8 +77,16 @@ class CalendarEvent {
   /// Whether to schedule local reminders for this event.
   final bool notify;
 
-  /// The event's display title (its category name).
-  String get title => categoryName;
+  final CalendarEventType type;
+
+  final int? saintId;
+  final String? saintName;
+  final String? saintUrl;
+
+  bool get isSaintFeast => type == CalendarEventType.saintFeast;
+
+  /// The event's display title.
+  String get title => isSaintFeast ? saintName ?? categoryName : categoryName;
 
   /// True when the event has no specific time (all-day).
   bool get isAllDay => time == null;
@@ -75,6 +100,10 @@ class CalendarEvent {
     String? memo,
     String? time,
     bool? notify,
+    CalendarEventType? type,
+    int? saintId,
+    String? saintName,
+    String? saintUrl,
   }) {
     return CalendarEvent(
       id: id ?? this.id,
@@ -85,6 +114,10 @@ class CalendarEvent {
       memo: memo ?? this.memo,
       time: time ?? this.time,
       notify: notify ?? this.notify,
+      type: type ?? this.type,
+      saintId: saintId ?? this.saintId,
+      saintName: saintName ?? this.saintName,
+      saintUrl: saintUrl ?? this.saintUrl,
     );
   }
 
@@ -97,6 +130,10 @@ class CalendarEvent {
     if (memo != null) 'memo': memo,
     if (time != null) 'time': time,
     'notify': notify,
+    'type': type.name,
+    if (saintId != null) 'saintId': saintId,
+    if (saintName != null) 'saintName': saintName,
+    if (saintUrl != null) 'saintUrl': saintUrl,
   };
 
   factory CalendarEvent.fromJson(Map<String, dynamic> json) => CalendarEvent(
@@ -106,10 +143,14 @@ class CalendarEvent {
     categoryId: json['categoryId'] as String? ?? '',
     categoryName:
         json['categoryName'] as String? ?? json['title'] as String? ?? '',
-    categoryColor: (json['categoryColor'] as num?)?.toInt() ??
-        kDefaultEventColor,
+    categoryColor:
+        (json['categoryColor'] as num?)?.toInt() ?? kDefaultEventColor,
     memo: json['memo'] as String?,
     time: json['time'] as String?,
     notify: json['notify'] as bool? ?? true,
+    type: CalendarEventType.fromJson(json['type']),
+    saintId: (json['saintId'] as num?)?.toInt(),
+    saintName: json['saintName'] as String?,
+    saintUrl: json['saintUrl'] as String?,
   );
 }

@@ -6,7 +6,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../app/theme/liturgical_colors.dart';
 import '../../../events/application/event_providers.dart';
 import '../../../events/model/calendar_event.dart';
+import '../../../events/presentation/add_event_choice.dart';
 import '../../../events/presentation/event_editor_sheet.dart';
+import '../../../saints/presentation/saint_feast_editor_page.dart';
 import '../../../support/presentation/support_sheet.dart';
 
 /// 독서 마커(①/②/㉥ …) → 사람이 읽는 라벨.
@@ -56,7 +58,9 @@ class DayDetailView extends ConsumerWidget {
           margin: EdgeInsets.zero,
           clipBehavior: Clip.antiAlias,
           color: theme.colorScheme.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
             child: Column(
@@ -66,7 +70,10 @@ class DayDetailView extends ConsumerWidget {
                 // 전례력
                 _SectionHeader('전례력'),
                 const SizedBox(height: 12),
-                _DotLine(color: context.liturgical.of(day.color), text: day.title),
+                _DotLine(
+                  color: context.liturgical.of(day.color),
+                  text: day.title,
+                ),
                 for (final m in day.optionalMemorials) ...[
                   const SizedBox(height: 10),
                   _DotLine(color: context.liturgical.of(m.color), text: m.name),
@@ -79,7 +86,7 @@ class DayDetailView extends ConsumerWidget {
                     Expanded(child: _SectionHeader('일정')),
                     TextButton.icon(
                       onPressed: () =>
-                          showEventEditor(context, date: day.date),
+                          showAddEventChoice(context, date: day.date),
                       icon: const Icon(Icons.add, size: 18),
                       label: const Text('추가'),
                       style: TextButton.styleFrom(
@@ -207,11 +214,14 @@ class _EventLine extends StatelessWidget {
     final timeLabel = event.isAllDay ? '종일' : event.time!;
     return InkWell(
       borderRadius: BorderRadius.circular(8),
-      onTap: () => showEventEditor(
-        context,
-        date: parseEventDate(event.date),
-        existing: event,
-      ),
+      onTap: () {
+        final date = parseEventDate(event.date);
+        if (event.isSaintFeast) {
+          showSaintFeastEditor(context, date: date, existing: event);
+        } else {
+          showEventEditor(context, date: date, existing: event);
+        }
+      },
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: Row(

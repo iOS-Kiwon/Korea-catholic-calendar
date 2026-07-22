@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 // 성인(聖人) 목록 임포터
 //
 // maria.catholic.or.kr(가톨릭 굿뉴스) 성인 목록(list.asp)을 페이지 단위로 받아
@@ -21,6 +25,9 @@
 const BASE = process.env.SAINTS_SOURCE_BASE_URL || 'https://maria.catholic.or.kr';
 const LIST_PATH = '/sa_ho/list/list.asp';
 const PAGE_DELAY_MS = Number(process.env.SAINTS_PAGE_DELAY_MS || 1500);
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
+const DEFAULT_ALIAS_FILE = path.resolve(SCRIPT_DIR, '../ops/saint-aliases.json');
+const aliasFile = process.env.SAINTS_ALIAS_FILE || DEFAULT_ALIAS_FILE;
 
 // 목록 경로는 robots.txt에서 일반 UA에 대해 막혀있지 않다. AI 브랜드 UA는 쓰지 않는다.
 const HEADERS = {
@@ -33,6 +40,48 @@ const HEADERS = {
 };
 
 const KIND_LABELS = { 성: '성인', 복: '복자', 천: '천사', 가: '가경자' };
+const SEARCH_ALIASES = loadAliases(aliasFile);
+
+function loadAliases(file) {
+  try {
+    const raw = fs.readFileSync(file, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (parsed.byName || parsed.byId) {
+      return {
+        byName: normalizeAliasMap(parsed.byName || {}),
+        byId: normalizeAliasMap(parsed.byId || {}),
+      };
+    }
+    return { byName: {}, byId: normalizeAliasMap(parsed) };
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      console.warn(`성인 별칭 파일을 읽지 못했습니다: ${file} (${error.message})`);
+    }
+    return { byName: {}, byId: {} };
+  }
+}
+
+function normalizeAliasMap(value) {
+  return Object.fromEntries(
+    Object.entries(value).map(([key, aliases]) => [
+      String(key).trim(),
+      Array.isArray(aliases)
+        ? [...new Set(aliases.map(String).map((s) => s.trim()).filter(Boolean))]
+        : [],
+    ]),
+  );
+}
+
+function aliasesForSaint(id, nameKo, nameLatin) {
+  const aliases = new Set(SEARCH_ALIASES.byId[String(id)] || []);
+  const haystack = `${nameKo} ${nameLatin}`;
+  for (const [name, values] of Object.entries(SEARCH_ALIASES.byName)) {
+    if (name && haystack.includes(name)) {
+      for (const alias of values) aliases.add(alias);
+    }
+  }
+  return [...aliases];
+}
 
 function parseArgs(argv) {
   const args = { psize: 1000, page: null, dry: false };
@@ -128,6 +177,10 @@ function parseRows(html) {
       regionEn,
       yearText,
       detailUrl: `${BASE}/sa_ho/list/view.asp?menugubun=saint&Orggubun=101&ctxtSaintId=${id}`,
+      url: `https://m.mariasarang.net/saint/bbs_view.asp?index=bbs_saint&no=${id}`,
+      searchText: [nameKo, nameLatin, status, kind, regionKo, regionEn, yearText, ...aliasesForSaint(id, nameKo, nameLatin)]
+        .filter(Boolean)
+        .join(' '),
     });
   }
   return rows;
@@ -176,18 +229,29 @@ const CREATE_SQL = `
     region_en text NOT NULL DEFAULT '',
     year_text text NOT NULL DEFAULT '',
     detail_url text NOT NULL DEFAULT '',
+    url text NOT NULL DEFAULT '',
+    search_text text NOT NULL DEFAULT '',
     source text NOT NULL DEFAULT 'maria-import',
     updated_at timestamptz NOT NULL DEFAULT now()
   );
+  ALTER TABLE saints ADD COLUMN IF NOT EXISTS url text NOT NULL DEFAULT '';
+  ALTER TABLE saints ADD COLUMN IF NOT EXISTS search_text text NOT NULL DEFAULT '';
+  UPDATE saints
+  SET url = 'https://m.mariasarang.net/saint/bbs_view.asp?index=bbs_saint&no=' || source_saint_id
+  WHERE url = '';
+  UPDATE saints
+  SET search_text = trim(concat_ws(' ', name_ko, name_latin, status, kind, region_ko, region_en, year_text))
+  WHERE search_text = '';
   CREATE INDEX IF NOT EXISTS idx_saints_feast ON saints (feast_month, feast_day);
   CREATE INDEX IF NOT EXISTS idx_saints_name ON saints (name_ko);
+  CREATE INDEX IF NOT EXISTS idx_saints_search_text ON saints (search_text);
 `;
 
 const UPSERT_SQL = `
   INSERT INTO saints (
     source_saint_id, name_ko, name_latin, feast_month, feast_day,
-    status, kind, region_ko, region_en, year_text, detail_url, source, updated_at
-  ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'maria-import', now())
+    status, kind, region_ko, region_en, year_text, detail_url, url, search_text, source, updated_at
+  ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'maria-import', now())
   ON CONFLICT (source_saint_id) DO UPDATE SET
     name_ko = excluded.name_ko,
     name_latin = excluded.name_latin,
@@ -199,6 +263,8 @@ const UPSERT_SQL = `
     region_en = excluded.region_en,
     year_text = excluded.year_text,
     detail_url = excluded.detail_url,
+    url = excluded.url,
+    search_text = excluded.search_text,
     updated_at = now()
   WHERE saints.source <> 'manual'
   RETURNING (xmax = 0) AS inserted;
@@ -217,6 +283,8 @@ async function upsertRow(pool, r) {
     r.regionEn,
     r.yearText,
     r.detailUrl,
+    r.url,
+    r.searchText,
   ]);
   if (res.rows.length === 0) return 'skipped'; // source='manual' → 보존
   return res.rows[0].inserted ? 'inserted' : 'updated';
