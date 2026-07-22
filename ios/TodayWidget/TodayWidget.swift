@@ -13,7 +13,15 @@ struct TodaySnapshot: Decodable {
     let liturgicalTitle: String
     let liturgicalColor: String
     let eventTitle: String
+    let eventDisplayText: String?
+    let eventColor: Int?
+    let eventItems: [WidgetEventItem]?
     let extraEventCount: Int
+}
+
+struct WidgetEventItem: Decodable {
+    let title: String
+    let color: Int?
 }
 
 struct MonthSnapshot: Decodable {
@@ -32,6 +40,9 @@ struct DaySnapshot: Decodable, Identifiable {
     let liturgicalTitle: String
     let liturgicalColor: String
     let eventTitle: String
+    let eventDisplayText: String?
+    let eventColor: Int?
+    let eventItems: [WidgetEventItem]?
     let extraEventCount: Int
     // 위젯이 이 날을 '오늘'로 판정했을 때 작은 위젯에 쓰는 전체 정보.
     // (구버전 스냅샷 호환을 위해 optional)
@@ -131,6 +142,14 @@ struct SmallTodayWidgetView: View {
         day?.eventTitle ?? snapshot.today.eventTitle
     }
 
+    private var eventDisplayText: String {
+        day?.eventDisplayText ?? snapshot.today.eventDisplayText ?? eventTitle
+    }
+
+    private var eventColor: Int? {
+        day?.eventColor ?? snapshot.today.eventColor
+    }
+
     private var extraEventCount: Int {
         day?.extraEventCount ?? snapshot.today.extraEventCount
     }
@@ -138,13 +157,13 @@ struct SmallTodayWidgetView: View {
     private var eventText: String? {
         guard !eventTitle.isEmpty else { return nil }
         if extraEventCount > 0 {
-            return "\(eventTitle) 외 \(extraEventCount)개"
+            return "\(eventDisplayText) 외 \(extraEventCount)개"
         }
-        return eventTitle
+        return eventDisplayText
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 3) {
             Text(dateLabel)
                 .font(.system(size: 21, weight: .bold))
                 .foregroundStyle(Color.black)
@@ -158,11 +177,7 @@ struct SmallTodayWidgetView: View {
                 .minimumScaleFactor(0.75)
 
             if let eventText {
-                Text(eventText)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Color.black)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
+                HighlightedEventText(text: eventText, color: eventColor)
             }
 
             Spacer(minLength: 0)
@@ -178,29 +193,52 @@ struct MonthWidgetView: View {
     let month: MonthSnapshot
     let todayKey: String
 
+    private var visibleDays: [DaySnapshot] {
+        let days = Array(month.days.prefix(42))
+        guard days.count == 42 else { return days }
+        let lastWeek = days.suffix(7)
+        if lastWeek.allSatisfy({ !$0.inMonth }) {
+            return Array(days.prefix(35))
+        }
+        return days
+    }
+
+    private var visibleRows: [[DaySnapshot]] {
+        stride(from: 0, to: visibleDays.count, by: 7).map { start in
+            Array(visibleDays[start..<min(start + 7, visibleDays.count)])
+        }
+    }
+
     var body: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 0) {
             Text(month.title)
-                .font(.system(size: 18, weight: .bold))
+                .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(Color.black)
-                .frame(height: 21)
+                .frame(height: 42)
                 .frame(maxWidth: .infinity)
 
             LazyVGrid(columns: columns, spacing: 0) {
                 ForEach(Array(weekdays.enumerated()), id: \.offset) { _, weekday in
                     Text(weekday)
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Color(red: 0.36, green: 0.36, blue: 0.36))
-                        .frame(height: 15)
+                        .frame(height: 26)
                 }
             }
 
-            LazyVGrid(columns: columns, spacing: 0) {
-                ForEach(month.days.prefix(42)) { day in
-                    MonthDayCell(day: day, isToday: day.dateKey == todayKey)
+            VStack(spacing: 0) {
+                ForEach(Array(visibleRows.enumerated()), id: \.offset) { _, row in
+                    HStack(spacing: 0) {
+                        ForEach(row) { day in
+                            MonthDayCell(day: day, isToday: day.dateKey == todayKey)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 }
 
@@ -210,30 +248,51 @@ struct MonthDayCell: View {
     let isToday: Bool
 
     private var title: String {
-        if !day.eventTitle.isEmpty {
-            return day.extraEventCount > 0 ? "\(day.eventTitle) +\(day.extraEventCount)" : day.eventTitle
-        }
         return day.liturgicalTitle
+    }
+
+    private var eventTitles: [String] {
+        if let items = day.eventItems {
+            let titles = items.prefix(3).map(\.title).filter { !$0.isEmpty }
+            if !titles.isEmpty { return titles }
+        }
+        let eventText = day.eventDisplayText ?? day.eventTitle
+        return day.eventTitle.isEmpty ? [] : [eventText]
     }
 
     var body: some View {
         VStack(spacing: 2) {
             Text("\(day.day)")
-                .font(.system(size: 13, weight: .bold))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(numberColor)
                 .frame(maxWidth: .infinity)
 
-            Text(title)
-                .font(.system(size: 8, weight: day.eventTitle.isEmpty ? .regular : .semibold))
-                .foregroundStyle(day.eventTitle.isEmpty ? color(for: day.liturgicalColor) : Color.black)
-                .lineLimit(2)
-                .minimumScaleFactor(0.65)
-                .multilineTextAlignment(.center)
+            if eventTitles.isEmpty {
+                Text(title)
+                    .font(.system(size: 8, weight: .regular))
+                    .foregroundStyle(color(for: day.liturgicalColor))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.65)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, minHeight: 19, alignment: .top)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(eventTitles.enumerated()), id: \.offset) { _, title in
+                        Text(title)
+                            .font(.system(size: 7.3, weight: .semibold))
+                            .foregroundStyle(Color.black)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.58)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
                 .frame(maxWidth: .infinity, minHeight: 19, alignment: .top)
+            }
         }
         .padding(.horizontal, 0.5)
-        .padding(.top, 1)
-        .frame(height: 43, alignment: .top)
+        .padding(.top, 2)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(isToday ? Color(red: 1.0, green: 0.88, blue: 0.66) : .clear)
     }
 
@@ -244,6 +303,26 @@ struct MonthDayCell: View {
         if day.weekday == 7 { return Color(red: 0.78, green: 0.16, blue: 0.16) }
         if day.weekday == 6 { return Color(red: 0.08, green: 0.39, blue: 0.75) }
         return Color.black
+    }
+}
+
+struct HighlightedEventText: View {
+    let text: String
+    let color: Int?
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(Color.black)
+            .lineLimit(1)
+            .minimumScaleFactor(0.72)
+            .padding(.bottom, 2)
+            .overlay(alignment: .bottomLeading) {
+                Rectangle()
+                    .fill(argbColor(color).opacity(0.42))
+                    .frame(height: 4)
+                    .offset(y: -1)
+            }
     }
 }
 
@@ -258,6 +337,7 @@ struct TodayWidget: Widget {
         .configurationDisplayName("가톨릭 달력")
         .description("오늘의 전례와 이번 달 달력을 보여줍니다.")
         .supportedFamilies([.systemSmall, .systemLarge])
+        .contentMarginsDisabled()
     }
 }
 
@@ -294,6 +374,16 @@ private func color(for name: String) -> Color {
     }
 }
 
+private func argbColor(_ value: Int?) -> Color {
+    guard let value else {
+        return Color(red: 0.18, green: 0.49, blue: 0.20)
+    }
+    let red = Double((value >> 16) & 0xFF) / 255.0
+    let green = Double((value >> 8) & 0xFF) / 255.0
+    let blue = Double(value & 0xFF) / 255.0
+    return Color(red: red, green: green, blue: blue)
+}
+
 extension WidgetSnapshot {
     static var placeholder: WidgetSnapshot {
         let today = Date()
@@ -311,6 +401,13 @@ extension WidgetSnapshot {
                 liturgicalTitle: "오늘의 전례",
                 liturgicalColor: "green",
                 eventTitle: "개인일정",
+                eventDisplayText: "메모",
+                eventColor: 0xFF2E7D32,
+                eventItems: [
+                    WidgetEventItem(title: "메모", color: 0xFF2E7D32),
+                    WidgetEventItem(title: "두 번째 일정", color: 0xFF2E7D32),
+                    WidgetEventItem(title: "세 번째 일정", color: 0xFF2E7D32)
+                ],
                 extraEventCount: 1
             ),
             month: MonthSnapshot(
@@ -328,6 +425,15 @@ extension WidgetSnapshot {
                         liturgicalTitle: index % 5 == 0 ? "전례" : "",
                         liturgicalColor: "green",
                         eventTitle: index % 8 == 0 ? "일정" : "",
+                        eventDisplayText: index % 8 == 0 ? "메모" : "",
+                        eventColor: 0xFF2E7D32,
+                        eventItems: index % 8 == 0
+                            ? [
+                                WidgetEventItem(title: "메모", color: 0xFF2E7D32),
+                                WidgetEventItem(title: "두 번째 일정", color: 0xFF2E7D32),
+                                WidgetEventItem(title: "세 번째 일정", color: 0xFF2E7D32)
+                            ]
+                            : [],
                         extraEventCount: index % 16 == 0 ? 1 : 0,
                         titleFull: "오늘의 전례",
                         dateLabel: "\(calendar.component(.month, from: date))/\(calendar.component(.day, from: date)) \(names[(weekday - 1) % 7])요일"

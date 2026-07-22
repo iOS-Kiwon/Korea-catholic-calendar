@@ -7,7 +7,8 @@
     android:orientation="vertical"
     android:paddingStart="0dp"
     android:paddingTop="1dp"
-    android:paddingEnd="0dp">
+    android:paddingEnd="0dp"
+    android:paddingBottom="1dp">
 
     <TextView
         android:id="@+id/today_widget_day_number"
@@ -22,11 +23,13 @@
     <TextView
         android:id="@+id/today_widget_day_title"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:ellipsize="end"
-        android:gravity="center"
+        android:gravity="top|center_horizontal"
         android:includeFontPadding="false"
-        android:maxLines="2"
+        android:maxLines="3"
         android:textColor="#625B71"
-        android:textSize="8sp" />
+        android:textSize="7.5sp" />
+
 </LinearLayout>

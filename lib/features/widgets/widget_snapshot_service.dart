@@ -49,12 +49,22 @@ class WidgetSnapshotService {
     final todayKey = eventDateKey(today);
     final todayDay = calendar.day(today);
     final todayEvents = [...?events[todayKey]]..sort(_compareEvents);
+    final todayEvent = todayEvents.isEmpty ? null : todayEvents.first;
     final first = DateTime(month.year, month.month, 1);
     final leading = first.weekday % 7;
     final start = DateTime(month.year, month.month, 1 - leading);
     final visibleDates = [
       for (var i = 0; i < 42; i++)
         DateTime(start.year, start.month, start.day + i),
+    ];
+    final months = [
+      for (var offset = -12; offset <= 12; offset++)
+        _monthPayload(
+          calendar: calendar,
+          events: events,
+          month: YearMonth.fromSerial(month.serial + offset),
+          todayKey: todayKey,
+        ),
     ];
 
     return {
@@ -66,6 +76,11 @@ class WidgetSnapshotService {
         'liturgicalTitle': todayDay.title,
         'liturgicalColor': _colorName(todayDay.color),
         'eventTitle': todayEvents.isEmpty ? '' : todayEvents.first.title,
+        'eventDisplayText': todayEvent == null
+            ? ''
+            : _eventDisplayText(todayEvent),
+        'eventColor': todayEvent?.categoryColor,
+        'eventItems': _eventItems(todayEvents),
         'extraEventCount': todayEvents.length > 1 ? todayEvents.length - 1 : 0,
       },
       'month': {
@@ -83,6 +98,39 @@ class WidgetSnapshotService {
             ),
         ],
       },
+      'months': months,
+    };
+  }
+
+  Map<String, dynamic> _monthPayload({
+    required CalendarService calendar,
+    required Map<String, List<CalendarEvent>> events,
+    required YearMonth month,
+    required String todayKey,
+  }) {
+    final first = DateTime(month.year, month.month, 1);
+    final leading = first.weekday % 7;
+    final start = DateTime(month.year, month.month, 1 - leading);
+    return {
+      'title': '${month.year}.${month.month}',
+      'year': month.year,
+      'month': month.month,
+      'days': [
+        for (var i = 0; i < 42; i++)
+          _dayPayload(
+            calendar: calendar,
+            events: events,
+            date: DateTime(start.year, start.month, start.day + i),
+            inMonth:
+                DateTime(start.year, start.month, start.day + i).month ==
+                month.month,
+            isToday:
+                eventDateKey(
+                  DateTime(start.year, start.month, start.day + i),
+                ) ==
+                todayKey,
+          ),
+      ],
     };
   }
 
@@ -96,6 +144,7 @@ class WidgetSnapshotService {
     final key = eventDateKey(date);
     final day = calendar.day(date);
     final dayEvents = [...?events[key]]..sort(_compareEvents);
+    final firstEvent = dayEvents.isEmpty ? null : dayEvents.first;
     final notable = inMonth && isNotableDay(day);
     return {
       'dateKey': key,
@@ -111,6 +160,11 @@ class WidgetSnapshotService {
       'dateLabel': '${date.month}/${date.day} ${_weekdayLabel(date.weekday)}요일',
       'liturgicalColor': _colorName(day.color),
       'eventTitle': dayEvents.isEmpty ? '' : dayEvents.first.title,
+      'eventDisplayText': firstEvent == null
+          ? ''
+          : _eventDisplayText(firstEvent),
+      'eventColor': firstEvent?.categoryColor,
+      'eventItems': _eventItems(dayEvents),
       'extraEventCount': dayEvents.length > 1 ? dayEvents.length - 1 : 0,
     };
   }
@@ -157,3 +211,14 @@ String _colorName(LiturgicalColor color) {
       return 'black';
   }
 }
+
+String _eventDisplayText(CalendarEvent event) {
+  final memo = event.memo?.trim();
+  if (memo != null && memo.isNotEmpty) return memo;
+  return event.title;
+}
+
+List<Map<String, dynamic>> _eventItems(List<CalendarEvent> events) => [
+  for (final event in events.take(3))
+    {'title': _eventDisplayText(event), 'color': event.categoryColor},
+];

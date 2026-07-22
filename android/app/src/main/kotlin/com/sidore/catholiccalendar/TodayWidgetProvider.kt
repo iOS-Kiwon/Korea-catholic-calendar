@@ -41,6 +41,7 @@ open class TodayWidgetProvider : AppWidgetProvider() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
+        if (handleWidgetAction(context, intent)) return
         super.onReceive(context, intent)
         // 자정 자체 갱신 알람 + 재부팅/시간·시간대 변경 시 위젯을 다시 그리고 알람을 재예약.
         when (intent.action) {
@@ -64,6 +65,14 @@ open class TodayWidgetProvider : AppWidgetProvider() {
         // 자정 자체 갱신 알람이 위젯 provider로 보내는 커스텀 액션.
         const val ACTION_MIDNIGHT_UPDATE =
             "com.sidore.catholiccalendar.action.WIDGET_MIDNIGHT_UPDATE"
+        private const val ACTION_PREV_MONTH =
+            "com.sidore.catholiccalendar.action.WIDGET_PREV_MONTH"
+        private const val ACTION_NEXT_MONTH =
+            "com.sidore.catholiccalendar.action.WIDGET_NEXT_MONTH"
+        private const val ACTION_TODAY_MONTH =
+            "com.sidore.catholiccalendar.action.WIDGET_TODAY_MONTH"
+        private const val EXTRA_APP_WIDGET_ID = "appWidgetId"
+        private const val PREF_WIDGET_STATE = "widget_state"
 
         fun updateWidgets(
             context: Context,
@@ -164,7 +173,7 @@ open class TodayWidgetProvider : AppWidgetProvider() {
                 WidgetMode.Tiny -> buildSmallViews(context, snapshot, mode, todayKey)
                 WidgetMode.WideShort -> buildSmallViews(context, snapshot, mode, todayKey)
                 WidgetMode.Compact -> buildSmallViews(context, snapshot, mode, todayKey)
-                WidgetMode.Calendar -> buildLargeViews(context, snapshot, todayKey)
+                WidgetMode.Calendar -> buildLargeViews(context, snapshot, todayKey, appWidgetId)
             }
 
             views.setOnClickPendingIntent(R.id.today_widget_root, openAppIntent(context))
@@ -177,8 +186,6 @@ open class TodayWidgetProvider : AppWidgetProvider() {
             mode: WidgetMode,
             todayKey: String
         ): RemoteViews {
-            val views = RemoteViews(context.packageName, R.layout.today_widget_small)
-
             // 스냅샷의 42칸 격자에서 오늘 셀을 찾는다. 없으면(예외적) baked된 today로 폴백.
             val dayCell = findDayByKey(snapshot, todayKey)
             val dateLabel: String
@@ -191,15 +198,50 @@ open class TodayWidgetProvider : AppWidgetProvider() {
                 liturgyTitle = dayCell.optString("titleFull").ifBlank { "오늘의 전례" }
                 liturgyColor = dayCell.optString("liturgicalColor")
                 eventTitle = dayCell.optString("eventTitle")
+                val eventDisplayText = dayCell.optString("eventDisplayText").ifBlank { eventTitle }
                 extraCount = dayCell.optInt("extraEventCount")
+                return buildSmallViewsWithText(
+                    context,
+                    mode,
+                    dateLabel,
+                    liturgyTitle,
+                    liturgyColor,
+                    eventTitle,
+                    eventDisplayText,
+                    extraCount
+                )
             } else {
                 val today = snapshot.optJSONObject("today") ?: JSONObject()
                 dateLabel = today.optString("dateLabel", fallbackDateLabel())
                 liturgyTitle = today.optString("liturgicalTitle", "오늘의 전례")
                 liturgyColor = today.optString("liturgicalColor")
                 eventTitle = today.optString("eventTitle")
+                val eventDisplayText = today.optString("eventDisplayText").ifBlank { eventTitle }
                 extraCount = today.optInt("extraEventCount")
+                return buildSmallViewsWithText(
+                    context,
+                    mode,
+                    dateLabel,
+                    liturgyTitle,
+                    liturgyColor,
+                    eventTitle,
+                    eventDisplayText,
+                    extraCount
+                )
             }
+        }
+
+        private fun buildSmallViewsWithText(
+            context: Context,
+            mode: WidgetMode,
+            dateLabel: String,
+            liturgyTitle: String,
+            liturgyColor: String,
+            eventTitle: String,
+            eventDisplayText: String,
+            extraCount: Int
+        ): RemoteViews {
+            val views = RemoteViews(context.packageName, R.layout.today_widget_small)
 
             applySmallMode(context, views, mode)
             views.setTextViewText(
@@ -217,7 +259,7 @@ open class TodayWidgetProvider : AppWidgetProvider() {
                 views.setViewVisibility(R.id.today_widget_event, View.VISIBLE)
                 views.setTextViewText(
                     R.id.today_widget_event,
-                    if (extraCount > 0) "$eventTitle 외 ${extraCount}개" else eventTitle
+                    if (extraCount > 0) "$eventDisplayText 외 ${extraCount}개" else eventDisplayText
                 )
             }
             return views
@@ -267,33 +309,91 @@ open class TodayWidgetProvider : AppWidgetProvider() {
         private fun buildLargeViews(
             context: Context,
             snapshot: JSONObject,
-            todayKey: String
+            todayKey: String,
+            appWidgetId: Int
         ): RemoteViews {
-            val month = snapshot.optJSONObject("month") ?: JSONObject()
+            val targetSerial = displayedMonthSerial(context, snapshot, appWidgetId)
+            val month = findMonthBySerial(snapshot, targetSerial)
+                ?: snapshot.optJSONObject("month")
+                ?: JSONObject()
             val days = month.optJSONArray("days") ?: JSONArray()
             val views = RemoteViews(context.packageName, R.layout.today_widget_large)
             views.setTextViewText(R.id.today_widget_month_title, month.optString("title", ""))
             views.removeAllViews(R.id.today_widget_month_rows)
-
+            views.setOnClickPendingIntent(
+                R.id.today_widget_prev,
+                widgetActionIntent(context, appWidgetId, ACTION_PREV_MONTH)
+            )
+            views.setOnClickPendingIntent(
+                R.id.today_widget_next,
+                widgetActionIntent(context, appWidgetId, ACTION_NEXT_MONTH)
+            )
+            views.setOnClickPendingIntent(
+                R.id.today_widget_today,
+                widgetActionIntent(context, appWidgetId, ACTION_TODAY_MONTH)
+            )
             for (rowIndex in 0 until 6) {
                 val row = RemoteViews(context.packageName, R.layout.today_widget_month_row)
                 for (colIndex in 0 until 7) {
                     val day = days.optJSONObject(rowIndex * 7 + colIndex) ?: JSONObject()
-                    row.addView(R.id.today_widget_month_row, buildDayCell(context, day, todayKey))
+                    row.addView(
+                        R.id.today_widget_month_row,
+                        buildDayCell(
+                            context,
+                            day,
+                            todayKey
+                        )
+                    )
                 }
                 views.addView(R.id.today_widget_month_rows, row)
             }
             return views
         }
 
-        private fun buildDayCell(context: Context, day: JSONObject, todayKey: String): RemoteViews {
+        fun handleWidgetAction(context: Context, intent: Intent): Boolean {
+            val action = intent.action ?: return false
+            if (action != ACTION_PREV_MONTH &&
+                action != ACTION_NEXT_MONTH &&
+                action != ACTION_TODAY_MONTH
+            ) {
+                return false
+            }
+
+            val appWidgetId = intent.getIntExtra(
+                EXTRA_APP_WIDGET_ID,
+                AppWidgetManager.INVALID_APPWIDGET_ID
+            )
+            if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) return true
+
+            val snapshot = readSnapshot(context)
+            val current = displayedMonthSerial(context, snapshot, appWidgetId)
+            val next = when (action) {
+                ACTION_PREV_MONTH -> current - 1
+                ACTION_NEXT_MONTH -> current + 1
+                else -> currentMonthSerial()
+            }
+            saveDisplayedMonthSerial(context, appWidgetId, next)
+            val manager = AppWidgetManager.getInstance(context)
+            manager.updateAppWidget(
+                appWidgetId,
+                buildViews(context, manager, appWidgetId)
+            )
+            return true
+        }
+
+        private fun buildDayCell(
+            context: Context,
+            day: JSONObject,
+            todayKey: String
+        ): RemoteViews {
             val cell = RemoteViews(context.packageName, R.layout.today_widget_day_cell)
             val inMonth = day.optBoolean("inMonth")
             // baked된 isToday 대신 현재 날짜 기준으로 판정.
             val isToday = day.optString("dateKey") == todayKey
             val eventTitle = day.optString("eventTitle")
+            val eventDisplayText = day.optString("eventDisplayText").ifBlank { eventTitle }
             val liturgyTitle = day.optString("liturgicalTitle")
-            val extraCount = day.optInt("extraEventCount")
+            val eventLines = eventLines(day, eventDisplayText)
 
             cell.setTextViewText(R.id.today_widget_day_number, day.optInt("day").toString())
             cell.setTextColor(
@@ -307,17 +407,29 @@ open class TodayWidgetProvider : AppWidgetProvider() {
             )
 
             val primaryText = when {
-                eventTitle.isNotBlank() && extraCount > 0 -> "$eventTitle +$extraCount"
-                eventTitle.isNotBlank() -> eventTitle
+                eventLines.isNotEmpty() -> eventLines.joinToString("\n")
                 else -> liturgyTitle
             }
             cell.setTextViewText(R.id.today_widget_day_title, primaryText)
             cell.setTextColor(
                 R.id.today_widget_day_title,
-                if (eventTitle.isNotBlank()) Color.rgb(29, 27, 32)
+                if (eventLines.isNotEmpty() || eventTitle.isNotBlank()) Color.rgb(29, 27, 32)
                 else liturgicalColor(day.optString("liturgicalColor"))
             )
             return cell
+        }
+
+        private fun eventLines(day: JSONObject, fallback: String): List<String> {
+            val items = day.optJSONArray("eventItems")
+            if (items != null) {
+                val lines = mutableListOf<String>()
+                for (index in 0 until minOf(3, items.length())) {
+                    val title = items.optJSONObject(index)?.optString("title").orEmpty()
+                    if (title.isNotBlank()) lines.add(title)
+                }
+                if (lines.isNotEmpty()) return lines
+            }
+            return if (fallback.isNotBlank()) listOf(fallback) else emptyList()
         }
 
         // 스냅샷 격자(month.days)에서 dateKey가 일치하는 날 셀을 찾는다.
@@ -341,6 +453,48 @@ open class TodayWidgetProvider : AppWidgetProvider() {
             }
         }
 
+        private fun displayedMonthSerial(
+            context: Context,
+            snapshot: JSONObject,
+            appWidgetId: Int
+        ): Int {
+            val prefs = context.getSharedPreferences(PREF_WIDGET_STATE, Context.MODE_PRIVATE)
+            val saved = prefs.getInt(monthStateKey(appWidgetId), Int.MIN_VALUE)
+            if (saved != Int.MIN_VALUE) return saved
+            val month = snapshot.optJSONObject("month")
+            val year = month?.optInt("year") ?: Calendar.getInstance().get(Calendar.YEAR)
+            val monthValue = month?.optInt("month") ?: (Calendar.getInstance().get(Calendar.MONTH) + 1)
+            return monthSerial(year, monthValue)
+        }
+
+        private fun saveDisplayedMonthSerial(context: Context, appWidgetId: Int, serial: Int) {
+            context.getSharedPreferences(PREF_WIDGET_STATE, Context.MODE_PRIVATE)
+                .edit()
+                .putInt(monthStateKey(appWidgetId), serial)
+                .apply()
+        }
+
+        private fun monthStateKey(appWidgetId: Int): String =
+            "displayed_month_$appWidgetId"
+
+        private fun findMonthBySerial(snapshot: JSONObject, serial: Int): JSONObject? {
+            val months = snapshot.optJSONArray("months") ?: return null
+            for (i in 0 until months.length()) {
+                val month = months.optJSONObject(i) ?: continue
+                if (monthSerial(month.optInt("year"), month.optInt("month")) == serial) {
+                    return month
+                }
+            }
+            return null
+        }
+
+        private fun monthSerial(year: Int, month: Int): Int = year * 12 + (month - 1)
+
+        private fun currentMonthSerial(): Int {
+            val cal = Calendar.getInstance()
+            return monthSerial(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1)
+        }
+
         private fun openAppIntent(context: Context): PendingIntent {
             val intent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -348,6 +502,29 @@ open class TodayWidgetProvider : AppWidgetProvider() {
             return PendingIntent.getActivity(
                 context,
                 0,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        }
+
+        private fun widgetActionIntent(
+            context: Context,
+            appWidgetId: Int,
+            action: String
+        ): PendingIntent {
+            val intent = Intent(context, TodayWidgetFourByFourProvider::class.java).apply {
+                this.action = action
+                putExtra(EXTRA_APP_WIDGET_ID, appWidgetId)
+            }
+            val actionCode = when (action) {
+                ACTION_PREV_MONTH -> 1
+                ACTION_NEXT_MONTH -> 2
+                ACTION_TODAY_MONTH -> 3
+                else -> 0
+            }
+            return PendingIntent.getBroadcast(
+                context,
+                appWidgetId * 10 + actionCode,
                 intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
