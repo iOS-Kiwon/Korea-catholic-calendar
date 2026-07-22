@@ -4,6 +4,7 @@ import 'package:liturgical_calendar/liturgical_calendar.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/theme/liturgical_colors.dart';
+import '../../../app_metadata/app_metadata_service.dart';
 import '../../../events/application/event_providers.dart';
 import '../../../events/model/calendar_event.dart';
 import '../../../events/presentation/event_editor_sheet.dart';
@@ -47,6 +48,9 @@ class DayDetailView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final events = ref.watch(eventsForDateProvider(day.date));
+    final metadata =
+        ref.watch(appMetadataProvider).value ?? AppMetadata.fallback;
+    final hasSaintFeast = events.any((event) => event.isSaintFeast);
     final readings = day.scriptureReadings;
 
     return ListView(
@@ -131,7 +135,24 @@ class DayDetailView extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 16),
-        _SupportBanner(onTap: () => showSupportSheet(context)),
+        if (hasSaintFeast)
+          _SupportBanner(
+            icon: const Text('🎁', style: TextStyle(fontSize: 22)),
+            title: '오늘은 특별한 축일이에요',
+            subtitle: '축하 메시지와 작은 선물로 마음을 전해보세요',
+            onTap: () => _openExternalUrl(metadata.feastGiftShopUrl),
+          )
+        else
+          _SupportBanner(
+            icon: Icon(
+              Icons.favorite,
+              color: theme.colorScheme.primary,
+              size: 22,
+            ),
+            title: '오늘의 기쁨을 나눠요',
+            subtitle: '하느님의 말씀을 전하는 데 함께해주세요',
+            onTap: () => showSupportSheet(context),
+          ),
       ],
     );
   }
@@ -143,6 +164,11 @@ Future<void> _openSourceUrl(String url) async {
   if (!openedInApp) {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
+}
+
+Future<void> _openExternalUrl(String url) async {
+  final uri = Uri.parse(url);
+  await launchUrl(uri, mode: LaunchMode.externalApplication);
 }
 
 class _SectionHeader extends StatelessWidget {
@@ -299,7 +325,16 @@ class _ReadingLine extends StatelessWidget {
 
 /// 나눔(응원) 배너 - 카드 아래에 연한 녹색으로 표시.
 class _SupportBanner extends StatelessWidget {
-  const _SupportBanner({required this.onTap});
+  const _SupportBanner({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final Widget icon;
+  final String title;
+  final String subtitle;
   final VoidCallback onTap;
 
   @override
@@ -316,7 +351,7 @@ class _SupportBanner extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
-              Icon(Icons.favorite, color: accent, size: 22),
+              icon,
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -324,7 +359,7 @@ class _SupportBanner extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      '오늘의 기쁨을 나눠요',
+                      title,
                       style: theme.textTheme.titleSmall?.copyWith(
                         color: accent,
                         fontWeight: FontWeight.w700,
@@ -332,7 +367,7 @@ class _SupportBanner extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '하느님의 말씀을 전하는 데 함께해주세요',
+                      subtitle,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: accent.withValues(alpha: 0.85),
                       ),

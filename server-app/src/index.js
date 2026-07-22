@@ -17,6 +17,7 @@ const workerBaseUrl =
 const apiPrefix = '/kcc/v1';
 const saintsAliasFile =
   process.env.SAINTS_ALIAS_FILE || '/app/saint-aliases.json';
+const defaultFeastGiftShopUrl = 'https://m.smartstore.naver.com/amoondal';
 
 const startedAt = new Date();
 const db = createDbPool();
@@ -165,6 +166,23 @@ async function ensureSchema() {
       CHECK (android_update_mode IN ('none', 'recommended', 'force'))
     )
   `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS app_metadata (
+      key text PRIMARY KEY,
+      value_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+
+  await db.query(
+    `
+      INSERT INTO app_metadata (key, value_json, updated_at)
+      VALUES ('gift_shop', $1::jsonb, now())
+      ON CONFLICT (key) DO NOTHING
+    `,
+    [JSON.stringify({ url: defaultFeastGiftShopUrl })],
+  );
 
   await db.query(`
     ALTER TABLE app_update_policy
@@ -365,6 +383,40 @@ function defaultAppUpdatePolicy() {
     update_message: '',
     updated_at: null,
   };
+}
+
+async function findAppMetadata() {
+  if (!db) return defaultAppMetadata();
+
+  const result = await db.query(`
+    SELECT key, value_json, updated_at
+    FROM app_metadata
+    WHERE key = 'gift_shop'
+  `);
+  const giftShop = result.rows[0]?.value_json || {};
+  return {
+    giftShop: {
+      url: safeHttpUrl(giftShop.url) || defaultFeastGiftShopUrl,
+    },
+    updatedAt: result.rows[0]?.updated_at || null,
+  };
+}
+
+function defaultAppMetadata() {
+  return {
+    giftShop: { url: defaultFeastGiftShopUrl },
+    updatedAt: null,
+  };
+}
+
+function safeHttpUrl(value) {
+  try {
+    const url = new URL(String(value || '').trim());
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return '';
+    return url.toString();
+  } catch {
+    return '';
+  }
 }
 
 function parseCalendarPath(pathname) {
@@ -586,6 +638,15 @@ async function handleRequest(req, res) {
 
   if (url.pathname === `${apiPrefix}/app/version`) {
     await handleAppVersion(req, res, url);
+    return;
+  }
+
+  if (url.pathname === `${apiPrefix}/app/metadata`) {
+    if (req.method !== 'GET') {
+      sendJson(res, 405, { error: 'method_not_allowed' }, { allow: 'GET' });
+      return;
+    }
+    sendJson(res, 200, await findAppMetadata());
     return;
   }
 

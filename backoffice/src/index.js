@@ -16,6 +16,7 @@ const apiBaseUrl =
   `http://api:${process.env.API_PORT || 8080}/kcc/v1`;
 const saintsAliasFile =
   process.env.SAINTS_ALIAS_FILE || '/app/saint-aliases.json';
+const defaultFeastGiftShopUrl = 'https://m.smartstore.naver.com/amoondal';
 const failedAuthAttempts = new Map();
 
 const db = new pg.Pool({
@@ -86,6 +87,23 @@ async function ensureSchema() {
       CHECK (android_update_mode IN ('none', 'recommended', 'force'))
     )
   `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS app_metadata (
+      key text PRIMARY KEY,
+      value_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+
+  await db.query(
+    `
+      INSERT INTO app_metadata (key, value_json, updated_at)
+      VALUES ('gift_shop', $1::jsonb, now())
+      ON CONFLICT (key) DO NOTHING
+    `,
+    [JSON.stringify({ url: defaultFeastGiftShopUrl })],
+  );
 
   await db.query(`
     ALTER TABLE app_update_policy
@@ -663,6 +681,46 @@ async function getAppUpdatePolicy() {
   );
 }
 
+async function getAppMetadata() {
+  const result = await db.query(`
+    SELECT key, value_json, updated_at
+    FROM app_metadata
+    WHERE key = 'gift_shop'
+  `);
+  const row = result.rows[0];
+  const giftShop = row?.value_json || {};
+  return {
+    giftShop: {
+      url: safeHttpUrl(giftShop.url) || defaultFeastGiftShopUrl,
+    },
+    updatedAt: row?.updated_at || null,
+  };
+}
+
+async function upsertAppMetadata(metadata) {
+  await db.query(
+    `
+      INSERT INTO app_metadata (key, value_json, updated_at)
+      VALUES ('gift_shop', $1::jsonb, now())
+      ON CONFLICT (key)
+      DO UPDATE SET
+        value_json = EXCLUDED.value_json,
+        updated_at = now()
+    `,
+    [JSON.stringify({ url: metadata.giftShopUrl })],
+  );
+}
+
+function safeHttpUrl(value) {
+  try {
+    const url = new URL(String(value || '').trim());
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return '';
+    return url.toString();
+  } catch {
+    return '';
+  }
+}
+
 async function upsertAppUpdatePolicy(policy) {
   await db.query(
     `
@@ -1171,6 +1229,7 @@ function layout(title, content, activeNav = 'calendar') {
         ${navItem(activeNav, 'calendar', basePath || '/', '전례력 캐시')}
         ${navItem(activeNav, 'saints', `${basePath}/saints`, '성인')}
         ${navItem(activeNav, 'app-update', `${basePath}/app-update-policy`, '업데이트 정책')}
+        ${navItem(activeNav, 'app-metadata', `${basePath}/app-metadata`, '앱 메타데이터')}
         ${navItem(activeNav, 'audit', `${basePath}/audit-logs`, '감사 로그')}
       </nav>
     </aside>
@@ -1400,6 +1459,63 @@ async function handleAppUpdatePolicy(req, res, url) {
     </div>
   `;
   sendHtml(res, 200, layout('업데이트 정책', content, 'app-update'));
+}
+
+function appMetadataForm(metadata) {
+  return `
+    <form class="editor" method="post" action="${basePath}/app-metadata/save">
+      <div>
+        <h2>앱 메타데이터</h2>
+        <div class="sub">앱 실행 시 내려가는 운영 설정입니다. 앞으로 링크, 문구, 노출 정책 같은 값을 이 화면에 추가할 수 있습니다.</div>
+      </div>
+      <label class="form-row">
+        축일 선물 링크
+        <input name="giftShopUrl" class="wide" value="${escapeHtml(metadata.giftShop.url)}" placeholder="${defaultFeastGiftShopUrl}">
+      </label>
+      <div class="editor-actions">
+        <div class="sub">통신 실패 또는 잘못된 URL이면 앱은 기본값 ${escapeHtml(defaultFeastGiftShopUrl)}을 사용합니다.</div>
+        <button type="submit">저장</button>
+      </div>
+    </form>`;
+}
+
+async function handleAppMetadata(req, res, url) {
+  const metadata = await getAppMetadata();
+  const message = url.searchParams.get('message');
+  const content = `
+    ${message ? `<div class="message">${escapeHtml(message)}</div>` : ''}
+    <div class="diff-wrap">
+      ${appMetadataForm(metadata)}
+    </div>
+  `;
+  sendHtml(res, 200, layout('앱 메타데이터', content, 'app-metadata'));
+}
+
+async function handleAppMetadataSave(req, res) {
+  const form = await readForm(req);
+  const giftShopUrl = safeHttpUrl(form.get('giftShopUrl'));
+  if (!giftShopUrl) {
+    sendHtml(
+      res,
+      400,
+      layout(
+        '앱 메타데이터',
+        `<div class="empty">저장하지 않았습니다. 축일 선물 링크는 http 또는 https URL이어야 합니다.</div>
+        <div class="toolbar"><a class="button secondary" href="${basePath}/app-metadata">앱 메타데이터로 돌아가기</a></div>`,
+        'app-metadata',
+      ),
+    );
+    return;
+  }
+
+  await upsertAppMetadata({ giftShopUrl });
+  await logAdminAction(req, 'app_metadata_update', 'app_metadata', 'gift_shop', {
+    gift_shop_url: giftShopUrl,
+  });
+  redirect(
+    res,
+    `${basePath}/app-metadata?message=${encodeURIComponent('앱 메타데이터를 저장했습니다.')}`,
+  );
 }
 
 function renderEditForm(year, month, payload, message = '') {
@@ -2601,6 +2717,16 @@ async function handleRequest(req, res) {
 
   if (url.pathname === `${basePath}/app-update-policy/save` && req.method === 'POST') {
     await handleAppUpdatePolicySave(req, res);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/app-metadata` && req.method === 'GET') {
+    await handleAppMetadata(req, res, url);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/app-metadata/save` && req.method === 'POST') {
+    await handleAppMetadataSave(req, res);
     return;
   }
 
