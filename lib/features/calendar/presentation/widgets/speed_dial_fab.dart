@@ -36,7 +36,25 @@ class _SpeedDialFabState extends State<SpeedDialFab>
   bool get _open => _controller.value > 0 || _controller.isAnimating;
 
   @override
+  void initState() {
+    super.initState();
+    _controller.addStatusListener(_onStatusChanged);
+  }
+
+  // 애니메이션이 완전히 닫히거나(dismissed) 열린(completed) 뒤에도 build()가
+  // 다시 실행되도록 강제한다. 그렇지 않으면 reverse 완료 시점에 setState가
+  // 호출되지 않아 스크림(if (_open))이 opacity 0 상태로 화면에 남아
+  // 탭 이벤트를 계속 가로챈다.
+  void _onStatusChanged(AnimationStatus status) {
+    if (!mounted) return;
+    if (status == AnimationStatus.dismissed || status == AnimationStatus.completed) {
+      setState(() {});
+    }
+  }
+
+  @override
   void dispose() {
+    _controller.removeStatusListener(_onStatusChanged);
     _controller.dispose();
     super.dispose();
   }
@@ -179,6 +197,7 @@ class _SpeedDialFabState extends State<SpeedDialFab>
           FloatingActionButton(
             heroTag: null,
             mini: true,
+            tooltip: label,
             backgroundColor: Colors.white,
             foregroundColor: widget.color,
             onPressed: onTap,

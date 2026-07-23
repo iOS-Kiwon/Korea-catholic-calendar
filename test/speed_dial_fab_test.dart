@@ -63,4 +63,51 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('일정 추가'), findsNothing);
   });
+
+  testWidgets('열었다 닫은 뒤에는 스크림이 사라져 아래 위젯이 탭을 받는다', (tester) async {
+    var behindTapCount = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Stack(
+            children: [
+              // 스피드다이얼 아래 깔린 전체 화면 위젯. 스크림이 닫힌 뒤에도
+              // 남아있으면 이 탭이 흡수되어 카운트가 증가하지 않는다.
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => behindTapCount++,
+                ),
+              ),
+              SizedBox.expand(
+                child: SpeedDialFab(
+                  color: const Color(0xFF2E7D32),
+                  padding: const EdgeInsets.all(16),
+                  onAddEvent: () {},
+                  onAddFeast: () {},
+                  onOpenSettings: () {},
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    // 연다.
+    await tester.tap(find.byKey(const ValueKey('speed_dial_main')));
+    await tester.pumpAndSettle();
+    expect(find.text('일정 추가'), findsOneWidget);
+
+    // 다시 눌러 닫는다(닫힘 애니메이션이 dismissed까지 완료되도록 settle).
+    await tester.tap(find.byKey(const ValueKey('speed_dial_main')));
+    await tester.pumpAndSettle();
+    expect(find.text('일정 추가'), findsNothing);
+
+    // FAB에서 멀리 떨어진 위치를 탭하면 스크림이 남아있지 않아야 아래
+    // 위젯까지 탭이 전달된다.
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
+    expect(behindTapCount, 1);
+  });
 }
