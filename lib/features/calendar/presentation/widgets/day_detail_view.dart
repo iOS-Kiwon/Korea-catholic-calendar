@@ -6,7 +6,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../app/theme/liturgical_colors.dart';
 import '../../../events/application/event_providers.dart';
 import '../../../events/model/calendar_event.dart';
-import '../../../events/presentation/add_event_choice.dart';
 import '../../../events/presentation/event_editor_sheet.dart';
 import '../../../saints/presentation/saint_feast_editor_page.dart';
 import '../../../support/presentation/support_sheet.dart';
@@ -85,8 +84,7 @@ class DayDetailView extends ConsumerWidget {
                   children: [
                     Expanded(child: _SectionHeader('일정')),
                     TextButton.icon(
-                      onPressed: () =>
-                          showAddEventChoice(context, date: day.date),
+                      onPressed: () => showEventEditor(context, date: day.date),
                       icon: const Icon(Icons.add, size: 18),
                       label: const Text('추가'),
                       style: TextButton.styleFrom(
