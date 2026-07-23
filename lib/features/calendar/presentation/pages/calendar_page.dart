@@ -221,11 +221,12 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   );
 
   /// 스피드다이얼 추가 버튼. 색상 = 현재 월의 전례색(연중=녹색 등).
-  Widget _addEventFab(CalendarService s) {
+  Widget _addEventFab(CalendarService s, {required EdgeInsets padding}) {
     final mid = s.day(DateTime(widget.month.year, widget.month.month, 15));
     final color = context.liturgical.of(seasonColor(mid.season));
     return SpeedDialFab(
       color: color,
+      padding: padding,
       onAddEvent: () => showEventEditor(context, date: _focusDate),
       onAddFeast: () => showSaintFeastEditor(context, date: _focusDate),
       onOpenSettings: () => Navigator.of(context).push(
@@ -274,12 +275,9 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                         ),
                       ),
                       Positioned.fill(
-                        child: Padding(
+                        child: _addEventFab(
+                          s,
                           padding: const EdgeInsets.only(right: 28, bottom: 20),
-                          child: Align(
-                            alignment: Alignment.bottomRight,
-                            child: _addEventFab(s),
-                          ),
                         ),
                       ),
                     ],
@@ -311,12 +309,9 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                 child: _grid(s, compact: true),
               ),
               Positioned.fill(
-                child: Padding(
+                child: _addEventFab(
+                  s,
                   padding: const EdgeInsets.only(right: 16, bottom: 16),
-                  child: Align(
-                    alignment: Alignment.bottomRight,
-                    child: _addEventFab(s),
-                  ),
                 ),
               ),
             ],

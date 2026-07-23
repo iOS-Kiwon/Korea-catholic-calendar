@@ -10,12 +10,17 @@ class SpeedDialFab extends StatefulWidget {
     required this.onAddEvent,
     required this.onAddFeast,
     required this.onOpenSettings,
+    required this.padding,
   });
 
   final Color color;
   final VoidCallback onAddEvent;
   final VoidCallback onAddFeast;
   final VoidCallback onOpenSettings;
+
+  /// 버튼 컬럼을 화면 우하단에서 얼마나 띄울지. 스크림은 이 여백과 무관하게
+  /// 항상 화면 전체를 덮는다.
+  final EdgeInsets padding;
 
   @override
   State<SpeedDialFab> createState() => _SpeedDialFabState();
@@ -57,51 +62,54 @@ class _SpeedDialFabState extends State<SpeedDialFab>
 
   @override
   Widget build(BuildContext context) {
-    // 스크림은 화면 전체를 덮어야 하므로 FAB 위치를 벗어나 Stack 최상위로 올린다.
+    // 이 위젯은 Positioned.fill로 감싸져 화면 전체 크기의 tight 제약을
+    // 받으므로, 스크림을 Stack 최상위에서 Positioned.fill로 깔면 실제로
+    // 화면 전체를 덮는다. 버튼 컬럼은 별도로 우하단에 배치한다.
     return Stack(
-      clipBehavior: Clip.none,
-      alignment: Alignment.bottomRight,
       children: [
-        // 스크림(열렸을 때만 터치 흡수).
+        // 스크림(열렸을 때만 터치 흡수, 화면 전체를 덮는다).
         if (_open)
           Positioned.fill(
-            child: IgnorePointer(
-              ignoring: false,
-              child: FadeTransition(
-                opacity: _controller,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: _close,
-                  child: Container(color: Colors.black.withValues(alpha: 0.35)),
-                ),
+            child: FadeTransition(
+              opacity: _controller,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _close,
+                child: ColoredBox(color: Colors.black.withValues(alpha: 0.35)),
               ),
             ),
           ),
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            _miniItem(
-              index: 2,
-              label: '설정',
-              icon: Icons.settings,
-              onTap: () => _select(widget.onOpenSettings),
+        Padding(
+          padding: widget.padding,
+          child: Align(
+            alignment: Alignment.bottomRight,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                _miniItem(
+                  index: 2,
+                  label: '설정',
+                  icon: Icons.settings,
+                  onTap: () => _select(widget.onOpenSettings),
+                ),
+                _miniItem(
+                  index: 1,
+                  label: '축일 추가',
+                  icon: Icons.star_border,
+                  onTap: () => _select(widget.onAddFeast),
+                ),
+                _miniItem(
+                  index: 0,
+                  label: '일정 추가',
+                  icon: Icons.event,
+                  onTap: () => _select(widget.onAddEvent),
+                ),
+                const SizedBox(height: 12),
+                _mainButton(),
+              ],
             ),
-            _miniItem(
-              index: 1,
-              label: '축일 추가',
-              icon: Icons.star_border,
-              onTap: () => _select(widget.onAddFeast),
-            ),
-            _miniItem(
-              index: 0,
-              label: '일정 추가',
-              icon: Icons.event,
-              onTap: () => _select(widget.onAddEvent),
-            ),
-            const SizedBox(height: 12),
-            _mainButton(),
-          ],
+          ),
         ),
       ],
     );
