@@ -50,6 +50,8 @@ class WidgetSnapshotService {
     final todayDay = calendar.day(today);
     final todayEvents = [...?events[todayKey]]..sort(_compareEvents);
     final todayEvent = todayEvents.isEmpty ? null : todayEvents.first;
+    final todayRegularEvent = _firstRegularEvent(todayEvents);
+    final todaySaintFeast = _firstSaintFeast(todayEvents);
     final first = DateTime(month.year, month.month, 1);
     final leading = first.weekday % 7;
     final start = DateTime(month.year, month.month, 1 - leading);
@@ -79,6 +81,12 @@ class WidgetSnapshotService {
         'eventDisplayText': todayEvent == null
             ? ''
             : _eventDisplayText(todayEvent),
+        'regularEventDisplayText': todayRegularEvent == null
+            ? ''
+            : _regularEventDisplayText(todayRegularEvent),
+        'saintFeastDisplayText': todaySaintFeast == null
+            ? ''
+            : _saintFeastDisplayText(todaySaintFeast),
         'eventColor': todayEvent?.categoryColor,
         'eventItems': _eventItems(todayEvents),
         'extraEventCount': todayEvents.length > 1 ? todayEvents.length - 1 : 0,
@@ -145,6 +153,8 @@ class WidgetSnapshotService {
     final day = calendar.day(date);
     final dayEvents = [...?events[key]]..sort(_compareEvents);
     final firstEvent = dayEvents.isEmpty ? null : dayEvents.first;
+    final regularEvent = _firstRegularEvent(dayEvents);
+    final saintFeast = _firstSaintFeast(dayEvents);
     final notable = inMonth && isNotableDay(day);
     return {
       'dateKey': key,
@@ -163,6 +173,12 @@ class WidgetSnapshotService {
       'eventDisplayText': firstEvent == null
           ? ''
           : _eventDisplayText(firstEvent),
+      'regularEventDisplayText': regularEvent == null
+          ? ''
+          : _regularEventDisplayText(regularEvent),
+      'saintFeastDisplayText': saintFeast == null
+          ? ''
+          : _saintFeastDisplayText(saintFeast),
       'eventColor': firstEvent?.categoryColor,
       'eventItems': _eventItems(dayEvents),
       'extraEventCount': dayEvents.length > 1 ? dayEvents.length - 1 : 0,
@@ -216,6 +232,32 @@ String _eventDisplayText(CalendarEvent event) {
   final memo = event.memo?.trim();
   if (memo != null && memo.isNotEmpty) return memo;
   return event.title;
+}
+
+CalendarEvent? _firstRegularEvent(List<CalendarEvent> events) {
+  for (final event in events) {
+    if (!event.isSaintFeast) return event;
+  }
+  return null;
+}
+
+CalendarEvent? _firstSaintFeast(List<CalendarEvent> events) {
+  for (final event in events) {
+    if (event.isSaintFeast) return event;
+  }
+  return null;
+}
+
+String _regularEventDisplayText(CalendarEvent event) {
+  final memo = event.memo?.trim();
+  if (memo != null && memo.isNotEmpty) {
+    return '${event.categoryName} * $memo';
+  }
+  return event.categoryName;
+}
+
+String _saintFeastDisplayText(CalendarEvent event) {
+  return event.saintFeastDisplayText;
 }
 
 List<Map<String, dynamic>> _eventItems(List<CalendarEvent> events) => [

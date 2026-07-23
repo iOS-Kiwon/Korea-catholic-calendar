@@ -191,42 +191,38 @@ open class TodayWidgetProvider : AppWidgetProvider() {
             val dateLabel: String
             val liturgyTitle: String
             val liturgyColor: String
-            val eventTitle: String
-            val extraCount: Int
+            val regularEventDisplayText: String
+            val saintFeastDisplayText: String
             if (dayCell != null) {
                 dateLabel = dayCell.optString("dateLabel").ifBlank { fallbackDateLabel() }
                 liturgyTitle = dayCell.optString("titleFull").ifBlank { "오늘의 전례" }
                 liturgyColor = dayCell.optString("liturgicalColor")
-                eventTitle = dayCell.optString("eventTitle")
-                val eventDisplayText = dayCell.optString("eventDisplayText").ifBlank { eventTitle }
-                extraCount = dayCell.optInt("extraEventCount")
+                regularEventDisplayText = dayCell.optString("regularEventDisplayText")
+                saintFeastDisplayText = dayCell.optString("saintFeastDisplayText")
                 return buildSmallViewsWithText(
                     context,
                     mode,
                     dateLabel,
                     liturgyTitle,
                     liturgyColor,
-                    eventTitle,
-                    eventDisplayText,
-                    extraCount
+                    regularEventDisplayText,
+                    saintFeastDisplayText
                 )
             } else {
                 val today = snapshot.optJSONObject("today") ?: JSONObject()
                 dateLabel = today.optString("dateLabel", fallbackDateLabel())
                 liturgyTitle = today.optString("liturgicalTitle", "오늘의 전례")
                 liturgyColor = today.optString("liturgicalColor")
-                eventTitle = today.optString("eventTitle")
-                val eventDisplayText = today.optString("eventDisplayText").ifBlank { eventTitle }
-                extraCount = today.optInt("extraEventCount")
+                regularEventDisplayText = today.optString("regularEventDisplayText")
+                saintFeastDisplayText = today.optString("saintFeastDisplayText")
                 return buildSmallViewsWithText(
                     context,
                     mode,
                     dateLabel,
                     liturgyTitle,
                     liturgyColor,
-                    eventTitle,
-                    eventDisplayText,
-                    extraCount
+                    regularEventDisplayText,
+                    saintFeastDisplayText
                 )
             }
         }
@@ -237,9 +233,8 @@ open class TodayWidgetProvider : AppWidgetProvider() {
             dateLabel: String,
             liturgyTitle: String,
             liturgyColor: String,
-            eventTitle: String,
-            eventDisplayText: String,
-            extraCount: Int
+            regularEventDisplayText: String,
+            saintFeastDisplayText: String
         ): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.today_widget_small)
 
@@ -253,14 +248,18 @@ open class TodayWidgetProvider : AppWidgetProvider() {
                 R.id.today_widget_liturgy,
                 liturgicalColor(liturgyColor)
             )
-            if (eventTitle.isBlank() || mode == WidgetMode.Tiny) {
+            val regularText = regularEventDisplayText
+            if (regularText.isBlank() || mode == WidgetMode.Tiny) {
                 views.setViewVisibility(R.id.today_widget_event, View.GONE)
             } else {
                 views.setViewVisibility(R.id.today_widget_event, View.VISIBLE)
-                views.setTextViewText(
-                    R.id.today_widget_event,
-                    if (extraCount > 0) "$eventDisplayText 외 ${extraCount}개" else eventDisplayText
-                )
+                views.setTextViewText(R.id.today_widget_event, regularText)
+            }
+            if (saintFeastDisplayText.isBlank() || mode == WidgetMode.Tiny) {
+                views.setViewVisibility(R.id.today_widget_feast, View.GONE)
+            } else {
+                views.setViewVisibility(R.id.today_widget_feast, View.VISIBLE)
+                views.setTextViewText(R.id.today_widget_feast, saintFeastDisplayText)
             }
             return views
         }
@@ -294,10 +293,11 @@ open class TodayWidgetProvider : AppWidgetProvider() {
                     views.setTextViewTextSize(R.id.today_widget_date, TypedValue.COMPLEX_UNIT_SP, 24f)
                     views.setTextViewTextSize(R.id.today_widget_liturgy, TypedValue.COMPLEX_UNIT_SP, 15f)
                     views.setTextViewTextSize(R.id.today_widget_event, TypedValue.COMPLEX_UNIT_SP, 13f)
+                    views.setTextViewTextSize(R.id.today_widget_feast, TypedValue.COMPLEX_UNIT_SP, 13f)
                     views.setViewPadding(
                         R.id.today_widget_root,
                         dp(context, 6),
-                        dp(context, 6),
+                        dp(context, 18),
                         dp(context, 6),
                         dp(context, 6)
                     )
