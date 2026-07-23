@@ -117,7 +117,9 @@ void main() {
     expect(find.text('일정'), findsOneWidget);
   });
 
-  testWidgets('the add-event FAB pushes the editor screen', (tester) async {
+  testWidgets('the add-event speed dial opens the event editor', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(390, 844); // phone (narrow) layout
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -127,8 +129,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byType(FloatingActionButton), findsOneWidget);
-    await tester.tap(find.byType(FloatingActionButton));
+    // Tap the speed-dial main button to expand the mini actions.
+    await tester.tap(find.byKey(const ValueKey('speed_dial_main')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('일정 추가'), findsOneWidget);
+
+    // Tap '일정 추가' to open the editor.
+    await tester.tap(find.text('일정 추가'));
     await tester.pumpAndSettle();
 
     expect(find.text('새 일정'), findsOneWidget);

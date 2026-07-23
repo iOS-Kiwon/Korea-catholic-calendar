@@ -6,7 +6,9 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/theme/liturgical_colors.dart';
 import '../../../../core/date/year_month.dart';
 import '../../../ads/ads.dart';
-import '../../../events/presentation/add_event_choice.dart';
+import '../../../events/presentation/event_editor_sheet.dart';
+import '../../../saints/presentation/saint_feast_editor_page.dart';
+import '../../../settings/presentation/settings_page.dart';
 import '../../../support/presentation/support_sheet.dart';
 import '../../application/calendar_providers.dart';
 import '../../data/calendar_service.dart';
@@ -16,6 +18,7 @@ import '../widgets/legend.dart';
 import '../widgets/month_grid.dart';
 import '../widgets/month_header.dart';
 import '../widgets/month_year_picker.dart';
+import '../widgets/speed_dial_fab.dart';
 import 'day_detail_page.dart';
 
 String monthPath(YearMonth ym) =>
@@ -217,17 +220,18 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     onTapDetail: () => _openDetailPage(s, _focusDate),
   );
 
-  /// 일정 추가 플로팅 버튼. 색상 = 현재 월의 전례색(연중=녹색 등).
-  Widget _addEventFab(CalendarService s) {
+  /// 스피드다이얼 추가 버튼. 색상 = 현재 월의 전례색(연중=녹색 등).
+  Widget _addEventFab(CalendarService s, {required EdgeInsets padding}) {
     final mid = s.day(DateTime(widget.month.year, widget.month.month, 15));
     final color = context.liturgical.of(seasonColor(mid.season));
-    return FloatingActionButton(
-      heroTag: null,
-      backgroundColor: color,
-      foregroundColor: Colors.white,
-      tooltip: '일정 추가',
-      onPressed: () => showAddEventChoice(context, date: _focusDate),
-      child: const Icon(Icons.add),
+    return SpeedDialFab(
+      color: color,
+      padding: padding,
+      onAddEvent: () => showEventEditor(context, date: _focusDate),
+      onAddFeast: () => showSaintFeastEditor(context, date: _focusDate),
+      onOpenSettings: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const SettingsPage()),
+      ),
     );
   }
 
@@ -270,7 +274,12 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                           ],
                         ),
                       ),
-                      Positioned(right: 28, bottom: 20, child: _addEventFab(s)),
+                      Positioned.fill(
+                        child: _addEventFab(
+                          s,
+                          padding: const EdgeInsets.only(right: 28, bottom: 20),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -299,7 +308,12 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: _grid(s, compact: true),
               ),
-              Positioned(right: 16, bottom: 16, child: _addEventFab(s)),
+              Positioned.fill(
+                child: _addEventFab(
+                  s,
+                  padding: const EdgeInsets.only(right: 16, bottom: 16),
+                ),
+              ),
             ],
           ),
         ),

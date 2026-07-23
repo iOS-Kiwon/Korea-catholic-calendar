@@ -32,18 +32,18 @@ Future<void> maybeShowBackupNotice(BuildContext context, WidgetRef ref) async {
   final String message;
   if (configured) {
     message =
-        '추가한 일정과 카테고리는 이 기기의 $service에 자동으로 저장되고, '
-        '앱을 다시 설치하거나 기기를 바꿔도 복원됩니다.';
+        '추가한 일정과 카테고리는 설정 > 백업에서 $service에 저장하고, '
+        '앱을 다시 설치하거나 기기를 바꿔도 복원할 수 있어요.';
   } else if (isIos) {
     message =
-        '추가한 일정과 카테고리는 iCloud에 자동으로 저장·복원됩니다.\n\n'
-        '현재 iCloud가 켜져 있지 않아 지금은 백업되지 않습니다. '
+        '설정 > 백업에서 iCloud에 일정과 카테고리를 저장하고 복원할 수 있어요.\n\n'
+        '현재 iCloud가 켜져 있지 않아 지금은 백업할 수 없어요. '
         '설정 앱에서 "Apple 계정 > iCloud"를 켜 주세요.';
   } else {
     message =
         'Google Drive를 연동하면\n'
-        '일정과 카테고리를 자동으로\n'
-        '저장하고 복원할 수 있어요.\n\n'
+        '일정과 카테고리를 저장하고\n'
+        '복원할 수 있어요.\n\n'
         '연동하시겠습니까?';
   }
 

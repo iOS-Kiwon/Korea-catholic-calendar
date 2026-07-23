@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../data/backup_prefs.dart';
 import '../data/personal_cloud_backup_store.dart';
 import '../data/personal_data_backup_repository.dart';
 import '../data/event_repository.dart';
@@ -68,6 +69,13 @@ class PersonalCloudBackupController {
       final saved = await _ref
           .read(personalCloudBackupStoreProvider)
           .saveSnapshotJson(snapshotJson);
+      if (saved) {
+        await BackupPrefs.writeNow(
+          prefs,
+          BackupPrefs.lastBackupAtKey,
+          DateTime.now(),
+        );
+      }
       debugPrint(
         '[KCC backup] Cloud personal-data backup ${saved ? 'saved' : 'skipped'} exportedAt=${snapshot.exportedAt.toIso8601String()}',
       );
@@ -178,7 +186,7 @@ class EventStore extends AsyncNotifier<Map<String, List<CalendarEvent>>> {
     await _repo.save(map);
     state = AsyncData(map);
     await _notifications.sync(map);
-    await ref.read(personalCloudBackupControllerProvider).backupNow();
+    // 자동 백업은 하지 않는다. 사용자가 설정 > 백업에서 직접 백업한다.
   }
 }
 
