@@ -15,14 +15,19 @@ class _AvailStore extends PersonalCloudBackupStore {
   Future<bool> saveSnapshotJson(String snapshotJson) async => true;
 }
 
-Future<void> _pump(WidgetTester tester, CloudBackupAvailability availability) async {
+Future<void> _pump(
+  WidgetTester tester,
+  CloudBackupAvailability availability,
+) async {
   SharedPreferences.setMockInitialValues({});
   final prefs = await SharedPreferences.getInstance();
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         sharedPreferencesProvider.overrideWith((ref) async => prefs),
-        personalCloudBackupStoreProvider.overrideWithValue(_AvailStore(availability)),
+        personalCloudBackupStoreProvider.overrideWithValue(
+          _AvailStore(availability),
+        ),
       ],
       child: const MaterialApp(home: BackupSettingsPage()),
     ),

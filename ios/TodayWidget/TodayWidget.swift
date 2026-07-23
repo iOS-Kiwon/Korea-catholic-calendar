@@ -98,6 +98,8 @@ struct TodayProvider: TimelineProvider {
 
 struct TodayWidgetView: View {
     @Environment(\.widgetFamily) private var family
+    // 기본 콘텐츠 여백값(비활성화해도 이 환경값은 기본 여백을 그대로 알려준다).
+    @Environment(\.widgetContentMargins) private var contentMargins
 
     let entry: TodayEntry
 
@@ -107,9 +109,13 @@ struct TodayWidgetView: View {
         Group {
             switch family {
             case .systemLarge:
+                // 큰 위젯은 기존과 동일한 시스템 기본 여백을 유지한다.
                 MonthWidgetView(month: entry.snapshot.month, todayKey: todayKey)
+                    .padding(contentMargins)
             default:
+                // 작은 위젯은 여백을 최소화해 본 콘텐츠를 가장 넓게 보여준다.
                 SmallTodayWidgetView(snapshot: entry.snapshot, todayKey: todayKey)
+                    .padding(EdgeInsets(top: 8, leading: 10, bottom: 8, trailing: 10))
             }
         }
         .containerBackground(.white, for: .widget)
@@ -337,6 +343,8 @@ struct TodayWidget: Widget {
         .configurationDisplayName("가톨릭 달력")
         .description("오늘의 전례와 이번 달 달력을 보여줍니다.")
         .supportedFamilies([.systemSmall, .systemLarge])
+        // 기본 여백을 끄고, 큰 위젯은 뷰에서 기본 여백을 다시 적용해 유지한다.
+        // 작은 위젯은 최소 여백으로 콘텐츠를 넓게 보여준다.
         .contentMarginsDisabled()
     }
 }

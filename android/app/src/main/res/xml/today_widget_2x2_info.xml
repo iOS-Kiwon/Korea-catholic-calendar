@@ -4,7 +4,7 @@
     android:initialLayout="@layout/today_widget_small"
     android:minWidth="110dp"
     android:minHeight="110dp"
-    android:previewLayout="@layout/today_widget_small"
+    android:previewLayout="@layout/today_widget_small_preview"
     android:targetCellWidth="2"
     android:targetCellHeight="2"
     android:updatePeriodMillis="43200000"

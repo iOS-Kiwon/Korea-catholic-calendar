@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  위젯 선택기(추가 화면)에서 보여줄 작은 위젯 미리보기 전용 레이아웃.
+  실제 위젯(today_widget_small)은 RemoteViews로 값이 채워지지만, 미리보기에서는
+  데이터가 바인딩되지 않아 빈 화면으로 보이므로 예시 값을 하드코딩해 둔다.
+  (미리보기 전용이라 메모까지 함께 보여준다. 실제 위젯은 메모를 표시하지 않는다.)
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/today_widget_background"
+    android:gravity="center_vertical"
+    android:orientation="vertical"
+    android:paddingStart="6dp"
+    android:paddingTop="6dp"
+    android:paddingEnd="6dp"
+    android:paddingBottom="6dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:fontFamily="sans-serif-medium"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:text="4/23 목요일"
+        android:textColor="#1D1B20"
+        android:textSize="20sp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="5dp"
+        android:ellipsize="end"
+        android:fontFamily="sans-serif-medium"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:text="축하"
+        android:textColor="#C2185B"
+        android:textSize="15sp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:ellipsize="end"
+        android:fontFamily="sans-serif"
+        android:includeFontPadding="false"
+        android:maxLines="2"
+        android:text="사랑이 축복해요"
+        android:textColor="#625B71"
+        android:textSize="13sp" />
+</LinearLayout>
