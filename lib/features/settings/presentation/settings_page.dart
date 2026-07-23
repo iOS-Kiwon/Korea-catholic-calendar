@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app_update/app_update_providers.dart';
-import '../../app_update/app_update_service.dart';
 import '../../events/application/event_providers.dart';
 import '../../events/data/personal_cloud_backup_store.dart';
 import 'backup_settings_page.dart';
@@ -99,9 +98,9 @@ class _SectionLabel extends StatelessWidget {
       child: Text(
         text,
         style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w700,
-            ),
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -113,7 +112,6 @@ class _VersionFooter extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final info = ref.watch(packageInfoProvider).value;
-    final updateAvailable = ref.watch(appUpdateAvailableProvider).value ?? false;
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
 
@@ -136,22 +134,6 @@ class _VersionFooter extends ConsumerWidget {
             '버전 ${info.version} (빌드 ${info.buildNumber})',
             style: theme.textTheme.bodySmall?.copyWith(color: muted),
           ),
-          if (updateAvailable) ...[
-            const SizedBox(height: 8),
-            InkWell(
-              onTap: () => AppUpdateService.openStore(),
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: Text(
-                  '새로운 기능을 만나보세요 >',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );
