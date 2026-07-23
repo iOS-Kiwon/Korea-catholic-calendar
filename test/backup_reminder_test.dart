@@ -39,7 +39,7 @@ void main() {
     );
   });
 
-  test('lastBackupAt이 reminderAt보다 우선(더 최근 기준)', () {
+  test('lastBackupAt이 reminderAt보다 최근이면 그 기준으로 판단', () {
     expect(
       shouldShowBackupReminder(
         now: now,
@@ -48,6 +48,29 @@ void main() {
         reminderAt: now.subtract(const Duration(days: 30)),
       ),
       isFalse,
+    );
+  });
+
+  test('스누즈: reminderAt이 lastBackupAt보다 최근이면 억제(재노출 안 함)', () {
+    expect(
+      shouldShowBackupReminder(
+        now: now,
+        hasData: true,
+        lastBackupAt: now.subtract(const Duration(days: 30)),
+        reminderAt: now.subtract(const Duration(days: 1)),
+      ),
+      isFalse,
+    );
+  });
+
+  test('reminderAt 단독 기준 정확히 10일 경계면 알림', () {
+    expect(
+      shouldShowBackupReminder(
+        now: now,
+        hasData: true,
+        reminderAt: now.subtract(const Duration(days: 10)),
+      ),
+      isTrue,
     );
   });
 }

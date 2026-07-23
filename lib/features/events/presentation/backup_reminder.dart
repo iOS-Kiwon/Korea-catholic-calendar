@@ -8,7 +8,7 @@ import '../data/backup_prefs.dart';
 
 /// 마지막 백업(또는 알림 기준) 이후 [threshold]가 지났고 보호할 데이터가 있으면 true.
 ///
-/// 기준(baseline)은 마지막 백업 시각이 있으면 그것, 없으면 마지막 알림 시각.
+/// 기준(baseline)은 마지막 백업 시각과 마지막 알림 시각 중 더 최근 시각.
 /// 둘 다 없으면(최초) false - 호출부가 reminderAt을 심어 다음부터 카운트한다.
 bool shouldShowBackupReminder({
   required DateTime now,
@@ -18,9 +18,16 @@ bool shouldShowBackupReminder({
   Duration threshold = const Duration(days: 10),
 }) {
   if (!hasData) return false;
-  final baseline = lastBackupAt ?? reminderAt;
+  final baseline = _latest(lastBackupAt, reminderAt);
   if (baseline == null) return false;
   return now.difference(baseline) >= threshold;
+}
+
+/// [a], [b] 중 더 최근(늦은) 시각을 반환한다. null은 "값 없음"으로 취급한다.
+DateTime? _latest(DateTime? a, DateTime? b) {
+  if (a == null) return b;
+  if (b == null) return a;
+  return a.isAfter(b) ? a : b;
 }
 
 /// 앱 콜드 스타트 시 1회 평가하는 백업 알림. 조건 충족 시 팝업을 띄우고,
