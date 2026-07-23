@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -39,7 +41,10 @@ class CalendarPage extends ConsumerStatefulWidget {
 }
 
 class _CalendarPageState extends ConsumerState<CalendarPage> {
+  final _infoBarKey = GlobalKey();
+
   DateTime? _selected;
+  double _infoBarHeight = 0;
 
   double _dragDx = 0;
   static const _swipeDistance = 72.0;
@@ -110,6 +115,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
               ref
                   .read(calendarControllerProvider.notifier)
                   .preloadAround(widget.month);
+              _updateInfoBarHeight();
             });
             return LayoutBuilder(
               builder: (context, constraints) {
@@ -121,11 +127,18 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                   onHorizontalDragEnd: _onSwipeEnd,
                   child: wide ? _wide(service) : _narrow(service),
                 );
+                final fabPadding = _fabPadding(
+                  constraints: constraints,
+                  wide: wide,
+                );
                 return Stack(
                   children: [
                     body,
                     _debugRemoteStatusBadge(
                       remoteStatuses[widget.month.toString()],
+                    ),
+                    Positioned.fill(
+                      child: _addEventFab(service, padding: fabPadding),
                     ),
                   ],
                 );
@@ -215,10 +228,44 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   );
 
   DayInfoBar _infoBar(CalendarService s, {required bool compact}) => DayInfoBar(
+    key: _infoBarKey,
     day: s.day(_focusDate),
     onSupportTap: () => showSupportSheet(context),
     onTapDetail: () => _openDetailPage(s, _focusDate),
   );
+
+  EdgeInsets _fabPadding({
+    required BoxConstraints constraints,
+    required bool wide,
+  }) {
+    final infoBarHeight = _infoBarHeight;
+    if (!wide) {
+      return EdgeInsets.only(right: 16, bottom: infoBarHeight + 16);
+    }
+
+    final size = MediaQuery.sizeOf(context);
+    final tabletLike =
+        size.shortestSide >= 600 && size.longestSide <= _tabletMaxLogicalSide;
+    final outerPadding = tabletLike ? 16.0 : 24.0;
+    final maxWidth = tabletLike ? constraints.maxWidth : 1120.0;
+    final maxHeight = tabletLike ? constraints.maxHeight : 940.0;
+    final boxWidth = math.min(constraints.maxWidth, maxWidth);
+    final boxHeight = math.min(constraints.maxHeight, maxHeight);
+    final rightInset = ((constraints.maxWidth - boxWidth) / 2) + outerPadding;
+    final bottomInset =
+        ((constraints.maxHeight - boxHeight) / 2) + outerPadding;
+
+    return EdgeInsets.only(
+      right: rightInset + 28,
+      bottom: bottomInset + infoBarHeight + 20,
+    );
+  }
+
+  void _updateInfoBarHeight() {
+    final height = _infoBarKey.currentContext?.size?.height;
+    if (height == null || (height - _infoBarHeight).abs() < 0.5) return;
+    setState(() => _infoBarHeight = height);
+  }
 
   /// 스피드다이얼 추가 버튼. 색상 = 현재 월의 전례색(연중=녹색 등).
   Widget _addEventFab(CalendarService s, {required EdgeInsets padding}) {
@@ -229,9 +276,9 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
       padding: padding,
       onAddEvent: () => showEventEditor(context, date: _focusDate),
       onAddFeast: () => showSaintFeastEditor(context, date: _focusDate),
-      onOpenSettings: () => Navigator.of(context).push(
-        MaterialPageRoute<void>(builder: (_) => const SettingsPage()),
-      ),
+      onOpenSettings: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute<void>(builder: (_) => const SettingsPage())),
     );
   }
 
@@ -274,12 +321,6 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                           ],
                         ),
                       ),
-                      Positioned.fill(
-                        child: _addEventFab(
-                          s,
-                          padding: const EdgeInsets.only(right: 28, bottom: 20),
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -307,12 +348,6 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: _grid(s, compact: true),
-              ),
-              Positioned.fill(
-                child: _addEventFab(
-                  s,
-                  padding: const EdgeInsets.only(right: 16, bottom: 16),
-                ),
               ),
             ],
           ),
