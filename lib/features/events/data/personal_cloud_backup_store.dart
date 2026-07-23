@@ -37,11 +37,15 @@ class PersonalCloudBackupStore {
   static GoogleSignInAccount? _activeGoogleAccount;
 
   /// Checks whether cloud backup is set up, without prompting the user.
-  /// iOS → iCloud account present; Android → a Google account already signed in.
+  /// iOS → iCloud account present; Android → Google account active in this app
+  /// session. Android does not silently sign in here, so backup setup only
+  /// starts from an explicit user action.
   Future<CloudBackupAvailability> checkAvailability() async {
     if (kIsWeb) return CloudBackupAvailability.unsupported;
     if (_usesGoogleDriveBackup) {
-      return CloudBackupAvailability.notConfigured;
+      return _activeGoogleAccount == null
+          ? CloudBackupAvailability.notConfigured
+          : CloudBackupAvailability.available;
     }
     if (defaultTargetPlatform == TargetPlatform.iOS) {
       try {
