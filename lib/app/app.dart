@@ -8,6 +8,7 @@ import '../features/app_update/app_update_service.dart';
 import '../features/ads/ads.dart';
 import '../features/events/application/category_providers.dart';
 import '../features/events/application/event_providers.dart';
+import '../features/events/presentation/backup_reminder.dart';
 import '../features/calendar/application/calendar_providers.dart';
 import '../features/widgets/widget_snapshot_service.dart';
 import 'router.dart';
@@ -40,9 +41,12 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(personalCloudBackupControllerProvider).restoreIfAvailable().then(
-        (restored) {
-          if (!mounted || !restored) return;
-          ref.invalidate(categoriesProvider);
+        (restored) async {
+          if (!mounted) return;
+          if (restored) ref.invalidate(categoriesProvider);
+          final reminderContext = _rootNavigatorKey.currentContext;
+          if (reminderContext == null || !reminderContext.mounted) return;
+          await maybeShowBackupReminder(reminderContext, ref);
         },
       );
     });
