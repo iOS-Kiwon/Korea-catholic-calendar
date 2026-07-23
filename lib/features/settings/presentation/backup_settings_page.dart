@@ -84,6 +84,7 @@ class _BackupSettingsPageState extends ConsumerState<BackupSettingsPage> {
       ),
     );
     if (confirmed != true) return;
+    if (!mounted) return;
 
     setState(() => _busy = true);
     final restored =
