@@ -13,8 +13,6 @@ const _weekdays = ['일', '월', '화', '수', '목', '금', '토'];
 const _saintCategoryId = 'saint_feast';
 const _saintCategoryName = '축일';
 
-String _two(int n) => n.toString().padLeft(2, '0');
-
 String _dateLabel(DateTime d) =>
     '${d.year}년 ${d.month}월 ${d.day}일 (${_weekdays[d.weekday % 7]})';
 
@@ -45,7 +43,6 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
     with WidgetsBindingObserver {
   late final TextEditingController _memo;
   late DateTime _date;
-  TimeOfDay? _time;
   late bool _notify;
   Saint? _saint;
   bool _saintError = false;
@@ -61,7 +58,6 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
     final e = widget.existing;
     _memo = TextEditingController(text: e?.memo ?? '');
     _date = e != null ? parseEventDate(e.date) : _dateOnly(widget.date);
-    _time = _parseTime(e?.time);
     _notify = e?.notify ?? true;
     if (e?.saintId != null) {
       _saint = Saint(
@@ -91,15 +87,6 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
   }
 
   static DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
-
-  static TimeOfDay? _parseTime(String? hhmm) {
-    if (hhmm == null) return null;
-    final p = hhmm.split(':');
-    return TimeOfDay(
-      hour: int.tryParse(p[0]) ?? 9,
-      minute: p.length > 1 ? (int.tryParse(p[1]) ?? 0) : 0,
-    );
-  }
 
   Future<void> _pickSaint() async {
     final saint = await Navigator.of(context).push<Saint>(
@@ -134,14 +121,6 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
       lastDate: DateTime(2100),
     );
     if (picked != null) setState(() => _date = _dateOnly(picked));
-  }
-
-  Future<void> _pickTime() async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: _time ?? const TimeOfDay(hour: 9, minute: 0),
-    );
-    if (picked != null) setState(() => _time = picked);
   }
 
   Future<void> _refreshNotificationPermission() async {
@@ -205,8 +184,7 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
   }
 
   String _reminderHelpText() {
-    final dayOfTime = _time == null ? '오전 9:00' : _time!.format(context);
-    return '알림은 전날 오후 9:00, 당일 $dayOfTime에 보냅니다. 이미 지난 시간의 알림은 예약하지 않습니다.';
+    return '알림은 전날 오후 9:00, 당일 오전 9:00에 보냅니다. 이미 지난 시간의 알림은 예약하지 않습니다.';
   }
 
   Future<void> _save() async {
@@ -216,9 +194,6 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
       return;
     }
     final memo = _memo.text.trim();
-    final time = _time == null
-        ? null
-        : '${_two(_time!.hour)}:${_two(_time!.minute)}';
     final event = CalendarEvent(
       id:
           widget.existing?.id ??
@@ -228,7 +203,7 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
       categoryName: _saintCategoryName,
       categoryColor: kSaintFeastEventColor,
       memo: memo.isEmpty ? null : memo,
-      time: time,
+      time: null,
       notify: _systemNotificationsEnabled == false ? false : _notify,
       type: CalendarEventType.saintFeast,
       saintId: saint.id,
@@ -256,7 +231,6 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final allDay = _time == null;
     final saint = _saint;
     return Scaffold(
       appBar: AppBar(
@@ -322,26 +296,6 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
                 prefixIcon: Icon(Icons.sticky_note_2_outlined),
               ),
             ),
-            const SizedBox(height: 4),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              secondary: const Icon(Icons.schedule),
-              title: const Text('종일'),
-              value: allDay,
-              onChanged: (v) => setState(
-                () => _time = v ? null : const TimeOfDay(hour: 9, minute: 0),
-              ),
-            ),
-            if (!allDay)
-              ListTile(
-                contentPadding: const EdgeInsets.only(left: 40),
-                title: const Text('시간'),
-                trailing: Text(
-                  _time!.format(context),
-                  style: theme.textTheme.titleMedium,
-                ),
-                onTap: _pickTime,
-              ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               secondary: const Icon(Icons.notifications_outlined),

@@ -113,11 +113,18 @@ class _EventSummary extends StatelessWidget {
     final first = events.first;
     final extra = events.length - 1;
     final memo = first.memo?.trim();
-    final summary = [
-      first.isAllDay ? '종일' : first.time!,
-      first.title,
-      if (memo != null && memo.isNotEmpty) memo,
-    ].join(' · ');
+    final summary = first.isSaintFeast
+        ? [
+            first.saintName?.trim().isNotEmpty == true
+                ? first.saintName!.trim()
+                : first.title,
+            if (memo != null && memo.isNotEmpty) memo,
+          ].join(' ')
+        : [
+            first.isAllDay ? '종일' : first.time!,
+            first.title,
+            if (memo != null && memo.isNotEmpty) memo,
+          ].join(' · ');
 
     return Padding(
       padding: const EdgeInsets.only(top: 6),
@@ -128,14 +135,17 @@ class _EventSummary extends StatelessWidget {
           Divider(height: 20, color: theme.dividerColor.withValues(alpha: 0.4)),
           Row(
             children: [
-              Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Color(first.categoryColor),
+              if (first.isSaintFeast)
+                const Text(kSaintFeastPrefix, style: TextStyle(fontSize: 13))
+              else
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(first.categoryColor),
+                  ),
                 ),
-              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
