@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../calendar/application/calendar_providers.dart';
 import '../data/backup_prefs.dart';
 import '../data/personal_cloud_backup_store.dart';
 import '../data/personal_data_backup_repository.dart';
@@ -11,6 +12,7 @@ import '../data/event_repository.dart';
 import '../model/calendar_event.dart';
 import '../model/event_category.dart';
 import '../notifications/notifications.dart';
+import 'recurrence_expander.dart';
 
 /// The device's [SharedPreferences] instance (loaded once).
 final sharedPreferencesProvider = FutureProvider<SharedPreferences>(
@@ -246,23 +248,26 @@ int _compareEvents(CalendarEvent a, CalendarEvent b) {
   return a.time!.compareTo(b.time!);
 }
 
-/// The events on [date], all-day first then by time.
+/// 반복 규칙을 특정 날짜에 전개하는 헬퍼. 캘린더가 로딩되면(또는 원격 병합되면)
+/// 함께 갱신되어 yearlyFeast 전개가 최신 데이터를 쓴다.
+final recurrenceExpanderProvider = Provider<RecurrenceExpander>((ref) {
+  final calendar = ref.watch(calendarControllerProvider).value;
+  return RecurrenceExpander(calendar);
+});
+
+/// The events on [date] (반복 전개 포함), all-day first then by time.
 final eventsForDateProvider = Provider.family<List<CalendarEvent>, DateTime>((
   ref,
   date,
 ) {
   final map = ref.watch(eventStoreProvider).value ?? const {};
-  final list = [...?map[eventDateKey(date)]];
+  final expander = ref.watch(recurrenceExpanderProvider);
+  final list = expander.eventsOn(map, date);
   list.sort(_compareEvents);
   return list;
 });
 
-/// The set of date keys (`YYYY-MM-DD`) that have at least one event, for grid
-/// markers.
-final datesWithEventsProvider = Provider<Set<String>>((ref) {
-  final map = ref.watch(eventStoreProvider).value ?? const {};
-  return {
-    for (final entry in map.entries)
-      if (entry.value.isNotEmpty) entry.key,
-  };
+/// 달력 그리드 마커용: [date]에 (반복 전개 포함) 이벤트가 하나라도 있는가.
+final dayHasEventProvider = Provider.family<bool, DateTime>((ref, date) {
+  return ref.watch(eventsForDateProvider(date)).isNotEmpty;
 });

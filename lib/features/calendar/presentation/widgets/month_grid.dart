@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/date/year_month.dart';
 import '../../../events/application/event_providers.dart';
-import '../../../events/model/calendar_event.dart';
 import '../../data/calendar_service.dart';
 import 'day_cell.dart';
 
@@ -34,7 +33,6 @@ class MonthGrid extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final eventDates = ref.watch(datesWithEventsProvider);
     final first = DateTime(month.year, month.month, 1);
     final leading = first.weekday % 7; // Sunday = 0
     final rows = (leading + month.daysInMonth + 6) ~/ 7;
@@ -46,7 +44,7 @@ class MonthGrid extends ConsumerWidget {
       final inMonth = date.month == month.month;
       final isToday = _sameDay(date, today);
       final isSelected = selectedDate != null && _sameDay(date, selectedDate!);
-      final hasEvent = eventDates.contains(eventDateKey(date));
+      final hasEvent = ref.watch(dayHasEventProvider(date));
       return compact
           ? CompactDayCell(
               day: day,
