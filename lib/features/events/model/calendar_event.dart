@@ -1,3 +1,5 @@
+import 'recurrence.dart';
+
 String _pad2(int n) => n.toString().padLeft(2, '0');
 
 /// The `YYYY-MM-DD` key for a date, matching the liturgical calendar's keys.
@@ -51,6 +53,8 @@ class CalendarEvent {
     this.saintId,
     this.saintName,
     this.saintUrl,
+    this.recurrence = RecurrenceType.none,
+    this.feastId,
   });
 
   /// Stable local id (millis/micros-based; no external uuid dependency).
@@ -84,6 +88,14 @@ class CalendarEvent {
   final String? saintName;
   final String? saintUrl;
 
+  /// 반복 규칙. [date]가 시작(앵커)이며 조회/알림/위젯에서 전개한다.
+  final RecurrenceType recurrence;
+
+  /// `yearlyFeast`일 때 매년 재계산의 기준이 되는 전례 축일 키(`celebration.id`).
+  final String? feastId;
+
+  bool get isRecurring => recurrence != RecurrenceType.none;
+
   bool get isSaintFeast => type == CalendarEventType.saintFeast;
 
   /// The event's display title.
@@ -115,6 +127,8 @@ class CalendarEvent {
     int? saintId,
     String? saintName,
     String? saintUrl,
+    RecurrenceType? recurrence,
+    String? feastId,
   }) {
     return CalendarEvent(
       id: id ?? this.id,
@@ -129,6 +143,8 @@ class CalendarEvent {
       saintId: saintId ?? this.saintId,
       saintName: saintName ?? this.saintName,
       saintUrl: saintUrl ?? this.saintUrl,
+      recurrence: recurrence ?? this.recurrence,
+      feastId: feastId ?? this.feastId,
     );
   }
 
@@ -145,23 +161,37 @@ class CalendarEvent {
     if (saintId != null) 'saintId': saintId,
     if (saintName != null) 'saintName': saintName,
     if (saintUrl != null) 'saintUrl': saintUrl,
+    if (recurrence != RecurrenceType.none) 'recurrence': recurrence.name,
+    if (feastId != null) 'feastId': feastId,
   };
 
-  factory CalendarEvent.fromJson(Map<String, dynamic> json) => CalendarEvent(
-    id: json['id'] as String,
-    date: json['date'] as String,
-    // Fall back to a legacy free-text `title` if present (pre-category data).
-    categoryId: json['categoryId'] as String? ?? '',
-    categoryName:
-        json['categoryName'] as String? ?? json['title'] as String? ?? '',
-    categoryColor:
-        (json['categoryColor'] as num?)?.toInt() ?? kDefaultEventColor,
-    memo: json['memo'] as String?,
-    time: json['time'] as String?,
-    notify: json['notify'] as bool? ?? true,
-    type: CalendarEventType.fromJson(json['type']),
-    saintId: (json['saintId'] as num?)?.toInt(),
-    saintName: json['saintName'] as String?,
-    saintUrl: json['saintUrl'] as String?,
-  );
+  factory CalendarEvent.fromJson(Map<String, dynamic> json) {
+    final type = CalendarEventType.fromJson(json['type']);
+    // 하위호환: recurrence 필드가 없으면, 축일은 매년 반복(yearlyDate)을 기본으로
+    // 적용하고(사용자 의도 "축일 기본 매년 반복"), 일반 이벤트는 반복 없음으로 둔다.
+    final RecurrenceType recurrence = json.containsKey('recurrence')
+        ? RecurrenceType.fromJson(json['recurrence'])
+        : (type == CalendarEventType.saintFeast
+              ? RecurrenceType.yearlyDate
+              : RecurrenceType.none);
+    return CalendarEvent(
+      id: json['id'] as String,
+      date: json['date'] as String,
+      // Fall back to a legacy free-text `title` if present (pre-category data).
+      categoryId: json['categoryId'] as String? ?? '',
+      categoryName:
+          json['categoryName'] as String? ?? json['title'] as String? ?? '',
+      categoryColor:
+          (json['categoryColor'] as num?)?.toInt() ?? kDefaultEventColor,
+      memo: json['memo'] as String?,
+      time: json['time'] as String?,
+      notify: json['notify'] as bool? ?? true,
+      type: type,
+      saintId: (json['saintId'] as num?)?.toInt(),
+      saintName: json['saintName'] as String?,
+      saintUrl: json['saintUrl'] as String?,
+      recurrence: recurrence,
+      feastId: json['feastId'] as String?,
+    );
+  }
 }
