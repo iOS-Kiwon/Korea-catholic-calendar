@@ -49,6 +49,27 @@ class CalendarService {
   final LiturgicalCalendar engine;
   final Map<String, CbckDay> _cbck;
   final Set<String> _months = {}; // 'YYYY-MM' loaded
+  final Map<String, DateTime?> _feastDateCache = {}; // 'id@year' -> date
+
+  /// 전례 축일 키([celebrationId], 예: `'easter'`)에 해당하는 [year]의 날짜.
+  /// 이동 축일 매년 반복(yearlyFeast) 전개에 쓰인다. 없으면 null. 결과는 캐시한다
+  /// (위젯이 여러 해를 반복 조회하므로 필수).
+  ///
+  /// CBCK 데이터는 `title/color` 등만 덮어쓰고 `celebration.id`는 유지하므로,
+  /// 엔진 계산 연도(폴백)든 공식 데이터 연도든 동일하게 동작한다.
+  DateTime? feastDateInYear(String celebrationId, int year) {
+    final key = '$celebrationId@$year';
+    if (_feastDateCache.containsKey(key)) return _feastDateCache[key];
+    DateTime? found;
+    for (final d in engine.year(year)) {
+      if (d.celebration.id == celebrationId) {
+        found = DateTime(d.date.year, d.date.month, d.date.day);
+        break;
+      }
+    }
+    _feastDateCache[key] = found;
+    return found;
+  }
 
   void _recomputeMonths() {
     _months.clear();
