@@ -286,6 +286,20 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
               trailing: const Icon(Icons.edit_outlined, size: 18),
               onTap: _pickDate,
             ),
+
+            // 반복: 축일은 항상 매년 같은 월·일에 반복(전례력과 무관, 날짜 기준). 읽기 전용.
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.repeat),
+              title: const Text('반복'),
+              subtitle: const Text('축일은 매년 같은 날에 반복됩니다'),
+              trailing: Text(
+                '매년 ${_date.month}월 ${_date.day}일',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
             const SizedBox(height: 4),
             TextField(
               controller: _memo,
