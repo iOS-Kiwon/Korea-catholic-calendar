@@ -22,7 +22,6 @@ class _UnsupportedStore extends PersonalCloudBackupStore {
 
 Future<void> _pump(
   WidgetTester tester, {
-  required bool updateAvailable,
   PersonalCloudBackupStore? store,
 }) async {
   SharedPreferences.setMockInitialValues({});
@@ -31,7 +30,9 @@ Future<void> _pump(
     ProviderScope(
       overrides: [
         sharedPreferencesProvider.overrideWith((ref) async => prefs),
-        personalCloudBackupStoreProvider.overrideWithValue(store ?? _AvailStore()),
+        personalCloudBackupStoreProvider.overrideWithValue(
+          store ?? _AvailStore(),
+        ),
         packageInfoProvider.overrideWith(
           (ref) async => PackageInfo(
             appName: '가톨릭 달력',
@@ -40,7 +41,6 @@ Future<void> _pump(
             buildNumber: '1400',
           ),
         ),
-        appUpdateAvailableProvider.overrideWith((ref) async => updateAvailable),
       ],
       child: const MaterialApp(home: SettingsPage()),
     ),
@@ -50,28 +50,19 @@ Future<void> _pump(
 
 void main() {
   testWidgets('약관·정책 섹션에 개인정보 처리방침만 있다', (tester) async {
-    await _pump(tester, updateAvailable: false);
+    await _pump(tester);
     expect(find.text('개인정보 처리방침'), findsOneWidget);
     expect(find.text('이용약관'), findsNothing);
   });
 
   testWidgets('버전 Footer를 표시한다', (tester) async {
-    await _pump(tester, updateAvailable: false);
+    await _pump(tester);
     expect(find.text('버전 1.4.0 (빌드 1400)'), findsOneWidget);
     expect(find.textContaining('새로운 기능을 만나보세요'), findsNothing);
   });
 
-  testWidgets('업데이트가 있으면 안내 문구를 표시한다', (tester) async {
-    await _pump(tester, updateAvailable: true);
-    expect(find.textContaining('새로운 기능을 만나보세요'), findsOneWidget);
-  });
-
   testWidgets('백업 미지원(unsupported)이면 백업 섹션을 숨긴다', (tester) async {
-    await _pump(
-      tester,
-      updateAvailable: false,
-      store: _UnsupportedStore(),
-    );
+    await _pump(tester, store: _UnsupportedStore());
     expect(find.text('Google 백업'), findsNothing);
     expect(find.text('iCloud 백업'), findsNothing);
     expect(find.text('개인정보 처리방침'), findsOneWidget);

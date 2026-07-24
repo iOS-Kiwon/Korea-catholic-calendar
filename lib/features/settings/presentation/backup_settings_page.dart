@@ -36,29 +36,41 @@ class _BackupSettingsPageState extends ConsumerState<BackupSettingsPage> {
     if (!mounted) return;
     setState(() {
       _availability = availability;
-      _lastBackupAt = BackupPrefs.readInstant(prefs, BackupPrefs.lastBackupAtKey);
+      _lastBackupAt = BackupPrefs.readInstant(
+        prefs,
+        BackupPrefs.lastBackupAtKey,
+      );
     });
   }
 
   void _snack(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _setup() async {
     setState(() => _busy = true);
     final ok = await ref.read(personalCloudBackupStoreProvider).promptSetup();
-    if (ok) await ref.read(personalCloudBackupControllerProvider).backupNow();
+    if (ok) {
+      await ref
+          .read(personalCloudBackupControllerProvider)
+          .backupNow(promptIfNeeded: true);
+    }
     await _refresh();
     if (!mounted) return;
     setState(() => _busy = false);
-    _snack(ok ? '$_serviceName 연동을 완료했습니다.' : '$_serviceName 설정을 확인한 뒤 다시 시도해 주세요.');
+    _snack(
+      ok ? '$_serviceName 연동을 완료했습니다.' : '$_serviceName 설정을 확인한 뒤 다시 시도해 주세요.',
+    );
   }
 
   Future<void> _backupNow() async {
     setState(() => _busy = true);
-    await ref.read(personalCloudBackupControllerProvider).backupNow();
+    await ref
+        .read(personalCloudBackupControllerProvider)
+        .backupNow(promptIfNeeded: true);
     await _refresh();
     if (!mounted) return;
     setState(() => _busy = false);
@@ -87,8 +99,9 @@ class _BackupSettingsPageState extends ConsumerState<BackupSettingsPage> {
     if (!mounted) return;
 
     setState(() => _busy = true);
-    final restored =
-        await ref.read(personalCloudBackupControllerProvider).restoreIfAvailable();
+    final restored = await ref
+        .read(personalCloudBackupControllerProvider)
+        .restoreIfAvailable(promptIfNeeded: true);
     if (restored) ref.invalidate(categoriesProvider);
     await _refresh();
     if (!mounted) return;

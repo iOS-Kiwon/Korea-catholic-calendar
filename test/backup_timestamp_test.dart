@@ -23,7 +23,11 @@ class _FakeNotifications implements NotificationService {
 class _RecordingBackupStore extends PersonalCloudBackupStore {
   int saveCount = 0;
   @override
-  Future<bool> saveSnapshotJson(String snapshotJson) async {
+  Future<bool> saveSnapshotJson(
+    String snapshotJson, {
+    bool promptIfNeeded = false,
+    bool allowSilentGoogleDrive = false,
+  }) async {
     saveCount += 1;
     return true;
   }

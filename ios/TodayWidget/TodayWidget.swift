@@ -14,6 +14,8 @@ struct TodaySnapshot: Decodable {
     let liturgicalColor: String
     let eventTitle: String
     let eventDisplayText: String?
+    let regularEventDisplayText: String?
+    let saintFeastDisplayText: String?
     let eventColor: Int?
     let eventItems: [WidgetEventItem]?
     let extraEventCount: Int
@@ -41,6 +43,8 @@ struct DaySnapshot: Decodable, Identifiable {
     let liturgicalColor: String
     let eventTitle: String
     let eventDisplayText: String?
+    let regularEventDisplayText: String?
+    let saintFeastDisplayText: String?
     let eventColor: Int?
     let eventItems: [WidgetEventItem]?
     let extraEventCount: Int
@@ -98,6 +102,8 @@ struct TodayProvider: TimelineProvider {
 
 struct TodayWidgetView: View {
     @Environment(\.widgetFamily) private var family
+    // 기본 콘텐츠 여백값(비활성화해도 이 환경값은 기본 여백을 그대로 알려준다).
+    @Environment(\.widgetContentMargins) private var contentMargins
 
     let entry: TodayEntry
 
@@ -107,9 +113,13 @@ struct TodayWidgetView: View {
         Group {
             switch family {
             case .systemLarge:
+                // 큰 위젯은 기존과 동일한 시스템 기본 여백을 유지한다.
                 MonthWidgetView(month: entry.snapshot.month, todayKey: todayKey)
+                    .padding(contentMargins)
             default:
+                // 작은 위젯은 여백을 최소화해 본 콘텐츠를 가장 넓게 보여준다.
                 SmallTodayWidgetView(snapshot: entry.snapshot, todayKey: todayKey)
+                    .padding(EdgeInsets(top: 18, leading: 10, bottom: 8, trailing: 10))
             }
         }
         .containerBackground(.white, for: .widget)
@@ -146,6 +156,14 @@ struct SmallTodayWidgetView: View {
         day?.eventDisplayText ?? snapshot.today.eventDisplayText ?? eventTitle
     }
 
+    private var regularEventDisplayText: String {
+        day?.regularEventDisplayText ?? snapshot.today.regularEventDisplayText ?? ""
+    }
+
+    private var saintFeastDisplayText: String {
+        day?.saintFeastDisplayText ?? snapshot.today.saintFeastDisplayText ?? ""
+    }
+
     private var eventColor: Int? {
         day?.eventColor ?? snapshot.today.eventColor
     }
@@ -155,29 +173,42 @@ struct SmallTodayWidgetView: View {
     }
 
     private var eventText: String? {
-        guard !eventTitle.isEmpty else { return nil }
-        if extraEventCount > 0 {
-            return "\(eventDisplayText) 외 \(extraEventCount)개"
-        }
-        return eventDisplayText
+        guard !regularEventDisplayText.isEmpty else { return nil }
+        return regularEventDisplayText
+    }
+
+    private var feastText: String? {
+        guard !saintFeastDisplayText.isEmpty else { return nil }
+        return saintFeastDisplayText
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 0) {
             Text(dateLabel)
                 .font(.system(size: 21, weight: .bold))
                 .foregroundStyle(Color.black)
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
+                .padding(.bottom, 6)
 
             Text(liturgicalTitle)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(color(for: liturgicalColor))
                 .lineLimit(2)
                 .minimumScaleFactor(0.75)
+                .padding(.bottom, 4)
 
             if let eventText {
                 HighlightedEventText(text: eventText, color: eventColor)
+                    .padding(.bottom, 4)
+            }
+
+            if let feastText {
+                Text(feastText)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.black)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
             }
 
             Spacer(minLength: 0)
@@ -337,6 +368,8 @@ struct TodayWidget: Widget {
         .configurationDisplayName("가톨릭 달력")
         .description("오늘의 전례와 이번 달 달력을 보여줍니다.")
         .supportedFamilies([.systemSmall, .systemLarge])
+        // 기본 여백을 끄고, 큰 위젯은 뷰에서 기본 여백을 다시 적용해 유지한다.
+        // 작은 위젯은 최소 여백으로 콘텐츠를 넓게 보여준다.
         .contentMarginsDisabled()
     }
 }
@@ -402,6 +435,8 @@ extension WidgetSnapshot {
                 liturgicalColor: "green",
                 eventTitle: "개인일정",
                 eventDisplayText: "메모",
+                regularEventDisplayText: "본당 행사 * 바자회",
+                saintFeastDisplayText: "[축일] 성 마르코 축하해요",
                 eventColor: 0xFF2E7D32,
                 eventItems: [
                     WidgetEventItem(title: "메모", color: 0xFF2E7D32),
@@ -426,6 +461,8 @@ extension WidgetSnapshot {
                         liturgicalColor: "green",
                         eventTitle: index % 8 == 0 ? "일정" : "",
                         eventDisplayText: index % 8 == 0 ? "메모" : "",
+                        regularEventDisplayText: index % 8 == 0 ? "본당 행사 * 바자회" : "",
+                        saintFeastDisplayText: index % 9 == 0 ? "[축일] 성 마르코 축하해요" : "",
                         eventColor: 0xFF2E7D32,
                         eventItems: index % 8 == 0
                             ? [

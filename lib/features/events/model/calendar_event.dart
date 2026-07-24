@@ -15,6 +15,7 @@ DateTime parseEventDate(String key) {
 /// was created before categories carried a color.
 const int kDefaultEventColor = 0xFF455A64;
 const int kSaintFeastEventColor = 0xFF8D6E63;
+const String kSaintFeastPrefix = '[축일]';
 
 enum CalendarEventType {
   regular,
@@ -87,6 +88,16 @@ class CalendarEvent {
 
   /// The event's display title.
   String get title => isSaintFeast ? saintName ?? categoryName : categoryName;
+
+  String get saintFeastDisplayText {
+    final name = saintName?.trim();
+    final displayName = name == null || name.isEmpty ? title : name;
+    final trimmedMemo = memo?.trim();
+    if (trimmedMemo != null && trimmedMemo.isNotEmpty) {
+      return '$kSaintFeastPrefix $displayName $trimmedMemo';
+    }
+    return '$kSaintFeastPrefix $displayName';
+  }
 
   /// True when the event has no specific time (all-day).
   bool get isAllDay => time == null;

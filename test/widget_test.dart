@@ -151,6 +151,33 @@ void main() {
     expect(find.text('카테고리를 선택하세요'), findsOneWidget);
   });
 
+  testWidgets('open speed dial scrim blocks month navigation', (tester) async {
+    tester.view.physicalSize = const Size(390, 844); // phone (narrow) layout
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      _wrap(const CalendarPage(month: YearMonth(2026, 7))),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('speed_dial_main')));
+    await tester.pumpAndSettle();
+    expect(find.text('일정 추가'), findsOneWidget);
+
+    final fabBottom = tester
+        .getBottomLeft(find.byKey(const ValueKey('speed_dial_main')))
+        .dy;
+    final infoTop = tester.getTopLeft(find.byType(DayInfoBar)).dy;
+    expect(fabBottom, lessThan(infoTop));
+
+    await tester.tap(find.byTooltip('다음 달'), warnIfMissed: false);
+    await tester.pumpAndSettle();
+
+    expect(find.text('2026년 7월'), findsOneWidget);
+    expect(find.text('일정 추가'), findsNothing);
+  });
+
   testWidgets('disabled system notifications prompt only when turning on', (
     tester,
   ) async {

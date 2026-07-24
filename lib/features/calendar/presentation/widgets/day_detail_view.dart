@@ -236,6 +236,16 @@ class _EventLine extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final timeLabel = event.isAllDay ? '종일' : event.time!;
+    final isSaintFeast = event.isSaintFeast;
+    final memo = event.memo?.trim();
+    final title = isSaintFeast
+        ? [
+            event.saintName?.trim().isNotEmpty == true
+                ? event.saintName!.trim()
+                : event.title,
+            if (memo != null && memo.isNotEmpty) memo,
+          ].join(' ')
+        : event.title;
     return InkWell(
       borderRadius: BorderRadius.circular(8),
       onTap: () {
@@ -252,27 +262,34 @@ class _EventLine extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.only(top: 5),
-              child: Container(
-                width: 11,
-                height: 11,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Color(event.categoryColor),
-                ),
-              ),
+              padding: EdgeInsets.only(top: isSaintFeast ? 1 : 5),
+              child: isSaintFeast
+                  ? const Text(
+                      kSaintFeastPrefix,
+                      style: TextStyle(fontSize: 14),
+                    )
+                  : Container(
+                      width: 11,
+                      height: 11,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Color(event.categoryColor),
+                      ),
+                    ),
             ),
             const SizedBox(width: 12),
-            Text(
-              timeLabel,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+            if (!isSaintFeast) ...[
+              Text(
+                timeLabel,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
+              const SizedBox(width: 8),
+            ],
             Expanded(
               child: Text(
-                event.title,
+                title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodyLarge,
