@@ -45,6 +45,7 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
   late final TextEditingController _memo;
   late DateTime _date;
   late bool _notify;
+  late bool _repeatYearly; // 매년 반복(ON=yearlyDate, OFF=none). 기본 ON.
   Saint? _saint;
   bool _saintError = false;
   bool? _systemNotificationsEnabled;
@@ -60,6 +61,9 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
     _memo = TextEditingController(text: e?.memo ?? '');
     _date = e != null ? parseEventDate(e.date) : _dateOnly(widget.date);
     _notify = e?.notify ?? true;
+    // 신규는 기본 ON. 편집은 저장된 반복 규칙을 따른다(yearlyDate=ON, none=OFF).
+    _repeatYearly = (e?.recurrence ?? RecurrenceType.yearlyDate) ==
+        RecurrenceType.yearlyDate;
     if (e?.saintId != null) {
       _saint = Saint(
         id: e!.saintId!,
@@ -210,8 +214,10 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
       saintId: saint.id,
       saintName: saint.nameKo,
       saintUrl: saint.url,
-      // 축일은 기본적으로 매년 같은 월·일에 반복(전례력과 무관하게 날짜 기준).
-      recurrence: RecurrenceType.yearlyDate,
+      // 매년 반복 토글: ON이면 매년 같은 월·일 반복(전례력과 무관, 날짜 기준),
+      // OFF면 반복 없음(해당 연도 하루만). 편집에서 ON->OFF는 다음 해부터 사라지고,
+      // OFF->ON은 다음 해부터 다시 표시된다.
+      recurrence: _repeatYearly ? RecurrenceType.yearlyDate : RecurrenceType.none,
     );
 
     final store = ref.read(eventStoreProvider.notifier);
@@ -287,18 +293,18 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
               onTap: _pickDate,
             ),
 
-            // 반복: 축일은 항상 매년 같은 월·일에 반복(전례력과 무관, 날짜 기준). 읽기 전용.
-            ListTile(
+            // 매년 반복 토글(기본 ON). ON=매년 M월 D일 반복, OFF=올해 하루만.
+            SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.repeat),
-              title: const Text('반복'),
-              subtitle: const Text('축일은 매년 같은 날에 반복됩니다'),
-              trailing: Text(
-                '매년 ${_date.month}월 ${_date.day}일',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+              secondary: const Icon(Icons.repeat),
+              title: const Text('매년 반복'),
+              subtitle: Text(
+                _repeatYearly
+                    ? '매년 ${_date.month}월 ${_date.day}일에 반복됩니다'
+                    : '${_date.year}년 ${_date.month}월 ${_date.day}일 하루만 표시됩니다',
               ),
+              value: _repeatYearly,
+              onChanged: (v) => setState(() => _repeatYearly = v),
             ),
             const SizedBox(height: 4),
             TextField(
