@@ -2,6 +2,7 @@ import 'package:catholic_calendar/features/events/application/category_providers
 import 'package:catholic_calendar/features/events/application/event_providers.dart';
 import 'package:catholic_calendar/features/events/analytics/category_log_service.dart';
 import 'package:catholic_calendar/features/events/data/backup_prefs.dart';
+import 'package:catholic_calendar/features/events/application/recurrence_expander.dart';
 import 'package:catholic_calendar/features/events/model/calendar_event.dart';
 import 'package:catholic_calendar/features/events/notifications/notifications.dart';
 import 'package:catholic_calendar/features/events/data/personal_cloud_backup_store.dart';
@@ -17,7 +18,10 @@ class _FakeNotifications implements NotificationService {
   @override
   Future<void> openNotificationSettings() async {}
   @override
-  Future<void> sync(Map<String, List<CalendarEvent>> events) async {}
+  Future<void> sync(
+    Map<String, List<CalendarEvent>> events, {
+    RecurrenceExpander? expander,
+  }) async {}
 }
 
 class _RecordingBackupStore extends PersonalCloudBackupStore {
