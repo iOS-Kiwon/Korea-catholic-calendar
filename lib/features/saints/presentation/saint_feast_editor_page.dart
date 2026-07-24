@@ -62,7 +62,8 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
     _date = e != null ? parseEventDate(e.date) : _dateOnly(widget.date);
     _notify = e?.notify ?? true;
     // 신규는 기본 ON. 편집은 저장된 반복 규칙을 따른다(yearlyDate=ON, none=OFF).
-    _repeatYearly = (e?.recurrence ?? RecurrenceType.yearlyDate) ==
+    _repeatYearly =
+        (e?.recurrence ?? RecurrenceType.yearlyDate) ==
         RecurrenceType.yearlyDate;
     if (e?.saintId != null) {
       _saint = Saint(
@@ -217,7 +218,9 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
       // 매년 반복 토글: ON이면 매년 같은 월·일 반복(전례력과 무관, 날짜 기준),
       // OFF면 반복 없음(해당 연도 하루만). 편집에서 ON->OFF는 다음 해부터 사라지고,
       // OFF->ON은 다음 해부터 다시 표시된다.
-      recurrence: _repeatYearly ? RecurrenceType.yearlyDate : RecurrenceType.none,
+      recurrence: _repeatYearly
+          ? RecurrenceType.yearlyDate
+          : RecurrenceType.none,
     );
 
     final store = ref.read(eventStoreProvider.notifier);
@@ -233,6 +236,24 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
   Future<void> _delete() async {
     final existing = widget.existing;
     if (existing == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        content: const Text('정말로 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    if (!mounted) return;
     await ref.read(eventStoreProvider.notifier).delete(existing);
     if (mounted) Navigator.of(context).pop();
   }

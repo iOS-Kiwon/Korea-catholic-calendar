@@ -179,9 +179,7 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
       final openSettings = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          content: const Text(
-            '시스템 알림이 꺼져있어 알림을 보낼수 없습니다. 알림을 설정하시겠습니까?',
-          ),
+          content: const Text('시스템 알림이 꺼져있어 알림을 보낼수 없습니다. 알림을 설정하시겠습니까?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
@@ -323,6 +321,24 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
   Future<void> _delete() async {
     final existing = widget.existing;
     if (existing == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        content: const Text('정말로 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    if (!mounted) return;
     await ref.read(eventStoreProvider.notifier).delete(existing);
     if (mounted) Navigator.of(context).pop();
   }
