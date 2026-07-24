@@ -7,6 +7,7 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_10y.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../application/recurrence_expander.dart';
 import '../model/calendar_event.dart';
 import 'notification_service.dart';
 
@@ -17,6 +18,10 @@ NotificationService createNotificationService() => _LocalNotificationService();
 /// The OS caps the number of pending scheduled notifications (iOS allows 64).
 /// We never register more than this many, always the soonest ones.
 const _maxScheduled = 60;
+
+/// 반복 일정은 무한이므로 이벤트당 "다음 몇 회차"만 예약한다(앱 실행 시 리필).
+/// 회차×2건(전날+당일)이라 이벤트 하나가 슬롯을 독점하지 않게 낮게 유지.
+const _maxOccurrencesPerEvent = 4;
 
 /// All-day reminders fire at 09:00 on the day, and 21:00 the evening before.
 const _dayOfHour = 9;
@@ -119,18 +124,23 @@ class _LocalNotificationService implements NotificationService {
   }
 
   @override
-  Future<void> sync(Map<String, List<CalendarEvent>> events) async {
+  Future<void> sync(
+    Map<String, List<CalendarEvent>> events, {
+    RecurrenceExpander? expander,
+  }) async {
     if (!_supported) return;
     if (!_ready) await _ensureReady();
 
     await _plugin.cancelAll();
 
+    // expander가 없으면 캘린더 없는 전개(전례 축일 반복은 생략, 나머지는 정상).
+    final exp = expander ?? const RecurrenceExpander(null);
     final now = tz.TZDateTime.now(tz.local);
     final reminders = <_Reminder>[];
     for (final list in events.values) {
       for (final e in list) {
         if (!e.notify) continue;
-        reminders.addAll(_remindersFor(e, now));
+        reminders.addAll(_remindersFor(e, now, exp));
       }
     }
     reminders.sort((a, b) => a.when.compareTo(b.when));
@@ -170,8 +180,12 @@ class _LocalNotificationService implements NotificationService {
   }
 
   /// The future reminders for a single event: evening-before + day-of.
-  Iterable<_Reminder> _remindersFor(CalendarEvent e, tz.TZDateTime now) {
-    final date = parseEventDate(e.date);
+  /// 반복 이벤트는 다음 [_maxOccurrencesPerEvent] 회차의 발생일 각각에 대해 예약한다.
+  Iterable<_Reminder> _remindersFor(
+    CalendarEvent e,
+    tz.TZDateTime now,
+    RecurrenceExpander expander,
+  ) {
     final int hour;
     final int minute;
     if (e.isAllDay) {
@@ -187,32 +201,51 @@ class _LocalNotificationService implements NotificationService {
     final suffix = (e.memo != null && e.memo!.trim().isNotEmpty)
         ? ' · ${e.memo!.trim()}'
         : '';
-
-    final dayOf = tz.TZDateTime(
-      tz.local,
-      date.year,
-      date.month,
-      date.day,
-      hour,
-      minute,
-    );
-    final dayBefore = tz.TZDateTime(
-      tz.local,
-      date.year,
-      date.month,
-      date.day - 1,
-      _dayBeforeHour,
-      0,
-    );
-
     final typeLabel = e.isSaintFeast ? '축일' : '일정';
 
-    return [
-      if (dayBefore.isAfter(now))
-        _Reminder(dayBefore, '내일 $typeLabel · ${e.title}', '$timeLabel$suffix'),
-      if (dayOf.isAfter(now))
-        _Reminder(dayOf, '오늘 $typeLabel · ${e.title}', '$timeLabel$suffix'),
-    ];
+    // 발생일: 비반복은 앵커 1개, 반복은 오늘 이후 다음 K회차.
+    final List<DateTime> occurrences = e.isRecurring
+        ? expander.nextOccurrences(
+            e,
+            DateTime(now.year, now.month, now.day),
+            _maxOccurrencesPerEvent,
+          )
+        : [parseEventDate(e.date)];
+
+    final reminders = <_Reminder>[];
+    for (final date in occurrences) {
+      final dayOf = tz.TZDateTime(
+        tz.local,
+        date.year,
+        date.month,
+        date.day,
+        hour,
+        minute,
+      );
+      final dayBefore = tz.TZDateTime(
+        tz.local,
+        date.year,
+        date.month,
+        date.day - 1,
+        _dayBeforeHour,
+        0,
+      );
+      if (dayBefore.isAfter(now)) {
+        reminders.add(
+          _Reminder(
+            dayBefore,
+            '내일 $typeLabel · ${e.title}',
+            '$timeLabel$suffix',
+          ),
+        );
+      }
+      if (dayOf.isAfter(now)) {
+        reminders.add(
+          _Reminder(dayOf, '오늘 $typeLabel · ${e.title}', '$timeLabel$suffix'),
+        );
+      }
+    }
+    return reminders;
   }
 }
 

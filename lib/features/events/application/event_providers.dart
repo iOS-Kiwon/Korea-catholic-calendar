@@ -158,10 +158,29 @@ class EventStore extends AsyncNotifier<Map<String, List<CalendarEvent>>> {
     _repo = EventRepository(prefs);
     _notifications = ref.read(notificationServiceProvider);
     final map = _repo.load();
+    // 캘린더(전례력 엔진/번들)가 처음 준비되면 반복(전례 축일 포함) 알림을 한 번
+    // 재예약한다. 시작 시점엔 캘린더가 아직 로딩 중일 수 있어 feast 반복이 빠질 수
+    // 있으므로, null->준비 전환 때 리필한다(이후 원격 병합에는 반응하지 않음).
+    var calendarReady = ref.read(calendarControllerProvider).hasValue;
+    ref.listen(calendarControllerProvider, (_, next) {
+      if (!calendarReady && next.hasValue) {
+        calendarReady = true;
+        final current = state.value;
+        if (current != null && current.isNotEmpty) {
+          _notifications.sync(
+            current,
+            expander: ref.read(recurrenceExpanderProvider),
+          );
+        }
+      }
+    });
     // Re-register reminders with the OS (e.g. after reinstall). Skip entirely
     // when there are no events so we don't prompt for permission unprompted.
     if (map.isNotEmpty) {
-      await _notifications.sync(map);
+      await _notifications.sync(
+        map,
+        expander: ref.read(recurrenceExpanderProvider),
+      );
     }
     return map;
   }
@@ -237,7 +256,10 @@ class EventStore extends AsyncNotifier<Map<String, List<CalendarEvent>>> {
   Future<void> _persistAndSync(Map<String, List<CalendarEvent>> map) async {
     await _repo.save(map);
     state = AsyncData(map);
-    await _notifications.sync(map);
+    await _notifications.sync(
+      map,
+      expander: ref.read(recurrenceExpanderProvider),
+    );
     // 자동 백업은 하지 않는다. 사용자가 설정 > 백업에서 직접 백업한다.
   }
 }
