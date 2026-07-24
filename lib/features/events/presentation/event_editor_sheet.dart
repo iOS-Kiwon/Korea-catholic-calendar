@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../ads/ads.dart';
+import '../../calendar/application/calendar_providers.dart';
 import '../application/category_providers.dart';
 import '../application/event_providers.dart';
 import '../model/calendar_event.dart';
 import '../model/event_category.dart';
+import '../model/recurrence.dart';
 import 'backup_notice.dart';
 import 'category_manager_page.dart';
 
@@ -50,6 +52,8 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
   bool _categoryError = false;
   bool? _systemNotificationsEnabled;
   bool _enableNotifyWhenPermissionReturns = false;
+  RecurrenceType _recurrence = RecurrenceType.none;
+  String? _feastId;
 
   bool get _isEditing => widget.existing != null;
 
@@ -63,6 +67,8 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
     _time = _parseTime(e?.time);
     _notify = e?.notify ?? true;
     _selectedCategoryId = e?.categoryId;
+    _recurrence = e?.recurrence ?? RecurrenceType.none;
+    _feastId = e?.feastId;
     _refreshNotificationPermission();
   }
 
@@ -207,6 +213,76 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
     return '알림은 전날 오후 9:00, 당일 $dayOfTime에 보냅니다. 이미 지난 시간의 알림은 예약하지 않습니다.';
   }
 
+  /// 현재 반복 설정을 사람이 읽는 요약으로. yearlyFeast는 그 날의 전례 축일명을 보여준다.
+  String _recurrenceSummary() {
+    switch (_recurrence) {
+      case RecurrenceType.none:
+        return '안 함';
+      case RecurrenceType.daily:
+        return '매일';
+      case RecurrenceType.weekly:
+        return '매주 ${_weekdays[_date.weekday % 7]}요일';
+      case RecurrenceType.monthly:
+        return '매월 ${_date.day}일';
+      case RecurrenceType.yearlyDate:
+        return '매년 ${_date.month}월 ${_date.day}일';
+      case RecurrenceType.yearlyFeast:
+        final cd = ref.read(calendarControllerProvider).value?.day(_date);
+        final name = cd?.celebration.name;
+        return (name != null && cd?.celebration.id == _feastId)
+            ? '매년 $name'
+            : '매년 전례 축일';
+    }
+  }
+
+  /// 반복 선택 바텀시트. 매년(전례 축일)은 선택일이 주요 전례 축일일 때만 제공한다.
+  Future<void> _pickRecurrence() async {
+    final cd = ref.read(calendarControllerProvider).value?.day(_date);
+    final feastId = cd?.celebration.id;
+    final feastName = cd?.celebration.name;
+    final feastAvailable =
+        feastId != null && feastId != 'feria' && feastId != 'sunday';
+
+    final options = <(RecurrenceType, String, String?)>[
+      (RecurrenceType.none, '안 함', null),
+      (RecurrenceType.daily, '매일', null),
+      (RecurrenceType.weekly, '매주 ${_weekdays[_date.weekday % 7]}요일', null),
+      (RecurrenceType.monthly, '매월 ${_date.day}일', null),
+      (RecurrenceType.yearlyDate, '매년 ${_date.month}월 ${_date.day}일', null),
+      if (feastAvailable)
+        (RecurrenceType.yearlyFeast, '매년 $feastName (전례 축일)', feastId),
+    ];
+
+    final picked = await showModalBottomSheet<(RecurrenceType, String?)>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final o in options)
+              ListTile(
+                title: Text(o.$2),
+                trailing:
+                    (_recurrence == o.$1 &&
+                        (o.$1 != RecurrenceType.yearlyFeast ||
+                            _feastId == o.$3))
+                    ? const Icon(Icons.check)
+                    : null,
+                onTap: () => Navigator.of(ctx).pop((o.$1, o.$3)),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        _recurrence = picked.$1;
+        _feastId = picked.$2;
+      });
+    }
+  }
+
   Future<void> _save(List<EventCategory> categories) async {
     final category = _resolveSelected(categories);
     if (category == null) {
@@ -229,6 +305,8 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
       memo: memo.isEmpty ? null : memo,
       time: time,
       notify: _systemNotificationsEnabled == false ? false : _notify,
+      recurrence: _recurrence,
+      feastId: _recurrence == RecurrenceType.yearlyFeast ? _feastId : null,
     );
 
     final store = ref.read(eventStoreProvider.notifier);
@@ -303,6 +381,27 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
                   : null,
               trailing: const Icon(Icons.chevron_right),
               onTap: _openCategoryPicker,
+            ),
+            const SizedBox(height: 4),
+
+            // 반복 (선택)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.repeat),
+              title: const Text('반복'),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _recurrenceSummary(),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right),
+                ],
+              ),
+              onTap: _pickRecurrence,
             ),
             const SizedBox(height: 4),
 

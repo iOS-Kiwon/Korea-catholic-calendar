@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../ads/ads.dart';
 import '../../events/application/event_providers.dart';
 import '../../events/model/calendar_event.dart';
+import '../../events/model/recurrence.dart';
 import '../../events/presentation/backup_notice.dart';
 import '../model/saint.dart';
 import 'saint_search_page.dart';
@@ -209,6 +210,8 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
       saintId: saint.id,
       saintName: saint.nameKo,
       saintUrl: saint.url,
+      // 축일은 기본적으로 매년 같은 월·일에 반복(전례력과 무관하게 날짜 기준).
+      recurrence: RecurrenceType.yearlyDate,
     );
 
     final store = ref.read(eventStoreProvider.notifier);
