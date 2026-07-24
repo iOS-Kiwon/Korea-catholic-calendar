@@ -14,9 +14,12 @@ import 'package:catholic_calendar/features/events/application/event_providers.da
 import 'package:catholic_calendar/features/events/application/recurrence_expander.dart';
 import 'package:catholic_calendar/features/events/data/personal_cloud_backup_store.dart';
 import 'package:catholic_calendar/features/events/model/calendar_event.dart';
+import 'package:catholic_calendar/features/events/model/recurrence.dart';
 import 'package:catholic_calendar/features/events/notifications/notifications.dart';
 import 'package:catholic_calendar/features/events/presentation/category_manager_page.dart'
     show CategoryPickerPage;
+import 'package:catholic_calendar/features/events/presentation/event_editor_sheet.dart';
+import 'package:catholic_calendar/features/saints/presentation/saint_feast_editor_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -304,6 +307,71 @@ void main() {
     // Back on the detail view, the new event is listed under its category name.
     expect(find.text('전례'), findsAtLeastNWidgets(1));
     expect(find.text('등록된 일정이 없습니다.'), findsNothing);
+  });
+
+  testWidgets('deleting an edited event asks for confirmation', (tester) async {
+    final event = CalendarEvent(
+      id: '1',
+      date: '2026-07-16',
+      categoryId: 'c1',
+      categoryName: '성경 공부',
+      categoryColor: 0xFF2E7D32,
+      notify: true,
+    );
+
+    await tester.pumpWidget(
+      _wrap(
+        Builder(
+          builder: (context) => FilledButton(
+            onPressed: () => showEventEditor(
+              context,
+              date: DateTime(2026, 7, 16),
+              existing: event,
+            ),
+            child: const Text('열기'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('열기'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('삭제'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('정말로 삭제하시겠습니까?'), findsOneWidget);
+    expect(find.text('취소'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '삭제'), findsOneWidget);
+  });
+
+  testWidgets('deleting an edited saint feast asks for confirmation', (
+    tester,
+  ) async {
+    final feast = CalendarEvent(
+      id: '1',
+      date: '2026-07-16',
+      categoryId: 'saint_feast',
+      categoryName: '축일',
+      categoryColor: kSaintFeastEventColor,
+      notify: true,
+      type: CalendarEventType.saintFeast,
+      saintId: 1,
+      saintName: '성 마르코',
+      saintUrl: 'https://example.com',
+      recurrence: RecurrenceType.yearlyDate,
+    );
+
+    await tester.pumpWidget(
+      _wrap(SaintFeastEditorPage(date: DateTime(2026, 7, 16), existing: feast)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('삭제'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('정말로 삭제하시겠습니까?'), findsOneWidget);
+    expect(find.text('취소'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '삭제'), findsOneWidget);
   });
 
   testWidgets('category screen lists seeded categories and adds a new one', (
