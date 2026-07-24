@@ -78,4 +78,29 @@ void main() {
     await c.read(eventStoreProvider.notifier).add(legacy);
     expect(c.read(eventsForDateProvider(DateTime(2027, 4, 25))), hasLength(1));
   });
+
+  test('매년 반복 OFF(none)면 해당 연도 하루만 조회된다', () async {
+    final c = container();
+    await c.read(eventStoreProvider.future);
+    await c
+        .read(eventStoreProvider.notifier)
+        .add(_feast('2026-04-25').copyWith(recurrence: RecurrenceType.none));
+    expect(c.read(eventsForDateProvider(DateTime(2026, 4, 25))), hasLength(1));
+    expect(c.read(eventsForDateProvider(DateTime(2027, 4, 25))), isEmpty);
+  });
+
+  test('편집으로 ON->OFF 끄면 다음 해부터 사라진다(올해는 유지)', () async {
+    final c = container();
+    await c.read(eventStoreProvider.future);
+    final store = c.read(eventStoreProvider.notifier);
+    await store.add(_feast('2026-04-25')); // 매년 반복 ON
+    expect(c.read(eventsForDateProvider(DateTime(2027, 4, 25))), hasLength(1));
+
+    // 편집: 같은 id로 매년 반복 OFF 저장.
+    await store.updateEvent(
+      _feast('2026-04-25').copyWith(recurrence: RecurrenceType.none),
+    );
+    expect(c.read(eventsForDateProvider(DateTime(2026, 4, 25))), hasLength(1));
+    expect(c.read(eventsForDateProvider(DateTime(2027, 4, 25))), isEmpty);
+  });
 }
