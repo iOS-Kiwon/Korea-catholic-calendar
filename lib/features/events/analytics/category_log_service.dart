@@ -47,7 +47,10 @@ class FirestoreCategoryLogService implements CategoryLogService {
         'normalizedName': _normalizedName(trimmed),
         'lastColor': color,
         'count': FieldValue.increment(1),
-        'platformCounts.${_platformName()}': FieldValue.increment(1),
+        // 중첩 맵 + merge로 플랫폼별 카운터만 증가시킨다(다른 플랫폼 값 보존).
+        // (점 표기 키를 set()에 쓰면 중첩이 아니라 'platformCounts.ios' 리터럴
+        //  필드가 만들어지므로 사용하지 않는다.)
+        'platformCounts': {_platformName(): FieldValue.increment(1)},
         'lastAddedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (e) {
