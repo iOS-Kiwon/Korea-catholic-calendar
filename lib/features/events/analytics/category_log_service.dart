@@ -42,15 +42,14 @@ class FirestoreCategoryLogService implements CategoryLogService {
         'buildNumber': packageInfo.buildNumber,
         'createdAt': FieldValue.serverTimestamp(),
       });
+      // 목적: '어떤 카테고리 이름을 많이 쓰는지' 집계해 인기 카테고리를 기본값으로
+      // 제공하기 위함. 이름별(normalizedName) 문서 1개에 count를 누적한다.
+      // 플랫폼별 분포는 필요 없어 저장하지 않는다.
       await firestore.collection('category_stats').doc(categoryKey).set({
         'name': trimmed,
         'normalizedName': _normalizedName(trimmed),
         'lastColor': color,
         'count': FieldValue.increment(1),
-        // 중첩 맵 + merge로 플랫폼별 카운터만 증가시킨다(다른 플랫폼 값 보존).
-        // (점 표기 키를 set()에 쓰면 중첩이 아니라 'platformCounts.ios' 리터럴
-        //  필드가 만들어지므로 사용하지 않는다.)
-        'platformCounts': {_platformName(): FieldValue.increment(1)},
         'lastAddedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (e) {
