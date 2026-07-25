@@ -40,16 +40,9 @@ class DayInfoBar extends ConsumerWidget {
         title: day.title,
         color: day.color,
         rank: day.celebration.rank,
-        kind: day.celebration.kind,
       ),
       for (final m in day.optionalMemorials)
-        _MemorialLine(
-          id: m.id,
-          title: m.name,
-          color: m.color,
-          rank: m.rank,
-          kind: m.kind,
-        ),
+        _MemorialLine(id: m.id, title: m.name, color: m.color, rank: m.rank),
     ].take(_maxMemorialRows).toList();
 
     return Container(
@@ -227,14 +220,12 @@ class _MemorialLine {
     required this.title,
     required this.color,
     required this.rank,
-    required this.kind,
   });
 
   final String id;
   final String title;
   final LiturgicalColor color;
   final Rank rank;
-  final CelebrationKind kind;
 }
 
 class _MemorialRow extends StatelessWidget {
@@ -250,12 +241,7 @@ class _MemorialRow extends StatelessWidget {
       child: Row(
         children: [
           EventLabelHighlight(
-            label: _memorialTypeLabel(
-              line.id,
-              line.title,
-              line.rank,
-              line.kind,
-            ),
+            label: _memorialTypeLabel(line.id, line.title, line.rank),
             color: context.liturgical.of(line.color),
             style: theme.textTheme.bodyLarge,
           ),
@@ -274,20 +260,40 @@ class _MemorialRow extends StatelessWidget {
   }
 }
 
-String _memorialTypeLabel(
-  String id,
-  String title,
-  Rank rank,
-  CelebrationKind kind,
-) {
-  if (id == 'all_souls' || title.contains('위령의 날')) {
+String _memorialTypeLabel(String id, String title, Rank rank) {
+  if (_isLiturgicalOnlyMemorial(id, title, rank)) {
     return '전례';
   }
-  if (rank == Rank.solemnity || rank == Rank.feastOfTheLord) {
-    return '전례';
-  }
-  if (kind == CelebrationKind.sanctorale) {
+  if (_isSaintFeastMemorial(title)) {
     return '축일';
   }
   return '전례';
+}
+
+bool _isLiturgicalOnlyMemorial(String id, String title, Rank rank) {
+  return id == 'all_souls' ||
+      title.contains('위령의 날') ||
+      rank == Rank.solemnity ||
+      rank == Rank.feastOfTheLord;
+}
+
+bool _isSaintFeastMemorial(String title) {
+  return _looksLikeSaintTitle(title) ||
+      title.contains('복되신 동정 마리아') ||
+      title.contains('성모') ||
+      title.contains('대천사') ||
+      title.contains('수호천사') ||
+      title.contains('죄 없는 아기 순교자');
+}
+
+bool _looksLikeSaintTitle(String title) {
+  return title.startsWith('성 ') ||
+      title.startsWith('성녀 ') ||
+      title.startsWith('성인 ') ||
+      title.startsWith('복자 ') ||
+      title.startsWith('복녀 ') ||
+      title.contains(' 성 ') ||
+      title.contains(' 성녀 ') ||
+      title.contains(' 복자 ') ||
+      title.contains(' 복녀 ');
 }
