@@ -36,6 +36,7 @@ class DayInfoBar extends ConsumerWidget {
             day.celebration.rank == Rank.feastOfTheLord);
     final memorials = [
       _MemorialLine(
+        id: day.celebration.id,
         title: day.title,
         color: day.color,
         rank: day.celebration.rank,
@@ -43,6 +44,7 @@ class DayInfoBar extends ConsumerWidget {
       ),
       for (final m in day.optionalMemorials)
         _MemorialLine(
+          id: m.id,
           title: m.name,
           color: m.color,
           rank: m.rank,
@@ -221,12 +223,14 @@ class _SupportBanner extends StatelessWidget {
 
 class _MemorialLine {
   const _MemorialLine({
+    required this.id,
     required this.title,
     required this.color,
     required this.rank,
     required this.kind,
   });
 
+  final String id;
   final String title;
   final LiturgicalColor color;
   final Rank rank;
@@ -246,7 +250,12 @@ class _MemorialRow extends StatelessWidget {
       child: Row(
         children: [
           EventLabelHighlight(
-            label: _memorialTypeLabel(line.rank, line.kind),
+            label: _memorialTypeLabel(
+              line.id,
+              line.title,
+              line.rank,
+              line.kind,
+            ),
             color: context.liturgical.of(line.color),
             style: theme.textTheme.bodyLarge,
           ),
@@ -265,12 +274,20 @@ class _MemorialRow extends StatelessWidget {
   }
 }
 
-String _memorialTypeLabel(Rank rank, CelebrationKind kind) {
+String _memorialTypeLabel(
+  String id,
+  String title,
+  Rank rank,
+  CelebrationKind kind,
+) {
+  if (id == 'all_souls' || title.contains('위령의 날')) {
+    return '전례';
+  }
   if (rank == Rank.solemnity || rank == Rank.feastOfTheLord) {
     return '전례';
   }
   if (kind == CelebrationKind.sanctorale) {
     return '축일';
   }
-  return rank == Rank.feast ? '축일' : '전례';
+  return '전례';
 }
