@@ -131,6 +131,50 @@ void main() {
     expect(find.text('일정'), findsOneWidget);
   });
 
+  testWidgets('liturgical feast detail shows saint feast add button', (
+    tester,
+  ) async {
+    final day = LiturgicalCalendar().day(DateTime(2026, 7, 25));
+    expect(day.celebration.rank, Rank.feast);
+
+    await tester.pumpWidget(_wrap(Scaffold(body: DayDetailView(day: day))));
+    await tester.pumpAndSettle();
+
+    expect(find.text('성 야고보 사도 축일'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, '축일 추가'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(TextButton, '축일 추가'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('새 축일'), findsOneWidget);
+    expect(find.text('성인을 선택하세요'), findsOneWidget);
+  });
+
+  testWidgets('day detail shows saint information link when available', (
+    tester,
+  ) async {
+    final day = LiturgicalCalendar()
+        .day(DateTime(2026, 7, 25))
+        .copyWith(saintInfoUrl: 'https://example.com/saint/james');
+
+    await tester.pumpWidget(_wrap(Scaffold(body: DayDetailView(day: day))));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(TextButton, '성인 정보 보기'), findsOneWidget);
+  });
+
+  testWidgets('non-feast detail hides saint feast add button', (tester) async {
+    final day = LiturgicalCalendar().day(DateTime(2026, 7, 16));
+    expect(day.celebration.rank, isNot(Rank.feast));
+    expect(day.celebration.rank, isNot(Rank.feastOfTheLord));
+    expect(day.celebration.rank, isNot(Rank.solemnity));
+
+    await tester.pumpWidget(_wrap(Scaffold(body: DayDetailView(day: day))));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(TextButton, '축일 추가'), findsNothing);
+  });
+
   testWidgets('the add-event speed dial opens the event editor', (
     tester,
   ) async {

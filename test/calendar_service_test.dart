@@ -18,7 +18,8 @@ void main() {
     {"source":"test","days":[
       {"date":"2026-07-15","color":"white","title":"성 보나벤투라 주교 학자 기념일",
        "readings":["① 이사 10,5-7.13-16","㉥ 마태 11,25-27"],
-       "url":"https://missa.cbck.or.kr/DailyMissa/20260715"},
+       "url":"https://missa.cbck.or.kr/DailyMissa/20260715",
+       "saintInfoUrl":"https://maria.catholic.or.kr/sa_ho/list/view.asp?menugubun=saint&ctxtSaintId=1"},
       {"date":"2026-06-28","color":"green","title":"연중 제13주일","special":"교황 주일"}
     ]}''';
     final service = CalendarService(
@@ -31,6 +32,7 @@ void main() {
     expect(d.color, LiturgicalColor.white);
     expect(d.scriptureReadings, hasLength(2));
     expect(d.sourceUrl, contains('DailyMissa'));
+    expect(d.saintInfoUrl, contains('ctxtSaintId=1'));
     // Structural fields still come from the engine.
     expect(d.season, Season.ordinaryTime);
     expect(d.sundayCycle, SundayCycle.a); // 2025–26

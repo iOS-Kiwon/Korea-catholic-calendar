@@ -43,6 +43,7 @@ void main() {
                   'color': 'white',
                   'readings': ['① 이사 10,5-7.13-16'],
                   'url': 'https://missa.cbck.or.kr/DailyMissa/20260715',
+                  'saintInfoUrl': 'https://example.com/saint',
                 },
               ],
             }),
@@ -59,6 +60,7 @@ void main() {
     expect(days!['2026-07-15']?.title, '백오피스 수정 기념일');
     expect(days['2026-07-15']?.color, LiturgicalColor.white);
     expect(days['2026-07-15']?.readings, hasLength(1));
+    expect(days['2026-07-15']?.saintInfoUrl, 'https://example.com/saint');
   });
 
   test('returns null for unavailable or failed month responses', () async {

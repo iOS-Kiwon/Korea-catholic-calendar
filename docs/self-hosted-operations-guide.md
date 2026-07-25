@@ -605,6 +605,20 @@ docker compose -f ops/docker-compose.yml --env-file ops/.env exec db \
   sh -lc 'psql -U "$POSTGRES_USER" "$POSTGRES_DB" -c "select count(*) from saints;"'
 ```
 
+### 전례력 성인 정보 URL 백필
+
+API 서버는 새로 캐시하는 월 전례력 응답에 `saintInfoUrl`을 자동 보강한다. 이미 저장된
+`calendar_months.payload_json`에는 성인 임포트 후 1회성 백필을 실행한다.
+
+```bash
+cd scripts
+node --env-file=../ops/.env backfill-calendar-saint-info-urls.mjs --dry
+node --env-file=../ops/.env backfill-calendar-saint-info-urls.mjs
+```
+
+백필은 `성 야고보 사도 축일`처럼 단일 성인으로 보이는 전례일만 처리한다. 같은 날짜와 이름 검색으로
+성인 DB 결과가 정확히 1개이고 URL이 있을 때만 `saintInfoUrl`을 기록한다.
+
 ### 백오피스 편집
 
 `https://admin.sidore.org/kcc/saints`(로컬 `http://127.0.0.1:13000/kcc/saints`)에서 이름 검색·축일 월

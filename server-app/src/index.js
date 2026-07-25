@@ -2,6 +2,8 @@ import http from 'node:http';
 import fs from 'node:fs';
 import pg from 'pg';
 
+import { enrichCalendarPayloadWithSaintUrls } from './saint-calendar-enrichment.js';
+
 const port = Number(process.env.API_PORT || 8080);
 const host = process.env.API_HOST || '0.0.0.0';
 const appEnv = process.env.APP_ENV || 'development';
@@ -348,6 +350,52 @@ async function saveCachedCalendar(year, month, payload, source) {
   );
 }
 
+async function updateCachedCalendarPayload(year, month, payload) {
+  if (!db) return;
+
+  await db.query(
+    `
+      UPDATE calendar_months
+      SET payload_json = $3::jsonb, updated_at = now()
+      WHERE year = $1 AND month = $2
+    `,
+    [year, month, JSON.stringify(payload)],
+  );
+}
+
+async function findUniqueSaintInfoUrlForCalendarDay({ query, month, day }) {
+  if (!db) return '';
+
+  const result = await db.query(
+    `
+      SELECT url
+      FROM saints
+      WHERE feast_month = $1
+        AND feast_day = $2
+        AND url <> ''
+        AND (
+          name_ko ILIKE $3 OR
+          name_latin ILIKE $3 OR
+          search_text ILIKE $3
+        )
+      ORDER BY name_ko
+      LIMIT 2
+    `,
+    [month, day, `%${query}%`],
+  );
+
+  if (result.rows.length !== 1) return '';
+  return safeHttpUrl(result.rows[0].url);
+}
+
+async function enrichCalendarPayload(payload) {
+  const result = await enrichCalendarPayloadWithSaintUrls(
+    payload,
+    findUniqueSaintInfoUrlForCalendarDay,
+  );
+  return result;
+}
+
 async function findAppUpdatePolicy() {
   if (!db) return null;
 
@@ -437,7 +485,15 @@ async function handleCalendar(req, res, year, month) {
 
   const cached = await findCachedCalendar(year, month);
   if (cached) {
-    sendJson(res, 200, cached.payload_json, {
+    const enriched = await enrichCalendarPayload(cached.payload_json);
+    if (enriched.changed) {
+      try {
+        await updateCachedCalendarPayload(year, month, enriched.payload);
+      } catch (error) {
+        console.error('Failed to save enriched calendar cache', error);
+      }
+    }
+    sendJson(res, 200, enriched.payload, {
       'x-calendar-source': 'server-db',
       'x-calendar-cache': 'hit',
     });
@@ -459,12 +515,19 @@ async function handleCalendar(req, res, year, month) {
 
     if (response.ok && contentType.includes('application/json')) {
       try {
+        const parsed = JSON.parse(text);
+        const enriched = await enrichCalendarPayload(parsed);
         await saveCachedCalendar(
           year,
           month,
-          JSON.parse(text),
+          enriched.payload,
           'cloudflare-worker',
         );
+        sendJson(res, response.status, enriched.payload, {
+          'x-calendar-source': 'cloudflare-worker',
+          'x-calendar-cache': 'miss',
+        });
+        return;
       } catch (error) {
         console.error('Failed to save calendar cache', error);
       }

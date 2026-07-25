@@ -51,6 +51,7 @@ class DayDetailView extends ConsumerWidget {
     final metadata =
         ref.watch(appMetadataProvider).value ?? AppMetadata.fallback;
     final hasSaintFeast = events.any((event) => event.isSaintFeast);
+    final canAddSaintFeast = _isLiturgicalFeast(day.celebration.rank);
     final readings = day.scriptureReadings;
 
     return ListView(
@@ -77,6 +78,15 @@ class DayDetailView extends ConsumerWidget {
                   color: context.liturgical.of(day.color),
                   text: day.title,
                 ),
+                if (day.saintInfoUrl != null)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () => _openExternalUrl(day.saintInfoUrl!),
+                      icon: const Icon(Icons.person_search_outlined, size: 16),
+                      label: const Text('성인 정보 보기'),
+                    ),
+                  ),
                 for (final m in day.optionalMemorials) ...[
                   const SizedBox(height: 10),
                   _DotLine(color: context.liturgical.of(m.color), text: m.name),
@@ -87,6 +97,16 @@ class DayDetailView extends ConsumerWidget {
                 Row(
                   children: [
                     Expanded(child: _SectionHeader('일정')),
+                    if (canAddSaintFeast)
+                      TextButton.icon(
+                        onPressed: () =>
+                            showSaintFeastEditor(context, date: day.date),
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('축일 추가'),
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
                     TextButton.icon(
                       onPressed: () => showEventEditor(context, date: day.date),
                       icon: const Icon(Icons.add, size: 18),
@@ -156,6 +176,12 @@ class DayDetailView extends ConsumerWidget {
       ],
     );
   }
+}
+
+bool _isLiturgicalFeast(Rank rank) {
+  return rank == Rank.solemnity ||
+      rank == Rank.feastOfTheLord ||
+      rank == Rank.feast;
 }
 
 Future<void> _openSourceUrl(String url) async {
