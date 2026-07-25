@@ -286,7 +286,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('일정'), findsOneWidget);
-    expect(find.text('성경 공부'), findsOneWidget);
+    expect(find.text('[성경 공부] 19:30'), findsOneWidget);
   });
 
   testWidgets('bottom info bar summarizes event time category and memo', (
@@ -319,7 +319,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final summary = tester.widget<Text>(find.text('19:30 · 성경 공부 · 루카복음 긴 메모'));
+    final summary = tester.widget<Text>(
+      find.text('[성경 공부] 19:30 루카복음 긴 메모'),
+    );
     expect(summary.maxLines, 1);
     expect(summary.overflow, TextOverflow.ellipsis);
   });
@@ -343,13 +345,14 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('전례'));
     await tester.pumpAndSettle();
+    expect(find.text('[전례]'), findsOneWidget);
 
     // Save the event.
     await tester.tap(find.widgetWithText(FilledButton, '추가'));
     await tester.pumpAndSettle();
 
     // Back on the detail view, the new event is listed under its category name.
-    expect(find.text('전례'), findsAtLeastNWidgets(1));
+    expect(find.textContaining('[전례]'), findsAtLeastNWidgets(1));
     expect(find.text('등록된 일정이 없습니다.'), findsNothing);
   });
 
