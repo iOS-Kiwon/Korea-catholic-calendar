@@ -368,6 +368,70 @@ void main() {
     expect(find.text('전례'), findsNothing);
   });
 
+  testWidgets('bottom info bar labels fetched feast data as 축일', (
+    tester,
+  ) async {
+    final service = CalendarService(
+      engine: LiturgicalCalendar(),
+      cbck: CalendarService.parseDays(const [
+        {'date': '2026-07-25', 'color': 'red', 'title': '성 야고보 사도 축일'},
+      ]),
+    );
+
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(
+          body: DayInfoBar(
+            day: service.day(DateTime(2026, 7, 25)),
+            onTapDetail: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('축일'), findsOneWidget);
+    expect(find.text('성 야고보 사도 축일'), findsOneWidget);
+    expect(find.text('전례'), findsNothing);
+  });
+
+  testWidgets('bottom info bar labels saint alternatives as 축일', (
+    tester,
+  ) async {
+    final service = CalendarService(
+      engine: LiturgicalCalendar(),
+      cbck: CalendarService.parseDays(const [
+        {
+          'date': '2026-08-25',
+          'color': 'green',
+          'title': '연중 제21주간 화요일',
+          'alternatives': [
+            {'name': '성 루도비코', 'color': 'white'},
+            {'name': '성 요셉 데 갈라산즈 사제', 'color': 'white'},
+          ],
+        },
+      ]),
+    );
+
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(
+          body: DayInfoBar(
+            day: service.day(DateTime(2026, 8, 25)),
+            onTapDetail: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('전례'), findsOneWidget);
+    expect(find.text('축일'), findsNWidgets(2));
+    expect(find.text('연중 제21주간 화요일'), findsOneWidget);
+    expect(find.text('성 루도비코'), findsOneWidget);
+    expect(find.text('성 요셉 데 갈라산즈 사제'), findsOneWidget);
+  });
+
   testWidgets('bottom info bar labels solemnity as 전례', (tester) async {
     final day = LiturgicalCalendar().day(DateTime(2026, 12, 25));
     expect(day.celebration.rank, Rank.solemnity);
