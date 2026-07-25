@@ -5,6 +5,7 @@ import 'package:liturgical_calendar/liturgical_calendar.dart';
 import '../../../../app/theme/liturgical_colors.dart';
 import '../../../events/application/event_providers.dart';
 import '../../../events/model/calendar_event.dart';
+import '../../../events/presentation/event_display.dart';
 
 const _weekdayFull = ['일', '월', '화', '수', '목', '금', '토'];
 const _maxMemorialRows = 3;
@@ -113,18 +114,14 @@ class _EventSummary extends StatelessWidget {
     final first = events.first;
     final extra = events.length - 1;
     final memo = first.memo?.trim();
-    final summary = first.isSaintFeast
+    final feastSummary = first.isSaintFeast
         ? [
             first.saintName?.trim().isNotEmpty == true
                 ? first.saintName!.trim()
                 : first.title,
             if (memo != null && memo.isNotEmpty) memo,
           ].join(' ')
-        : [
-            first.isAllDay ? '종일' : first.time!,
-            first.title,
-            if (memo != null && memo.isNotEmpty) memo,
-          ].join(' · ');
+        : null;
 
     return Padding(
       padding: const EdgeInsets.only(top: 6),
@@ -135,25 +132,19 @@ class _EventSummary extends StatelessWidget {
           Divider(height: 20, color: theme.dividerColor.withValues(alpha: 0.4)),
           Row(
             children: [
-              if (first.isSaintFeast)
-                const Text(kSaintFeastPrefix, style: TextStyle(fontSize: 13))
-              else
-                Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Color(first.categoryColor),
-                  ),
-                ),
-              const SizedBox(width: 8),
+              if (first.isSaintFeast) ...[
+                const Text(kSaintFeastPrefix, style: TextStyle(fontSize: 13)),
+                const SizedBox(width: 8),
+              ],
               Expanded(
-                child: Text(
-                  summary,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyLarge,
-                ),
+                child: first.isSaintFeast
+                    ? Text(
+                        feastSummary!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyLarge,
+                      )
+                    : RegularEventDisplayLine(event: first),
               ),
             ],
           ),

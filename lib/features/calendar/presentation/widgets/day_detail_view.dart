@@ -7,6 +7,7 @@ import '../../../../app/theme/liturgical_colors.dart';
 import '../../../app_metadata/app_metadata_service.dart';
 import '../../../events/application/event_providers.dart';
 import '../../../events/model/calendar_event.dart';
+import '../../../events/presentation/event_display.dart';
 import '../../../events/presentation/event_editor_sheet.dart';
 import '../../../saints/presentation/saint_feast_editor_page.dart';
 import '../../../support/presentation/support_sheet.dart';
@@ -261,7 +262,6 @@ class _EventLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final timeLabel = event.isAllDay ? '종일' : event.time!;
     final isSaintFeast = event.isSaintFeast;
     final memo = event.memo?.trim();
     final title = isSaintFeast
@@ -287,39 +287,22 @@ class _EventLine extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: EdgeInsets.only(top: isSaintFeast ? 1 : 5),
-              child: isSaintFeast
-                  ? const Text(
-                      kSaintFeastPrefix,
-                      style: TextStyle(fontSize: 14),
-                    )
-                  : Container(
-                      width: 11,
-                      height: 11,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Color(event.categoryColor),
-                      ),
-                    ),
-            ),
-            const SizedBox(width: 12),
-            if (!isSaintFeast) ...[
-              Text(
-                timeLabel,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+            if (isSaintFeast) ...[
+              const Padding(
+                padding: EdgeInsets.only(top: 1),
+                child: Text(kSaintFeastPrefix, style: TextStyle(fontSize: 14)),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 12),
             ],
             Expanded(
-              child: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyLarge,
-              ),
+              child: isSaintFeast
+                  ? Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyLarge,
+                    )
+                  : RegularEventDisplayLine(event: event),
             ),
           ],
         ),

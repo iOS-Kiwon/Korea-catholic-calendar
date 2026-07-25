@@ -10,6 +10,7 @@ import '../model/event_category.dart';
 import '../model/recurrence.dart';
 import 'backup_notice.dart';
 import 'category_manager_page.dart';
+import 'event_display.dart';
 
 const _weekdays = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -380,13 +381,13 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
             // 카테고리 (필수) - 제목을 직접 입력하지 않고, 탭 → 카테고리 화면에서 선택.
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: selected != null
-                  ? CircleAvatar(
-                      backgroundColor: Color(selected.color),
-                      radius: 13,
-                    )
-                  : const Icon(Icons.label_outline),
-              title: Text(selected?.name ?? '카테고리를 선택하세요'),
+              leading: const Icon(Icons.label_outline),
+              title: selected == null
+                  ? const Text('카테고리를 선택하세요')
+                  : Align(
+                      alignment: Alignment.centerLeft,
+                      child: EventCategoryHighlight.fromCategory(selected),
+                    ),
               subtitle: _categoryError
                   ? Text(
                       '카테고리를 선택하세요',
