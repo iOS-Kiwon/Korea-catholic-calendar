@@ -292,7 +292,7 @@ class _EventLine extends StatelessWidget {
                 padding: EdgeInsets.only(top: 1),
                 child: EventLabelHighlight(
                   label: kSaintFeastPrefix,
-                  color: kSaintFeastEventColor,
+                  color: const Color(kSaintFeastEventColor),
                   style: theme.textTheme.bodyLarge,
                 ),
               ),

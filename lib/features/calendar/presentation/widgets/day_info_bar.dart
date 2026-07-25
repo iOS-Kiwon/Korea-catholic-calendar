@@ -129,13 +129,12 @@ class _EventSummary extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Divider(height: 20, color: theme.dividerColor.withValues(alpha: 0.4)),
           Row(
             children: [
               if (first.isSaintFeast) ...[
                 EventLabelHighlight(
                   label: kSaintFeastPrefix,
-                  color: kSaintFeastEventColor,
+                  color: const Color(kSaintFeastEventColor),
                   style: theme.textTheme.bodyLarge,
                 ),
                 const SizedBox(width: 8),
@@ -227,26 +226,13 @@ class _MemorialRow extends StatelessWidget {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        children: [
-          Container(
-            width: 11,
-            height: 11,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: context.liturgical.of(line.color),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              line.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodyLarge,
-            ),
-          ),
-        ],
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: EventLabelHighlight(
+          label: line.title,
+          color: context.liturgical.of(line.color),
+          style: theme.textTheme.bodyLarge,
+        ),
       ),
     );
   }
