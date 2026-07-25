@@ -134,17 +134,19 @@ void main() {
   testWidgets('liturgical feast detail shows saint feast add button', (
     tester,
   ) async {
-    final day = LiturgicalCalendar().day(DateTime(2026, 7, 25)).copyWith(
-      title: '성 야고보 사도 축일',
-      celebration: const Celebration(
-        id: 'james_apostle',
-        name: '성 야고보 사도 축일',
-        rank: Rank.feast,
-        color: LiturgicalColor.red,
-        kind: CelebrationKind.sanctorale,
-        precedence: PrecedenceCode.generalFeast,
-      ),
-    );
+    final day = LiturgicalCalendar()
+        .day(DateTime(2026, 7, 25))
+        .copyWith(
+          title: '성 야고보 사도 축일',
+          celebration: const Celebration(
+            id: 'james_apostle',
+            name: '성 야고보 사도 축일',
+            rank: Rank.feast,
+            color: LiturgicalColor.red,
+            kind: CelebrationKind.sanctorale,
+            precedence: PrecedenceCode.generalFeast,
+          ),
+        );
     expect(day.celebration.rank, Rank.feast);
 
     await tester.pumpWidget(_wrap(Scaffold(body: DayDetailView(day: day))));
@@ -329,11 +331,59 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final summary = tester.widget<Text>(
-      find.text('성경 공부 19:30 루카복음 긴 메모'),
-    );
+    final summary = tester.widget<Text>(find.text('성경 공부 19:30 루카복음 긴 메모'));
     expect(summary.maxLines, 1);
     expect(summary.overflow, TextOverflow.ellipsis);
+    expect(find.text('전례'), findsOneWidget);
+    expect(find.text(day.title), findsOneWidget);
+    expect(find.text('축일'), findsNothing);
+  });
+
+  testWidgets('bottom info bar labels liturgical feast as 축일', (tester) async {
+    final day = LiturgicalCalendar()
+        .day(DateTime(2026, 7, 25))
+        .copyWith(
+          title: '성 야고보 사도 축일',
+          celebration: const Celebration(
+            id: 'james_apostle',
+            name: '성 야고보 사도 축일',
+            rank: Rank.feast,
+            color: LiturgicalColor.red,
+            kind: CelebrationKind.sanctorale,
+            precedence: PrecedenceCode.generalFeast,
+          ),
+        );
+
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(
+          body: DayInfoBar(day: day, onTapDetail: () {}),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('축일'), findsOneWidget);
+    expect(find.text('성 야고보 사도 축일'), findsOneWidget);
+    expect(find.text('전례'), findsNothing);
+  });
+
+  testWidgets('bottom info bar labels solemnity as 전례', (tester) async {
+    final day = LiturgicalCalendar().day(DateTime(2026, 12, 25));
+    expect(day.celebration.rank, Rank.solemnity);
+
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(
+          body: DayInfoBar(day: day, onTapDetail: () {}),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('전례'), findsOneWidget);
+    expect(find.text('주님 성탄 대축일'), findsOneWidget);
+    expect(find.text('축일'), findsNothing);
   });
 
   testWidgets('adding an event by picking a category persists and shows it', (

@@ -35,9 +35,13 @@ class DayInfoBar extends ConsumerWidget {
         (day.celebration.rank == Rank.solemnity ||
             day.celebration.rank == Rank.feastOfTheLord);
     final memorials = [
-      _MemorialLine(title: day.title, color: day.color),
+      _MemorialLine(
+        title: day.title,
+        color: day.color,
+        rank: day.celebration.rank,
+      ),
       for (final m in day.optionalMemorials)
-        _MemorialLine(title: m.name, color: m.color),
+        _MemorialLine(title: m.name, color: m.color, rank: m.rank),
     ].take(_maxMemorialRows).toList();
 
     return Container(
@@ -210,10 +214,15 @@ class _SupportBanner extends StatelessWidget {
 }
 
 class _MemorialLine {
-  const _MemorialLine({required this.title, required this.color});
+  const _MemorialLine({
+    required this.title,
+    required this.color,
+    required this.rank,
+  });
 
   final String title;
   final LiturgicalColor color;
+  final Rank rank;
 }
 
 class _MemorialRow extends StatelessWidget {
@@ -226,14 +235,28 @@ class _MemorialRow extends StatelessWidget {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: EventLabelHighlight(
-          label: line.title,
-          color: context.liturgical.of(line.color),
-          style: theme.textTheme.bodyLarge,
-        ),
+      child: Row(
+        children: [
+          EventLabelHighlight(
+            label: _memorialTypeLabel(line.rank),
+            color: context.liturgical.of(line.color),
+            style: theme.textTheme.bodyLarge,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              line.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyLarge,
+            ),
+          ),
+        ],
       ),
     );
   }
+}
+
+String _memorialTypeLabel(Rank rank) {
+  return rank == Rank.feast ? '축일' : '전례';
 }
