@@ -17,6 +17,8 @@ DateTime parseEventDate(String key) {
 /// was created before categories carried a color.
 const int kDefaultEventColor = 0xFF455A64;
 const int kSaintFeastEventColor = 0xFF8D6E63;
+const String kSaintFeastCategoryId = 'saint_feast';
+const String kSaintFeastCategoryName = '축일';
 const String kSaintFeastPrefix = '[축일]';
 
 enum CalendarEventType {
@@ -166,7 +168,32 @@ class CalendarEvent {
   };
 
   factory CalendarEvent.fromJson(Map<String, dynamic> json) {
-    final type = CalendarEventType.fromJson(json['type']);
+    final rawType = CalendarEventType.fromJson(json['type']);
+    final rawCategoryId = json['categoryId'] as String? ?? '';
+    final rawCategoryName =
+        json['categoryName'] as String? ?? json['title'] as String? ?? '';
+    final saintId = (json['saintId'] as num?)?.toInt();
+    final saintName = json['saintName'] as String?;
+    final saintUrl = json['saintUrl'] as String?;
+    final rawMemo = json['memo'] as String?;
+    final legacySaintName = _legacySaintFeastName(rawCategoryName);
+    final legacyCategorySaintName =
+        rawType == CalendarEventType.regular &&
+        _isSaintFeastCategoryName(rawCategoryName) &&
+        _hasText(rawMemo)
+        ? rawMemo!.trim()
+        : null;
+    final hasSaintPayload =
+        saintId != null || _hasText(saintName) || _hasText(saintUrl);
+    final isLegacySaintFeast =
+        rawType == CalendarEventType.regular &&
+        (rawCategoryId == kSaintFeastCategoryId ||
+            hasSaintPayload ||
+            legacySaintName != null ||
+            _isSaintFeastCategoryName(rawCategoryName));
+    final type = isLegacySaintFeast
+        ? CalendarEventType.saintFeast
+        : rawType;
     // 하위호환: recurrence 필드가 없으면, 축일은 매년 반복(yearlyDate)을 기본으로
     // 적용하고(사용자 의도 "축일 기본 매년 반복"), 일반 이벤트는 반복 없음으로 둔다.
     final RecurrenceType recurrence = json.containsKey('recurrence')
@@ -178,20 +205,36 @@ class CalendarEvent {
       id: json['id'] as String,
       date: json['date'] as String,
       // Fall back to a legacy free-text `title` if present (pre-category data).
-      categoryId: json['categoryId'] as String? ?? '',
-      categoryName:
-          json['categoryName'] as String? ?? json['title'] as String? ?? '',
-      categoryColor:
-          (json['categoryColor'] as num?)?.toInt() ?? kDefaultEventColor,
-      memo: json['memo'] as String?,
+      categoryId: type == CalendarEventType.saintFeast
+          ? kSaintFeastCategoryId
+          : rawCategoryId,
+      categoryName: type == CalendarEventType.saintFeast
+          ? kSaintFeastCategoryName
+          : rawCategoryName,
+      categoryColor: type == CalendarEventType.saintFeast
+          ? kSaintFeastEventColor
+          : ((json['categoryColor'] as num?)?.toInt() ?? kDefaultEventColor),
+      memo: legacyCategorySaintName == null ? rawMemo : null,
       time: json['time'] as String?,
       notify: json['notify'] as bool? ?? true,
       type: type,
-      saintId: (json['saintId'] as num?)?.toInt(),
-      saintName: json['saintName'] as String?,
-      saintUrl: json['saintUrl'] as String?,
+      saintId: saintId,
+      saintName: saintName ?? legacySaintName ?? legacyCategorySaintName,
+      saintUrl: saintUrl,
       recurrence: recurrence,
       feastId: json['feastId'] as String?,
     );
   }
+}
+
+bool _hasText(String? value) => value != null && value.trim().isNotEmpty;
+
+bool _isSaintFeastCategoryName(String value) =>
+    value.trim() == kSaintFeastCategoryName;
+
+String? _legacySaintFeastName(String value) {
+  final trimmed = value.trim();
+  if (!trimmed.startsWith(kSaintFeastPrefix)) return null;
+  final name = trimmed.substring(kSaintFeastPrefix.length).trim();
+  return name.isEmpty ? null : name;
 }

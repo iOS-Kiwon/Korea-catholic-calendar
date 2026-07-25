@@ -67,5 +67,31 @@ void main() {
       await repo.save(const []);
       expect(repo.load(), isEmpty);
     });
+
+    test('reserved saint feast categories are not loaded or saved', () async {
+      await repo.save(const [
+        EventCategory(id: '1', name: '본당 행사', color: 0xFF283593),
+        EventCategory(id: '2', name: '축일', color: 0xFF2E7D32),
+        EventCategory(id: 'saint_feast', name: '기존 축일', color: 0xFF8D6E63),
+      ]);
+
+      final loaded = repo.load();
+      expect(loaded.map((c) => c.name).toList(), ['본당 행사']);
+      expect(loaded.map((c) => c.id).toList(), ['1']);
+    });
+
+    test('reserved saint feast categories are removed from legacy storage', () async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        CategoryRepository.storageKey,
+        '[{"id":"1","name":"본당 행사","color":4280820627},'
+        '{"id":"2","name":"축일","color":4281229634},'
+        '{"id":"saint_feast","name":"기존 축일","color":4287454819}]',
+      );
+
+      final loaded = repo.load();
+      expect(loaded.map((c) => c.name).toList(), ['본당 행사']);
+      expect(loaded.map((c) => c.id).toList(), ['1']);
+    });
   });
 }

@@ -11,8 +11,6 @@ import '../model/saint.dart';
 import 'saint_search_page.dart';
 
 const _weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-const _saintCategoryId = 'saint_feast';
-const _saintCategoryName = '축일';
 
 String _dateLabel(DateTime d) =>
     '${d.year}년 ${d.month}월 ${d.day}일 (${_weekdays[d.weekday % 7]})';
@@ -205,8 +203,8 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
           widget.existing?.id ??
           DateTime.now().microsecondsSinceEpoch.toString(),
       date: eventDateKey(_date),
-      categoryId: _saintCategoryId,
-      categoryName: _saintCategoryName,
+      categoryId: kSaintFeastCategoryId,
+      categoryName: kSaintFeastCategoryName,
       categoryColor: kSaintFeastEventColor,
       memo: memo.isEmpty ? null : memo,
       time: null,
