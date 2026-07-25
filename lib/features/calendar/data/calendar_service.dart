@@ -9,6 +9,7 @@ class CbckDay {
     required this.color,
     this.special,
     this.url,
+    this.saintInfoUrl,
     this.readings = const [],
     this.alternatives = const [],
   });
@@ -17,6 +18,7 @@ class CbckDay {
   final LiturgicalColor color;
   final String? special;
   final String? url;
+  final String? saintInfoUrl;
   final List<String> readings;
   final List<Celebration> alternatives;
 }
@@ -99,6 +101,7 @@ class CalendarService {
       scriptureReadings: c.readings,
       specialDay: c.special,
       sourceUrl: c.url,
+      saintInfoUrl: c.saintInfoUrl,
       optionalMemorials: c.alternatives.isNotEmpty
           ? c.alternatives
           : base.optionalMemorials,
@@ -141,6 +144,7 @@ class CalendarService {
         color: _color(d['color'] as String?),
         special: d['special'] as String?,
         url: d['url'] as String?,
+        saintInfoUrl: d['saintInfoUrl'] as String?,
         readings: (d['readings'] as List? ?? const []).cast<String>(),
         alternatives: alternatives,
       );
