@@ -134,7 +134,17 @@ void main() {
   testWidgets('liturgical feast detail shows saint feast add button', (
     tester,
   ) async {
-    final day = LiturgicalCalendar().day(DateTime(2026, 7, 25));
+    final day = LiturgicalCalendar().day(DateTime(2026, 7, 25)).copyWith(
+      title: '성 야고보 사도 축일',
+      celebration: const Celebration(
+        id: 'james_apostle',
+        name: '성 야고보 사도 축일',
+        rank: Rank.feast,
+        color: LiturgicalColor.red,
+        kind: CelebrationKind.sanctorale,
+        precedence: PrecedenceCode.generalFeast,
+      ),
+    );
     expect(day.celebration.rank, Rank.feast);
 
     await tester.pumpWidget(_wrap(Scaffold(body: DayDetailView(day: day))));
@@ -286,7 +296,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('일정'), findsOneWidget);
-    expect(find.text('[성경 공부] 19:30'), findsOneWidget);
+    expect(find.text('성경 공부 19:30'), findsOneWidget);
   });
 
   testWidgets('bottom info bar summarizes event time category and memo', (
@@ -320,7 +330,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final summary = tester.widget<Text>(
-      find.text('[성경 공부] 19:30 루카복음 긴 메모'),
+      find.text('성경 공부 19:30 루카복음 긴 메모'),
     );
     expect(summary.maxLines, 1);
     expect(summary.overflow, TextOverflow.ellipsis);
@@ -345,14 +355,14 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('전례'));
     await tester.pumpAndSettle();
-    expect(find.text('[전례]'), findsOneWidget);
+    expect(find.text('전례'), findsOneWidget);
 
     // Save the event.
     await tester.tap(find.widgetWithText(FilledButton, '추가'));
     await tester.pumpAndSettle();
 
     // Back on the detail view, the new event is listed under its category name.
-    expect(find.textContaining('[전례]'), findsAtLeastNWidgets(1));
+    expect(find.textContaining('전례'), findsAtLeastNWidgets(1));
     expect(find.text('등록된 일정이 없습니다.'), findsNothing);
   });
 

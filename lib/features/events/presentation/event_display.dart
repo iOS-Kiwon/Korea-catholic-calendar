@@ -7,26 +7,26 @@ String regularEventDisplayText(CalendarEvent event) {
   final memo = event.memo?.trim();
   final time = event.isAllDay ? '종일' : event.time!;
   final suffix = memo == null || memo.isEmpty ? '' : ' $memo';
-  return '[${event.categoryName}] $time$suffix';
+  return '${event.categoryName} $time$suffix';
 }
 
-class EventCategoryHighlight extends StatelessWidget {
-  const EventCategoryHighlight({
+class EventLabelHighlight extends StatelessWidget {
+  const EventLabelHighlight({
     super.key,
-    required this.name,
+    required this.label,
     required this.color,
     this.style,
   });
 
-  EventCategoryHighlight.fromCategory(
+  EventLabelHighlight.fromCategory(
     EventCategory category, {
     super.key,
     TextStyle? style,
-  }) : name = category.name,
+  }) : label = category.name,
        color = category.color,
        style = style;
 
-  final String name;
+  final String label;
   final int color;
   final TextStyle? style;
 
@@ -41,7 +41,7 @@ class EventCategoryHighlight extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-        child: Text('[$name]', style: effectiveStyle),
+        child: Text(label, style: effectiveStyle),
       ),
     );
   }
@@ -70,7 +70,7 @@ class RegularEventDisplayLine extends StatelessWidget {
         style: effectiveStyle,
         children: [
           TextSpan(
-            text: '[${event.categoryName}]',
+            text: event.categoryName,
             style: effectiveStyle?.copyWith(
               backgroundColor: Color(event.categoryColor).withValues(
                 alpha: 0.24,
