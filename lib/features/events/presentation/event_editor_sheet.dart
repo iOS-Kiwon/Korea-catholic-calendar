@@ -386,7 +386,7 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
                   ? const Text('카테고리를 선택하세요')
                   : Align(
                       alignment: Alignment.centerLeft,
-                      child: EventCategoryHighlight.fromCategory(selected),
+                      child: EventLabelHighlight.fromCategory(selected),
                     ),
               subtitle: _categoryError
                   ? Text(

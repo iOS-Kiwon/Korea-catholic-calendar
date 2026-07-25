@@ -79,6 +79,16 @@ class DayDetailView extends ConsumerWidget {
                   color: context.liturgical.of(day.color),
                   text: day.title,
                 ),
+                if (canAddSaintFeast)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () =>
+                          showSaintFeastEditor(context, date: day.date),
+                      icon: const Icon(Icons.add, size: 16),
+                      label: const Text('축일 추가'),
+                    ),
+                  ),
                 if (day.saintInfoUrl != null)
                   Align(
                     alignment: Alignment.centerLeft,
@@ -98,16 +108,6 @@ class DayDetailView extends ConsumerWidget {
                 Row(
                   children: [
                     Expanded(child: _SectionHeader('일정')),
-                    if (canAddSaintFeast)
-                      TextButton.icon(
-                        onPressed: () =>
-                            showSaintFeastEditor(context, date: day.date),
-                        icon: const Icon(Icons.add, size: 18),
-                        label: const Text('축일 추가'),
-                        style: TextButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ),
                     TextButton.icon(
                       onPressed: () => showEventEditor(context, date: day.date),
                       icon: const Icon(Icons.add, size: 18),
@@ -288,9 +288,13 @@ class _EventLine extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (isSaintFeast) ...[
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(top: 1),
-                child: Text(kSaintFeastPrefix, style: TextStyle(fontSize: 14)),
+                child: EventLabelHighlight(
+                  label: kSaintFeastPrefix,
+                  color: kSaintFeastEventColor,
+                  style: theme.textTheme.bodyLarge,
+                ),
               ),
               const SizedBox(width: 12),
             ],

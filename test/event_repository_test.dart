@@ -86,7 +86,7 @@ void main() {
       expect(decoded.saintName, '성 마르코');
       expect(decoded.memo, isNull);
       expect(decoded.recurrence, RecurrenceType.yearlyDate);
-      expect(decoded.saintFeastDisplayText, '[축일] 성 마르코');
+      expect(decoded.saintFeastDisplayText, '축일 성 마르코');
     });
 
     test('migrates legacy bracketed feast titles to saint feast events', () {
@@ -101,7 +101,7 @@ void main() {
       expect(decoded.type, CalendarEventType.saintFeast);
       expect(decoded.saintName, '성 마르코');
       expect(decoded.memo, '가족');
-      expect(decoded.saintFeastDisplayText, '[축일] 성 마르코 가족');
+      expect(decoded.saintFeastDisplayText, '축일 성 마르코 가족');
     });
 
     test('keeps memo on current saint feast events', () {
@@ -120,7 +120,7 @@ void main() {
       expect(decoded.type, CalendarEventType.saintFeast);
       expect(decoded.saintName, '성 마르코');
       expect(decoded.memo, '가족');
-      expect(decoded.saintFeastDisplayText, '[축일] 성 마르코 가족');
+      expect(decoded.saintFeastDisplayText, '축일 성 마르코 가족');
     });
 
     test('copyWith replaces only the given fields', () {

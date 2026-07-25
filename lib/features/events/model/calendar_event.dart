@@ -19,7 +19,8 @@ const int kDefaultEventColor = 0xFF455A64;
 const int kSaintFeastEventColor = 0xFF8D6E63;
 const String kSaintFeastCategoryId = 'saint_feast';
 const String kSaintFeastCategoryName = '축일';
-const String kSaintFeastPrefix = '[축일]';
+const String kSaintFeastPrefix = '축일';
+const String kLegacySaintFeastPrefix = '[축일]';
 
 enum CalendarEventType {
   regular,
@@ -234,7 +235,7 @@ bool _isSaintFeastCategoryName(String value) =>
 
 String? _legacySaintFeastName(String value) {
   final trimmed = value.trim();
-  if (!trimmed.startsWith(kSaintFeastPrefix)) return null;
-  final name = trimmed.substring(kSaintFeastPrefix.length).trim();
+  if (!trimmed.startsWith(kLegacySaintFeastPrefix)) return null;
+  final name = trimmed.substring(kLegacySaintFeastPrefix.length).trim();
   return name.isEmpty ? null : name;
 }

@@ -133,7 +133,11 @@ class _EventSummary extends StatelessWidget {
           Row(
             children: [
               if (first.isSaintFeast) ...[
-                const Text(kSaintFeastPrefix, style: TextStyle(fontSize: 13)),
+                EventLabelHighlight(
+                  label: kSaintFeastPrefix,
+                  color: kSaintFeastEventColor,
+                  style: theme.textTheme.bodyLarge,
+                ),
                 const SizedBox(width: 8),
               ],
               Expanded(
