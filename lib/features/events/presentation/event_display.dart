@@ -16,6 +16,8 @@ class EventLabelHighlight extends StatelessWidget {
     required this.label,
     required this.color,
     this.style,
+    this.maxLines = 1,
+    this.overflow = TextOverflow.ellipsis,
   });
 
   EventLabelHighlight.fromCategory(
@@ -23,12 +25,16 @@ class EventLabelHighlight extends StatelessWidget {
     super.key,
     TextStyle? style,
   }) : label = category.name,
-       color = category.color,
-       style = style;
+       color = Color(category.color),
+       style = style,
+       maxLines = 1,
+       overflow = TextOverflow.ellipsis;
 
   final String label;
-  final int color;
+  final Color color;
   final TextStyle? style;
+  final int maxLines;
+  final TextOverflow overflow;
 
   @override
   Widget build(BuildContext context) {
@@ -36,12 +42,17 @@ class EventLabelHighlight extends StatelessWidget {
     final effectiveStyle = style ?? theme.textTheme.bodyLarge;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Color(color).withValues(alpha: 0.24),
+        color: color.withValues(alpha: 0.24),
         borderRadius: BorderRadius.circular(3),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-        child: Text(label, style: effectiveStyle),
+        child: Text(
+          label,
+          maxLines: maxLines,
+          overflow: overflow,
+          style: effectiveStyle,
+        ),
       ),
     );
   }
@@ -72,9 +83,9 @@ class RegularEventDisplayLine extends StatelessWidget {
           TextSpan(
             text: event.categoryName,
             style: effectiveStyle?.copyWith(
-              backgroundColor: Color(event.categoryColor).withValues(
-                alpha: 0.24,
-              ),
+              backgroundColor: Color(
+                event.categoryColor,
+              ).withValues(alpha: 0.24),
             ),
           ),
           TextSpan(text: ' $time'),
