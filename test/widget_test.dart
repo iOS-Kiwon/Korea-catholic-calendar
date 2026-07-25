@@ -471,6 +471,37 @@ void main() {
     expect(find.text('축일'), findsNothing);
   });
 
+  testWidgets('bottom info bar does not label non-saint rank feast as 축일', (
+    tester,
+  ) async {
+    final day = LiturgicalCalendar()
+        .day(DateTime(2026, 7, 16))
+        .copyWith(
+          title: '전례 전용 기념 축일',
+          celebration: const Celebration(
+            id: 'liturgical_only_feast',
+            name: '전례 전용 기념 축일',
+            rank: Rank.feast,
+            color: LiturgicalColor.white,
+            kind: CelebrationKind.sanctorale,
+            precedence: PrecedenceCode.generalFeast,
+          ),
+        );
+
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(
+          body: DayInfoBar(day: day, onTapDetail: () {}),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('전례'), findsOneWidget);
+    expect(find.text('전례 전용 기념 축일'), findsOneWidget);
+    expect(find.text('축일'), findsNothing);
+  });
+
   testWidgets('adding an event by picking a category persists and shows it', (
     tester,
   ) async {
