@@ -39,9 +39,15 @@ class DayInfoBar extends ConsumerWidget {
         title: day.title,
         color: day.color,
         rank: day.celebration.rank,
+        kind: day.celebration.kind,
       ),
       for (final m in day.optionalMemorials)
-        _MemorialLine(title: m.name, color: m.color, rank: m.rank),
+        _MemorialLine(
+          title: m.name,
+          color: m.color,
+          rank: m.rank,
+          kind: m.kind,
+        ),
     ].take(_maxMemorialRows).toList();
 
     return Container(
@@ -218,11 +224,13 @@ class _MemorialLine {
     required this.title,
     required this.color,
     required this.rank,
+    required this.kind,
   });
 
   final String title;
   final LiturgicalColor color;
   final Rank rank;
+  final CelebrationKind kind;
 }
 
 class _MemorialRow extends StatelessWidget {
@@ -238,7 +246,7 @@ class _MemorialRow extends StatelessWidget {
       child: Row(
         children: [
           EventLabelHighlight(
-            label: _memorialTypeLabel(line.rank),
+            label: _memorialTypeLabel(line.rank, line.kind),
             color: context.liturgical.of(line.color),
             style: theme.textTheme.bodyLarge,
           ),
@@ -257,6 +265,12 @@ class _MemorialRow extends StatelessWidget {
   }
 }
 
-String _memorialTypeLabel(Rank rank) {
+String _memorialTypeLabel(Rank rank, CelebrationKind kind) {
+  if (rank == Rank.solemnity || rank == Rank.feastOfTheLord) {
+    return '전례';
+  }
+  if (kind == CelebrationKind.sanctorale) {
+    return '축일';
+  }
   return rank == Rank.feast ? '축일' : '전례';
 }

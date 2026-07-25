@@ -30,6 +30,8 @@ void main() {
     final d = service.day(DateTime(2026, 7, 15));
     expect(d.title, '성 보나벤투라 주교 학자 기념일');
     expect(d.color, LiturgicalColor.white);
+    expect(d.celebration.name, '성 보나벤투라 주교 학자 기념일');
+    expect(d.celebration.rank, Rank.obligatoryMemorial);
     expect(d.scriptureReadings, hasLength(2));
     expect(d.sourceUrl, contains('DailyMissa'));
     expect(d.saintInfoUrl, contains('ctxtSaintId=1'));
@@ -39,6 +41,65 @@ void main() {
 
     final sun = service.day(DateTime(2026, 6, 28));
     expect(sun.specialDay, '교황 주일');
+  });
+
+  test('parses explicit and inferred ranks from authoritative days', () {
+    final service = CalendarService(
+      engine: engine,
+      cbck: CalendarService.parseDays(const [
+        {'date': '2026-07-25', 'color': 'red', 'title': '성 야고보 사도 축일'},
+        {
+          'date': '2026-12-25',
+          'color': 'white',
+          'title': '주님 성탄 대축일',
+          'rank': 'solemnity',
+        },
+        {'date': '2026-08-06', 'color': 'white', 'title': '주님의 거룩한 변모 축일'},
+        {'date': '2026-08-25', 'color': 'white', 'title': '성 루도비코'},
+      ]),
+    );
+
+    expect(service.day(DateTime(2026, 7, 25)).celebration.rank, Rank.feast);
+    expect(
+      service.day(DateTime(2026, 12, 25)).celebration.rank,
+      Rank.solemnity,
+    );
+    expect(
+      service.day(DateTime(2026, 8, 6)).celebration.rank,
+      Rank.feastOfTheLord,
+    );
+    expect(
+      service.day(DateTime(2026, 8, 25)).celebration.rank,
+      Rank.optionalMemorial,
+    );
+    expect(
+      service.day(DateTime(2026, 8, 25)).celebration.kind,
+      CelebrationKind.sanctorale,
+    );
+  });
+
+  test('parses saint alternatives as optional memorials', () {
+    final service = CalendarService(
+      engine: engine,
+      cbck: CalendarService.parseDays(const [
+        {
+          'date': '2026-08-25',
+          'color': 'green',
+          'title': '연중 제21주간 화요일',
+          'alternatives': [
+            {'name': '성 루도비코', 'color': 'white'},
+            {'name': '성 요셉 데 갈라산즈 사제', 'color': 'white'},
+          ],
+        },
+      ]),
+    );
+
+    final d = service.day(DateTime(2026, 8, 25));
+    expect(d.celebration.rank, Rank.feria);
+    expect(d.optionalMemorials, hasLength(2));
+    expect(d.optionalMemorials.first.rank, Rank.optionalMemorial);
+    expect(d.optionalMemorials.first.kind, CelebrationKind.sanctorale);
+    expect(d.optionalMemorials.last.name, '성 요셉 데 갈라산즈 사제');
   });
 
   test('remote data merged later overrides bundled snapshot days', () {

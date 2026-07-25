@@ -33,6 +33,42 @@ String? _tagColor(String segment) {
 String _stripLeadingTag(String segment) =>
     segment.replaceFirst(RegExp(r'^\s*\[.\]\s*'), '').trim();
 
+String? _rankFromTitle(String title) {
+  if (title.contains('대축일')) return 'solemnity';
+  if (_isFeastOfTheLordTitle(title)) return 'feastOfTheLord';
+  if (title.contains('축일')) return 'feast';
+  if (title.contains('주일')) return 'sunday';
+  if (title.contains('기념일')) return 'obligatoryMemorial';
+  if (_looksLikeSaintTitle(title)) return 'optionalMemorial';
+  if (_isPrivilegedFeriaTitle(title)) return 'privilegedFeria';
+  return null;
+}
+
+bool _isFeastOfTheLordTitle(String title) {
+  return (title.contains('주님') && title.contains('축일')) ||
+      title.contains('예수, 마리아, 요셉의 성가정 축일') ||
+      title.contains('라테라노 대성전 봉헌 축일');
+}
+
+bool _isPrivilegedFeriaTitle(String title) {
+  return title == '재의 수요일' ||
+      title.startsWith('성주간 ') ||
+      title.contains('팔일 축제') ||
+      RegExp(r'^12월 (1[7-9]|2[0-4])일$').hasMatch(title);
+}
+
+bool _looksLikeSaintTitle(String title) {
+  return title.startsWith('성 ') ||
+      title.startsWith('성녀 ') ||
+      title.startsWith('성인 ') ||
+      title.startsWith('복자 ') ||
+      title.startsWith('복녀 ') ||
+      title.contains(' 성 ') ||
+      title.contains(' 성녀 ') ||
+      title.contains(' 복자 ') ||
+      title.contains(' 복녀 ');
+}
+
 /// Removes a trailing mass qualifier (e.g. `- 밤 미사`, `- 전야 미사`) so the day
 /// cell shows the clean celebration name.
 String _cleanTitle(String s) =>
@@ -44,6 +80,7 @@ Map<String, dynamic> _parseEntry(Map<String, dynamic> e) {
   final primary = _stripTags(segments.first);
   final title = _cleanTitle(_stripLeadingTag(primary));
   final color = _tagColor(primary) ?? 'green';
+  final rank = _rankFromTitle(title);
 
   final alternatives = <Map<String, String>>[];
   for (final seg in segments.skip(1)) {
@@ -67,6 +104,7 @@ Map<String, dynamic> _parseEntry(Map<String, dynamic> e) {
     'date': e['start'],
     'color': color,
     'title': title,
+    if (rank != null) 'rank': rank,
     if (special.isNotEmpty) 'special': special,
     if (readings.isNotEmpty) 'readings': readings,
     if (alternatives.isNotEmpty) 'alternatives': alternatives,

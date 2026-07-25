@@ -7,6 +7,7 @@ class CbckDay {
   const CbckDay({
     required this.title,
     required this.color,
+    this.rank,
     this.special,
     this.url,
     this.saintInfoUrl,
@@ -16,6 +17,7 @@ class CbckDay {
 
   final String title;
   final LiturgicalColor color;
+  final Rank? rank;
   final String? special;
   final String? url;
   final String? saintInfoUrl;
@@ -95,9 +97,19 @@ class CalendarService {
     final base = engine.day(date);
     final c = _cbck[_key(date)];
     if (c == null) return base;
+    final celebration = c.rank == null
+        ? base.celebration.copyWith(name: c.title, color: c.color)
+        : base.celebration.copyWith(
+            name: c.title,
+            rank: c.rank,
+            color: c.color,
+            kind: _kindForCbckTitle(c.title, base.celebration.kind),
+            precedence: _precedenceForRank(c.rank!),
+          );
     return base.copyWith(
       title: c.title,
       color: c.color,
+      celebration: celebration,
       scriptureReadings: c.readings,
       specialDay: c.special,
       sourceUrl: c.url,
@@ -133,7 +145,9 @@ class CalendarService {
           Celebration(
             id: 'cbck_alt',
             name: (a as Map<String, dynamic>)['name'] as String,
-            rank: Rank.optionalMemorial,
+            rank:
+                _rank(a['rank'] as String?, a['name'] as String) ??
+                Rank.optionalMemorial,
             color: _color(a['color'] as String?),
             kind: CelebrationKind.sanctorale,
             precedence: PrecedenceCode.optionalMemorial,
@@ -142,6 +156,7 @@ class CalendarService {
       map[d['date'] as String] = CbckDay(
         title: d['title'] as String,
         color: _color(d['color'] as String?),
+        rank: _rank(d['rank'] as String?, d['title'] as String),
         special: d['special'] as String?,
         url: d['url'] as String?,
         saintInfoUrl: d['saintInfoUrl'] as String?,
@@ -150,5 +165,93 @@ class CalendarService {
       );
     }
     return map;
+  }
+}
+
+Rank? _rank(String? raw, String title) {
+  switch (raw) {
+    case 'solemnity':
+      return Rank.solemnity;
+    case 'feastOfTheLord':
+      return Rank.feastOfTheLord;
+    case 'feast':
+      return Rank.feast;
+    case 'sunday':
+      return Rank.sunday;
+    case 'obligatoryMemorial':
+      return Rank.obligatoryMemorial;
+    case 'optionalMemorial':
+      return Rank.optionalMemorial;
+    case 'privilegedFeria':
+      return Rank.privilegedFeria;
+    case 'feria':
+      return Rank.feria;
+  }
+  return _inferRankFromTitle(title);
+}
+
+Rank? _inferRankFromTitle(String title) {
+  if (title.contains('대축일')) return Rank.solemnity;
+  if (_isFeastOfTheLordTitle(title)) return Rank.feastOfTheLord;
+  if (title.contains('축일')) return Rank.feast;
+  if (title.contains('주일')) return Rank.sunday;
+  if (title.contains('기념일')) return Rank.obligatoryMemorial;
+  if (_looksLikeSaintTitle(title)) return Rank.optionalMemorial;
+  if (_isPrivilegedFeriaTitle(title)) return Rank.privilegedFeria;
+  return null;
+}
+
+bool _isFeastOfTheLordTitle(String title) {
+  return (title.contains('주님') && title.contains('축일')) ||
+      title.contains('예수, 마리아, 요셉의 성가정 축일') ||
+      title.contains('라테라노 대성전 봉헌 축일');
+}
+
+bool _isPrivilegedFeriaTitle(String title) {
+  return title == '재의 수요일' ||
+      title.startsWith('성주간 ') ||
+      title.contains('팔일 축제') ||
+      RegExp(r'^12월 (1[7-9]|2[0-4])일$').hasMatch(title);
+}
+
+CelebrationKind _kindForCbckTitle(String title, CelebrationKind fallback) {
+  if (_looksLikeSaintTitle(title) ||
+      title.contains('복되신 동정 마리아') ||
+      title.contains('모든 성인')) {
+    return CelebrationKind.sanctorale;
+  }
+  return fallback;
+}
+
+bool _looksLikeSaintTitle(String title) {
+  return title.startsWith('성 ') ||
+      title.startsWith('성녀 ') ||
+      title.startsWith('성인 ') ||
+      title.startsWith('복자 ') ||
+      title.startsWith('복녀 ') ||
+      title.contains(' 성 ') ||
+      title.contains(' 성녀 ') ||
+      title.contains(' 복자 ') ||
+      title.contains(' 복녀 ');
+}
+
+PrecedenceCode _precedenceForRank(Rank rank) {
+  switch (rank) {
+    case Rank.solemnity:
+      return PrecedenceCode.generalSolemnity;
+    case Rank.feastOfTheLord:
+      return PrecedenceCode.feastOfTheLord;
+    case Rank.feast:
+      return PrecedenceCode.generalFeast;
+    case Rank.sunday:
+      return PrecedenceCode.sunday;
+    case Rank.obligatoryMemorial:
+      return PrecedenceCode.generalObligatoryMemorial;
+    case Rank.optionalMemorial:
+      return PrecedenceCode.optionalMemorial;
+    case Rank.privilegedFeria:
+      return PrecedenceCode.privilegedWeekday;
+    case Rank.feria:
+      return PrecedenceCode.weekday;
   }
 }
