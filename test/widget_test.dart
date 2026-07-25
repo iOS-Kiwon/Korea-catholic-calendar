@@ -450,6 +450,27 @@ void main() {
     expect(find.text('축일'), findsNothing);
   });
 
+  testWidgets('bottom info bar labels All Souls Day as 전례', (tester) async {
+    final day = LiturgicalCalendar()
+        .day(DateTime(2026, 11, 2))
+        .copyWith(title: '죽은 모든 이를 기억하는 위령의 날');
+    expect(day.celebration.id, 'all_souls');
+    expect(day.celebration.rank, Rank.feast);
+
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(
+          body: DayInfoBar(day: day, onTapDetail: () {}),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('전례'), findsOneWidget);
+    expect(find.text('죽은 모든 이를 기억하는 위령의 날'), findsOneWidget);
+    expect(find.text('축일'), findsNothing);
+  });
+
   testWidgets('adding an event by picking a category persists and shows it', (
     tester,
   ) async {
