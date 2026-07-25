@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../model/calendar_event.dart';
 import '../model/event_category.dart';
 
 /// On-device persistence for the user's event categories.
@@ -23,8 +24,12 @@ class CategoryRepository {
     if (raw == null || raw.isEmpty) return [];
     try {
       final list = jsonDecode(raw) as List;
-      return [
+      final categories = [
         for (final c in list) EventCategory.fromJson(c as Map<String, dynamic>),
+      ];
+      return [
+        for (final category in categories)
+          if (!_isReservedCategory(category)) category,
       ];
     } catch (_) {
       return [];
@@ -33,13 +38,21 @@ class CategoryRepository {
 
   /// Persists the ordered category list. An empty list clears the store.
   Future<void> save(List<EventCategory> categories) async {
-    if (categories.isEmpty) {
+    final userCategories = [
+      for (final category in categories)
+        if (!_isReservedCategory(category)) category,
+    ];
+    if (userCategories.isEmpty) {
       await _prefs.remove(storageKey);
       return;
     }
     await _prefs.setString(
       storageKey,
-      jsonEncode([for (final c in categories) c.toJson()]),
+      jsonEncode([for (final c in userCategories) c.toJson()]),
     );
   }
 }
+
+bool _isReservedCategory(EventCategory category) =>
+    category.id == kSaintFeastCategoryId ||
+    category.name.trim() == kSaintFeastCategoryName;
