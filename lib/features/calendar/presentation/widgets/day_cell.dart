@@ -89,6 +89,7 @@ class DayCell extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
     this.hasEvent = false,
+    this.shortTitle,
   });
 
   final LiturgicalDay day;
@@ -97,11 +98,13 @@ class DayCell extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onTap;
   final bool hasEvent;
+  final String? shortTitle;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final notable = inCurrentMonth && isNotableDay(day);
+    final title = shortTitle ?? day.title;
     final accent = context.liturgical.of(day.color);
 
     return InkWell(
@@ -142,7 +145,7 @@ class DayCell extends StatelessWidget {
                       const SizedBox(height: 2),
                       Expanded(
                         child: Text(
-                          day.title,
+                          title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.labelMedium?.copyWith(
@@ -173,6 +176,7 @@ class CompactDayCell extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
     this.hasEvent = false,
+    this.shortTitle,
   });
 
   final LiturgicalDay day;
@@ -181,16 +185,19 @@ class CompactDayCell extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onTap;
   final bool hasEvent;
+  final String? shortTitle;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return InkWell(
       onTap: onTap,
       customBorder: const CircleBorder(),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
-          const SizedBox(height: 4),
+          const SizedBox(height: 3),
           Stack(
             clipBehavior: Clip.none,
             children: [
@@ -204,6 +211,24 @@ class CompactDayCell extends StatelessWidget {
                 const Positioned(right: 0, top: 0, child: EventDot()),
             ],
           ),
+          if (shortTitle case final title?) ...[
+            const SizedBox(height: 1),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 1),
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: context.liturgical.of(day.color),
+                  fontSize: 9,
+                  height: 1.05,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

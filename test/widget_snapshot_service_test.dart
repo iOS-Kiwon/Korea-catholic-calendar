@@ -53,4 +53,24 @@ void main() {
     expect(today['regularEventMemo'], '바자회');
     expect(today['regularEventColor'], 0xFF2E7D32);
   });
+
+  test('widget snapshot uses shared liturgical short titles', () async {
+    String? payload;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          payload = call.arguments as String;
+          return null;
+        });
+
+    await const WidgetSnapshotService().sync(
+      calendar: CalendarService(engine: LiturgicalCalendar()),
+      now: DateTime(2026, 4, 5, 9),
+      events: const {},
+    );
+
+    final json = jsonDecode(payload!) as Map<String, dynamic>;
+    final today = json['today'] as Map<String, dynamic>;
+
+    expect(today['liturgicalTitle'], '부활절');
+  });
 }
