@@ -23,10 +23,9 @@ class EventLabelHighlight extends StatelessWidget {
   EventLabelHighlight.fromCategory(
     EventCategory category, {
     super.key,
-    TextStyle? style,
+    this.style,
   }) : label = category.name,
        color = Color(category.color),
-       style = style,
        maxLines = 1,
        overflow = TextOverflow.ellipsis;
 

@@ -40,9 +40,16 @@ class DayInfoBar extends ConsumerWidget {
         title: day.title,
         color: day.color,
         rank: day.celebration.rank,
+        displayType: day.celebration.displayType,
       ),
       for (final m in day.optionalMemorials)
-        _MemorialLine(id: m.id, title: m.name, color: m.color, rank: m.rank),
+        _MemorialLine(
+          id: m.id,
+          title: m.name,
+          color: m.color,
+          rank: m.rank,
+          displayType: m.displayType,
+        ),
     ].take(_maxMemorialRows).toList();
 
     return Container(
@@ -220,12 +227,14 @@ class _MemorialLine {
     required this.title,
     required this.color,
     required this.rank,
+    this.displayType,
   });
 
   final String id;
   final String title;
   final LiturgicalColor color;
   final Rank rank;
+  final LiturgicalDisplayType? displayType;
 }
 
 class _MemorialRow extends StatelessWidget {
@@ -241,7 +250,12 @@ class _MemorialRow extends StatelessWidget {
       child: Row(
         children: [
           EventLabelHighlight(
-            label: _memorialTypeLabel(line.id, line.title, line.rank),
+            label: _memorialTypeLabel(
+              line.id,
+              line.title,
+              line.rank,
+              line.displayType,
+            ),
             color: context.liturgical.of(line.color),
             style: theme.textTheme.bodyLarge,
           ),
@@ -260,7 +274,21 @@ class _MemorialRow extends StatelessWidget {
   }
 }
 
-String _memorialTypeLabel(String id, String title, Rank rank) {
+String _memorialTypeLabel(
+  String id,
+  String title,
+  Rank rank,
+  LiturgicalDisplayType? displayType,
+) {
+  switch (displayType) {
+    case LiturgicalDisplayType.saintFeast:
+      return '축일';
+    case LiturgicalDisplayType.liturgy:
+    case LiturgicalDisplayType.review:
+      return '전례';
+    case null:
+      break;
+  }
   if (_isLiturgicalOnlyMemorial(id, title, rank)) {
     return '전례';
   }

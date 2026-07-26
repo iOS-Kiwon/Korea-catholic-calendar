@@ -11,6 +11,7 @@ class CbckDay {
     this.special,
     this.url,
     this.saintInfoUrl,
+    this.displayType,
     this.readings = const [],
     this.alternatives = const [],
   });
@@ -21,8 +22,51 @@ class CbckDay {
   final String? special;
   final String? url;
   final String? saintInfoUrl;
+  final LiturgicalDisplayType? displayType;
   final List<String> readings;
   final List<Celebration> alternatives;
+
+  CbckDay copyWith({
+    String? title,
+    LiturgicalColor? color,
+    Rank? rank,
+    String? special,
+    String? url,
+    String? saintInfoUrl,
+    LiturgicalDisplayType? displayType,
+    List<String>? readings,
+    List<Celebration>? alternatives,
+  }) {
+    return CbckDay(
+      title: title ?? this.title,
+      color: color ?? this.color,
+      rank: rank ?? this.rank,
+      special: special ?? this.special,
+      url: url ?? this.url,
+      saintInfoUrl: saintInfoUrl ?? this.saintInfoUrl,
+      displayType: displayType ?? this.displayType,
+      readings: readings ?? this.readings,
+      alternatives: alternatives ?? this.alternatives,
+    );
+  }
+
+  CbckDay withFallbackDisplayFrom(CbckDay fallback) {
+    return copyWith(
+      displayType: displayType ?? fallback.displayType,
+      alternatives: [
+        for (var i = 0; i < alternatives.length; i++)
+          alternatives[i].displayType == null
+              ? alternatives[i].copyWith(
+                  displayType: _fallbackAlternativeDisplayType(
+                    fallback.alternatives,
+                    i,
+                    alternatives[i].name,
+                  ),
+                )
+              : alternatives[i],
+      ],
+    );
+  }
 }
 
 const _colorByName = {
@@ -89,7 +133,12 @@ class CalendarService {
   /// Merges additional authoritative days (e.g. fetched from the gateway).
   void merge(Map<String, CbckDay> more) {
     if (more.isEmpty) return;
-    _cbck.addAll(more);
+    for (final entry in more.entries) {
+      final existing = _cbck[entry.key];
+      _cbck[entry.key] = existing == null
+          ? entry.value
+          : entry.value.withFallbackDisplayFrom(existing);
+    }
     _recomputeMonths();
   }
 
@@ -98,13 +147,18 @@ class CalendarService {
     final c = _cbck[_key(date)];
     if (c == null) return base;
     final celebration = c.rank == null
-        ? base.celebration.copyWith(name: c.title, color: c.color)
+        ? base.celebration.copyWith(
+            name: c.title,
+            color: c.color,
+            displayType: c.displayType,
+          )
         : base.celebration.copyWith(
             name: c.title,
             rank: c.rank,
             color: c.color,
             kind: _kindForCbckTitle(c.title, base.celebration.kind),
             precedence: _precedenceForRank(c.rank!),
+            displayType: c.displayType,
           );
     return base.copyWith(
       title: c.title,
@@ -151,6 +205,7 @@ class CalendarService {
             color: _color(a['color'] as String?),
             kind: CelebrationKind.sanctorale,
             precedence: PrecedenceCode.optionalMemorial,
+            displayType: _displayType(a['displayType'] as String?),
           ),
       ];
       map[d['date'] as String] = CbckDay(
@@ -160,12 +215,75 @@ class CalendarService {
         special: d['special'] as String?,
         url: d['url'] as String?,
         saintInfoUrl: d['saintInfoUrl'] as String?,
+        displayType: _displayType(d['displayType'] as String?),
         readings: (d['readings'] as List? ?? const []).cast<String>(),
         alternatives: alternatives,
       );
     }
     return map;
   }
+
+  /// Applies `assets/calendar/liturgical_display_YYYY.json` rows to parsed CBCK
+  /// days. Matching is date + source + sourceIndex based, so titles can still
+  /// be used for human review without becoming the app's runtime heuristic.
+  static Map<String, CbckDay> applyDisplayDataset(
+    Map<String, CbckDay> cbck,
+    String jsonStr,
+  ) {
+    final doc = jsonDecode(jsonStr) as Map<String, dynamic>;
+    final result = {...cbck};
+    for (final raw in doc['entries'] as List? ?? const []) {
+      final entry = raw as Map<String, dynamic>;
+      final date = entry['date'] as String?;
+      if (date == null) continue;
+      final day = result[date];
+      if (day == null) continue;
+      final displayType = _displayType(entry['displayType'] as String?);
+      if (displayType == null) continue;
+
+      switch (entry['source']) {
+        case 'primary':
+          result[date] = day.copyWith(displayType: displayType);
+        case 'alternative':
+          final index = entry['sourceIndex'] as int? ?? -1;
+          if (index < 0 || index >= day.alternatives.length) continue;
+          final alternatives = [...day.alternatives];
+          alternatives[index] = alternatives[index].copyWith(
+            displayType: displayType,
+          );
+          result[date] = day.copyWith(alternatives: alternatives);
+      }
+    }
+    return result;
+  }
+}
+
+LiturgicalDisplayType? _fallbackAlternativeDisplayType(
+  List<Celebration> alternatives,
+  int index,
+  String name,
+) {
+  if (index >= 0 &&
+      index < alternatives.length &&
+      alternatives[index].name == name) {
+    return alternatives[index].displayType;
+  }
+  for (final alternative in alternatives) {
+    if (alternative.name == name) return alternative.displayType;
+  }
+  return null;
+}
+
+LiturgicalDisplayType? _displayType(String? raw) {
+  switch (raw) {
+    case 'liturgy':
+      return LiturgicalDisplayType.liturgy;
+    case 'saintFeast':
+      return LiturgicalDisplayType.saintFeast;
+    case 'review':
+      return LiturgicalDisplayType.review;
+  }
+  return null;
 }
 
 Rank? _rank(String? raw, String title) {

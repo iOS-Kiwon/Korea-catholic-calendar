@@ -46,9 +46,20 @@ class CalendarDataRepository {
       final json = await rootBundle.loadString(
         'assets/calendar/cbck_days.json',
       );
-      return CalendarService.parseSnapshot(json);
+      final cbck = CalendarService.parseSnapshot(json);
+      final displayJson = await rootBundle.loadString(
+        'assets/calendar/liturgical_display_2026.json',
+      );
+      return CalendarService.applyDisplayDataset(cbck, displayJson);
     } catch (_) {
-      return const {};
+      try {
+        final json = await rootBundle.loadString(
+          'assets/calendar/cbck_days.json',
+        );
+        return CalendarService.parseSnapshot(json);
+      } catch (_) {
+        return const {};
+      }
     }
   }
 }

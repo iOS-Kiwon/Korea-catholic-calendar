@@ -52,7 +52,7 @@ class DayDetailView extends ConsumerWidget {
     final metadata =
         ref.watch(appMetadataProvider).value ?? AppMetadata.fallback;
     final hasSaintFeast = events.any((event) => event.isSaintFeast);
-    final canAddSaintFeast = _isLiturgicalFeast(day.celebration.rank);
+    final canAddSaintFeast = _canAddSaintFeast(day.celebration);
     final readings = day.scriptureReadings;
 
     return ListView(
@@ -75,9 +75,15 @@ class DayDetailView extends ConsumerWidget {
                 // 전례력
                 _SectionHeader('전례력'),
                 const SizedBox(height: 12),
-                _DotLine(
+                _LiturgicalLine(
                   color: context.liturgical.of(day.color),
                   text: day.title,
+                  displayType: day.celebration.displayType,
+                  fallbackLabel: _fallbackLiturgicalLabel(
+                    day.celebration.id,
+                    day.title,
+                    day.celebration.rank,
+                  ),
                 ),
                 if (canAddSaintFeast)
                   Align(
@@ -100,7 +106,26 @@ class DayDetailView extends ConsumerWidget {
                   ),
                 for (final m in day.optionalMemorials) ...[
                   const SizedBox(height: 10),
-                  _DotLine(color: context.liturgical.of(m.color), text: m.name),
+                  _LiturgicalLine(
+                    color: context.liturgical.of(m.color),
+                    text: m.name,
+                    displayType: m.displayType,
+                    fallbackLabel: _fallbackLiturgicalLabel(
+                      m.id,
+                      m.name,
+                      m.rank,
+                    ),
+                  ),
+                  if (_canAddSaintFeast(m))
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () =>
+                            showSaintFeastEditor(context, date: day.date),
+                        icon: const Icon(Icons.add, size: 16),
+                        label: const Text('축일 추가'),
+                      ),
+                    ),
                 ],
 
                 // 일정 (추가는 유지 - 기존 기능)
@@ -179,10 +204,57 @@ class DayDetailView extends ConsumerWidget {
   }
 }
 
-bool _isLiturgicalFeast(Rank rank) {
-  return rank == Rank.solemnity ||
-      rank == Rank.feastOfTheLord ||
-      rank == Rank.feast;
+bool _canAddSaintFeast(Celebration celebration) {
+  switch (celebration.displayType) {
+    case LiturgicalDisplayType.saintFeast:
+      return true;
+    case LiturgicalDisplayType.liturgy:
+    case LiturgicalDisplayType.review:
+      return false;
+    case null:
+      return celebration.rank == Rank.feast &&
+          _looksLikeSaintFeastTitle(celebration.name);
+  }
+}
+
+String _displayTypeLabel(
+  LiturgicalDisplayType? displayType,
+  String fallbackLabel,
+) {
+  switch (displayType) {
+    case LiturgicalDisplayType.saintFeast:
+      return '축일';
+    case LiturgicalDisplayType.liturgy:
+    case LiturgicalDisplayType.review:
+      return '전례';
+    case null:
+      return fallbackLabel;
+  }
+}
+
+String _fallbackLiturgicalLabel(String id, String title, Rank rank) {
+  if (id == 'all_souls' ||
+      title.contains('위령의 날') ||
+      rank == Rank.solemnity ||
+      rank == Rank.feastOfTheLord) {
+    return '전례';
+  }
+  if (_looksLikeSaintFeastTitle(title)) return '축일';
+  return '전례';
+}
+
+bool _looksLikeSaintFeastTitle(String title) {
+  return title.startsWith('성 ') ||
+      title.startsWith('성녀 ') ||
+      title.startsWith('성인 ') ||
+      title.startsWith('복자 ') ||
+      title.startsWith('복녀 ') ||
+      title.contains(' 성 ') ||
+      title.contains(' 성녀 ') ||
+      title.contains(' 복자 ') ||
+      title.contains(' 복녀 ') ||
+      title.contains('대천사') ||
+      title.contains('죄 없는 아기 순교자');
 }
 
 Future<void> _openSourceUrl(String url) async {
@@ -227,11 +299,19 @@ class _SectionDivider extends StatelessWidget {
   }
 }
 
-/// 색점 + 이름 (전례력 행).
-class _DotLine extends StatelessWidget {
-  const _DotLine({required this.color, required this.text});
+/// 표시 타입 형광펜 + 이름 (전례력 행).
+class _LiturgicalLine extends StatelessWidget {
+  const _LiturgicalLine({
+    required this.color,
+    required this.text,
+    required this.displayType,
+    required this.fallbackLabel,
+  });
+
   final Color color;
   final String text;
+  final LiturgicalDisplayType? displayType;
+  final String fallbackLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -240,11 +320,11 @@ class _DotLine extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(top: 5),
-          child: Container(
-            width: 11,
-            height: 11,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+          padding: const EdgeInsets.only(top: 1),
+          child: EventLabelHighlight(
+            label: _displayTypeLabel(displayType, fallbackLabel),
+            color: color,
+            style: theme.textTheme.bodyLarge,
           ),
         ),
         const SizedBox(width: 12),
