@@ -382,11 +382,13 @@ struct HighlightedEventLine: View {
                 .minimumScaleFactor(0.72)
                 .padding(.horizontal, 4)
                 .padding(.vertical, 1)
-                .frame(maxWidth: 72, alignment: .leading)
                 .background(
                     RoundedRectangle(cornerRadius: 3)
                         .fill(argbColor(color).opacity(0.24))
                 )
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(maxWidth: 72, alignment: .leading)
+                .clipped()
 
             if !memo.isEmpty {
                 Text(memo)
