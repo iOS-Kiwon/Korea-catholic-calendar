@@ -304,10 +304,17 @@ open class TodayWidgetProvider : AppWidgetProvider() {
                     views.setTextViewTextSize(R.id.today_widget_date, TypedValue.COMPLEX_UNIT_SP, 18f)
                     views.setTextViewTextSize(R.id.today_widget_liturgy, TypedValue.COMPLEX_UNIT_SP, 12f)
                     views.setViewPadding(
+                        R.id.today_widget_liturgy,
+                        0,
+                        0,
+                        0,
+                        0
+                    )
+                    views.setViewPadding(
                         R.id.today_widget_root,
+                        dp(context, 10),
                         dp(context, 4),
-                        dp(context, 4),
-                        dp(context, 4),
+                        dp(context, 10),
                         dp(context, 4)
                     )
                 }
@@ -316,10 +323,17 @@ open class TodayWidgetProvider : AppWidgetProvider() {
                     views.setTextViewTextSize(R.id.today_widget_liturgy, TypedValue.COMPLEX_UNIT_SP, 13f)
                     views.setTextViewTextSize(R.id.today_widget_event_memo, TypedValue.COMPLEX_UNIT_SP, 13f)
                     views.setViewPadding(
+                        R.id.today_widget_liturgy,
+                        0,
+                        0,
+                        0,
+                        0
+                    )
+                    views.setViewPadding(
                         R.id.today_widget_root,
-                        dp(context, 6),
+                        dp(context, 10),
                         dp(context, 5),
-                        dp(context, 6),
+                        dp(context, 10),
                         dp(context, 5)
                     )
                 }
@@ -329,10 +343,17 @@ open class TodayWidgetProvider : AppWidgetProvider() {
                     views.setTextViewTextSize(R.id.today_widget_event_memo, TypedValue.COMPLEX_UNIT_SP, 14f)
                     views.setTextViewTextSize(R.id.today_widget_feast, TypedValue.COMPLEX_UNIT_SP, 14f)
                     views.setViewPadding(
+                        R.id.today_widget_liturgy,
+                        dp(context, 2),
+                        0,
+                        0,
+                        0
+                    )
+                    views.setViewPadding(
                         R.id.today_widget_root,
-                        dp(context, 6),
+                        dp(context, 10),
                         dp(context, 18),
-                        dp(context, 6),
+                        dp(context, 10),
                         dp(context, 6)
                     )
                 }

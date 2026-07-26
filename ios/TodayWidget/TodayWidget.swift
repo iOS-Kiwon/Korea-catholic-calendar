@@ -222,6 +222,7 @@ struct SmallTodayWidgetView: View {
                 .foregroundStyle(color(for: liturgicalColor))
                 .lineLimit(2)
                 .minimumScaleFactor(0.75)
+                .padding(.leading, 2)
                 .padding(.bottom, 4)
 
             if let eventText {
