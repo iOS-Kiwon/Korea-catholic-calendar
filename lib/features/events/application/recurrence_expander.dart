@@ -19,6 +19,22 @@ class RecurrenceExpander {
     final target = DateTime(date.year, date.month, date.day);
     final anchor = parseEventDate(event.date);
     if (target.isBefore(anchor)) return false;
+    final durationDays = _durationDays(event);
+    for (var offset = 0; offset <= durationDays; offset += 1) {
+      final occurrenceStart = DateTime(
+        target.year,
+        target.month,
+        target.day - offset,
+      );
+      if (occurrenceStart.isBefore(anchor)) continue;
+      if (_startsOn(event, occurrenceStart)) return true;
+    }
+    return false;
+  }
+
+  bool _startsOn(CalendarEvent event, DateTime target) {
+    final anchor = parseEventDate(event.date);
+    if (target.isBefore(anchor)) return false;
     switch (event.recurrence) {
       case RecurrenceType.none:
         return target == anchor;
@@ -40,6 +56,13 @@ class RecurrenceExpander {
     }
   }
 
+  int _durationDays(CalendarEvent event) {
+    final start = parseEventDate(event.date);
+    final end = parseEventDate(event.effectiveEndDate);
+    final days = end.difference(start).inDays;
+    return days < 0 ? 0 : days;
+  }
+
   /// [all](날짜키 맵 전체)에서 [date]에 발생하는 이벤트들. 정렬은 호출부가 한다.
   List<CalendarEvent> eventsOn(
     Map<String, List<CalendarEvent>> all,
@@ -56,7 +79,11 @@ class RecurrenceExpander {
 
   /// [from](포함) 이후 [event]의 발생일 최대 [count]개(날짜만, 오름차순).
   /// 무한 반복을 상한 안에서 열거한다(알림 예약용).
-  List<DateTime> nextOccurrences(CalendarEvent event, DateTime from, int count) {
+  List<DateTime> nextOccurrences(
+    CalendarEvent event,
+    DateTime from,
+    int count,
+  ) {
     final result = <DateTime>[];
     if (count <= 0) return result;
     final anchor = parseEventDate(event.date);

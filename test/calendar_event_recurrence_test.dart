@@ -6,12 +6,18 @@ CalendarEvent _base({
   RecurrenceType recurrence = RecurrenceType.none,
   String? feastId,
   CalendarEventType type = CalendarEventType.regular,
+  String? endDate,
+  String? time,
+  String? endTime,
 }) => CalendarEvent(
   id: 'e1',
   date: '2026-04-23',
+  endDate: endDate,
   categoryId: 'c1',
   categoryName: '가족',
   categoryColor: 0xFF2E7D32,
+  time: time,
+  endTime: endTime,
   type: type,
   recurrence: recurrence,
   feastId: feastId,
@@ -59,7 +65,34 @@ void main() {
 
   test('copyWith로 recurrence 변경', () {
     final e = _base();
-    expect(e.copyWith(recurrence: RecurrenceType.daily).recurrence,
-        RecurrenceType.daily);
+    expect(
+      e.copyWith(recurrence: RecurrenceType.daily).recurrence,
+      RecurrenceType.daily,
+    );
+  });
+
+  test('연속 일정 시작/종료 정보가 toJson/fromJson 왕복에서 보존된다', () {
+    final e = _base(endDate: '2026-04-24', time: '20:00', endTime: '09:00');
+    final round = CalendarEvent.fromJson(e.toJson());
+
+    expect(round.date, '2026-04-23');
+    expect(round.effectiveEndDate, '2026-04-24');
+    expect(round.time, '20:00');
+    expect(round.endTime, '09:00');
+    expect(round.isMultiDay, isTrue);
+  });
+
+  test('하위호환: endDate 없는 일정은 시작일 하루 일정으로 읽힌다', () {
+    final decoded = CalendarEvent.fromJson({
+      'id': 'x',
+      'date': '2026-04-23',
+      'categoryId': 'c1',
+      'categoryName': '가족',
+      'categoryColor': 0xFF2E7D32,
+      'type': 'regular',
+    });
+
+    expect(decoded.effectiveEndDate, '2026-04-23');
+    expect(decoded.isMultiDay, isFalse);
   });
 }

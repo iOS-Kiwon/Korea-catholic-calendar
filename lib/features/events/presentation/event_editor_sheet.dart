@@ -16,8 +16,7 @@ const _weekdays = ['일', '월', '화', '수', '목', '금', '토'];
 
 String _two(int n) => n.toString().padLeft(2, '0');
 
-String _dateLabel(DateTime d) =>
-    '${d.year}년 ${d.month}월 ${d.day}일 (${_weekdays[d.weekday % 7]})';
+String _dateButtonLabel(DateTime d) => '${d.year}. ${d.month}. ${d.day}.';
 
 /// Opens the add/edit event screen. Pass [existing] to edit; otherwise a new
 /// event is created on [date].
@@ -47,7 +46,9 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
     with WidgetsBindingObserver {
   late final TextEditingController _memo;
   late DateTime _date;
+  late DateTime _endDate;
   TimeOfDay? _time; // null = 종일(all-day)
+  TimeOfDay? _endTime;
   late bool _notify;
   String? _selectedCategoryId;
   bool _categoryError = false;
@@ -65,7 +66,11 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
     final e = widget.existing;
     _memo = TextEditingController(text: e?.memo ?? '');
     _date = e != null ? parseEventDate(e.date) : _dateOnly(widget.date);
+    _endDate = e != null
+        ? parseEventDate(e.effectiveEndDate)
+        : _dateOnly(widget.date);
     _time = _parseTime(e?.time);
+    _endTime = _parseTime(e?.endTime) ?? _defaultEndTime(_time);
     _notify = e?.notify ?? true;
     _selectedCategoryId = e?.categoryId;
     _recurrence = e?.recurrence ?? RecurrenceType.none;
@@ -88,6 +93,12 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
   }
 
   static DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  static TimeOfDay _plusOneHour(TimeOfDay time) =>
+      TimeOfDay(hour: (time.hour + 1) % 24, minute: time.minute);
+
+  static TimeOfDay? _defaultEndTime(TimeOfDay? start) =>
+      start == null ? null : _plusOneHour(start);
 
   static TimeOfDay? _parseTime(String? hhmm) {
     if (hhmm == null) return null;
@@ -129,22 +140,84 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
     }
   }
 
-  Future<void> _pickDate() async {
+  Future<void> _pickStartDate() async {
     final picked = await showDatePicker(
       context: context,
       initialDate: _date,
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
     );
-    if (picked != null) setState(() => _date = _dateOnly(picked));
+    if (picked != null) {
+      setState(() {
+        _date = _dateOnly(picked);
+        if (_endDate.isBefore(_date)) _endDate = _date;
+      });
+    }
   }
 
-  Future<void> _pickTime() async {
+  Future<void> _pickEndDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _endDate.isBefore(_date) ? _date : _endDate,
+      firstDate: _date,
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) setState(() => _endDate = _dateOnly(picked));
+  }
+
+  Future<void> _pickStartTime() async {
     final picked = await showTimePicker(
       context: context,
       initialTime: _time ?? const TimeOfDay(hour: 9, minute: 0),
     );
-    if (picked != null) setState(() => _time = picked);
+    if (picked != null) {
+      setState(() {
+        _time = picked;
+        _endTime ??= _plusOneHour(picked);
+        _normalizeTimedEnd();
+      });
+    }
+  }
+
+  Future<void> _pickEndTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _endTime ?? _defaultEndTime(_time) ?? _time!,
+    );
+    if (picked != null) {
+      setState(() {
+        _endTime = picked;
+        _normalizeTimedEnd();
+      });
+    }
+  }
+
+  void _setAllDay(bool value) {
+    setState(() {
+      if (value) {
+        _time = null;
+        _endTime = null;
+      } else {
+        _time = const TimeOfDay(hour: 9, minute: 0);
+        _endTime = const TimeOfDay(hour: 10, minute: 0);
+      }
+    });
+  }
+
+  void _normalizeTimedEnd() {
+    final start = _time;
+    final end = _endTime;
+    if (start == null || end == null || _endDate != _date) return;
+    final startMinutes = start.hour * 60 + start.minute;
+    final endMinutes = end.hour * 60 + end.minute;
+    if (endMinutes <= startMinutes) {
+      _endTime = _plusOneHour(start);
+      final normalizedEnd = _endTime!;
+      final normalizedMinutes = normalizedEnd.hour * 60 + normalizedEnd.minute;
+      if (normalizedMinutes <= startMinutes) {
+        _endDate = DateTime(_date.year, _date.month, _date.day + 1);
+      }
+    }
   }
 
   Future<void> _refreshNotificationPermission() async {
@@ -293,16 +366,21 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
     final time = _time == null
         ? null
         : '${_two(_time!.hour)}:${_two(_time!.minute)}';
+    final endTime = _endTime == null
+        ? null
+        : '${_two(_endTime!.hour)}:${_two(_endTime!.minute)}';
     final event = CalendarEvent(
       id:
           widget.existing?.id ??
           DateTime.now().microsecondsSinceEpoch.toString(),
       date: eventDateKey(_date),
+      endDate: eventDateKey(_endDate),
       categoryId: category.id,
       categoryName: category.name,
       categoryColor: category.color,
       memo: memo.isEmpty ? null : memo,
       time: time,
+      endTime: endTime,
       notify: _systemNotificationsEnabled == false ? false : _notify,
       recurrence: _recurrence,
       feastId: _recurrence == RecurrenceType.yearlyFeast ? _feastId : null,
@@ -369,15 +447,6 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
           children: [
-            // 날짜 (필수)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.calendar_today_outlined),
-              title: Text(_dateLabel(_date)),
-              trailing: const Icon(Icons.edit_outlined, size: 18),
-              onTap: _pickDate,
-            ),
-
             // 카테고리 (필수) - 제목을 직접 입력하지 않고, 탭 → 카테고리 화면에서 선택.
             ListTile(
               contentPadding: EdgeInsets.zero,
@@ -443,20 +512,22 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
               secondary: const Icon(Icons.schedule),
               title: const Text('종일'),
               value: allDay,
-              onChanged: (v) => setState(
-                () => _time = v ? null : const TimeOfDay(hour: 9, minute: 0),
-              ),
+              onChanged: _setAllDay,
             ),
-            if (!allDay)
-              ListTile(
-                contentPadding: const EdgeInsets.only(left: 40),
-                title: const Text('시간'),
-                trailing: Text(
-                  _time!.format(context),
-                  style: theme.textTheme.titleMedium,
-                ),
-                onTap: _pickTime,
-              ),
+            _DateTimeRow(
+              label: '시작',
+              date: _date,
+              time: allDay ? null : _time!,
+              onTapDate: _pickStartDate,
+              onTapTime: allDay ? null : _pickStartTime,
+            ),
+            _DateTimeRow(
+              label: '종료',
+              date: _endDate,
+              time: allDay ? null : _endTime!,
+              onTapDate: _pickEndDate,
+              onTapTime: allDay ? null : _pickEndTime,
+            ),
 
             // 알림
             SwitchListTile(
@@ -495,6 +566,45 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _DateTimeRow extends StatelessWidget {
+  const _DateTimeRow({
+    required this.label,
+    required this.date,
+    required this.time,
+    required this.onTapDate,
+    required this.onTapTime,
+  });
+
+  final String label;
+  final DateTime date;
+  final TimeOfDay? time;
+  final VoidCallback onTapDate;
+  final VoidCallback? onTapTime;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final time = this.time;
+    return Padding(
+      padding: const EdgeInsets.only(left: 40),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 48,
+            child: Text(label, style: theme.textTheme.titleMedium),
+          ),
+          const Spacer(),
+          TextButton(onPressed: onTapDate, child: Text(_dateButtonLabel(date))),
+          if (time != null) ...[
+            const SizedBox(width: 4),
+            TextButton(onPressed: onTapTime, child: Text(time.format(context))),
+          ],
+        ],
       ),
     );
   }

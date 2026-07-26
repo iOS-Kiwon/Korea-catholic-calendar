@@ -250,6 +250,27 @@ void main() {
     expect(find.text('카테고리를 선택하세요'), findsOneWidget);
   });
 
+  testWidgets('event editor shows start/end times when all-day is off', (
+    tester,
+  ) async {
+    final day = LiturgicalCalendar().day(DateTime(2026, 7, 16));
+    await tester.pumpWidget(_wrap(Scaffold(body: DayDetailView(day: day))));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(TextButton, '추가'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('시작'), findsOneWidget);
+    expect(find.text('종료'), findsOneWidget);
+    final allDayButtonCount = find.byType(TextButton).evaluate().length;
+
+    await tester.tap(find.widgetWithText(SwitchListTile, '종일'));
+    await tester.pumpAndSettle();
+
+    final timedButtonCount = find.byType(TextButton).evaluate().length;
+    expect(timedButtonCount, allDayButtonCount + 2);
+  });
+
   testWidgets('open speed dial scrim blocks month navigation', (tester) async {
     tester.view.physicalSize = const Size(390, 844); // phone (narrow) layout
     tester.view.devicePixelRatio = 1.0;

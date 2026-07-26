@@ -49,8 +49,10 @@ class CalendarEvent {
     required this.categoryId,
     required this.categoryName,
     this.categoryColor = kDefaultEventColor,
+    this.endDate,
     this.memo,
     this.time,
+    this.endTime,
     this.notify = true,
     this.type = CalendarEventType.regular,
     this.saintId,
@@ -65,6 +67,11 @@ class CalendarEvent {
 
   /// The day the event belongs to, `YYYY-MM-DD`.
   final String date;
+
+  /// Inclusive end day of a continuous event, `YYYY-MM-DD`.
+  ///
+  /// Null means the same day as [date], preserving old single-day data.
+  final String? endDate;
 
   /// The id of the category this event was created from (may be dangling if
   /// the category was later deleted).
@@ -81,6 +88,9 @@ class CalendarEvent {
 
   /// Optional time-of-day `HH:mm`; null = all-day.
   final String? time;
+
+  /// Optional end time-of-day `HH:mm`; null = all-day or unspecified.
+  final String? endTime;
 
   /// Whether to schedule local reminders for this event.
   final bool notify;
@@ -117,14 +127,20 @@ class CalendarEvent {
   /// True when the event has no specific time (all-day).
   bool get isAllDay => time == null;
 
+  String get effectiveEndDate => endDate ?? date;
+
+  bool get isMultiDay => effectiveEndDate != date;
+
   CalendarEvent copyWith({
     String? id,
     String? date,
     String? categoryId,
     String? categoryName,
     int? categoryColor,
+    String? endDate,
     String? memo,
     String? time,
+    String? endTime,
     bool? notify,
     CalendarEventType? type,
     int? saintId,
@@ -139,8 +155,10 @@ class CalendarEvent {
       categoryId: categoryId ?? this.categoryId,
       categoryName: categoryName ?? this.categoryName,
       categoryColor: categoryColor ?? this.categoryColor,
+      endDate: endDate ?? this.endDate,
       memo: memo ?? this.memo,
       time: time ?? this.time,
+      endTime: endTime ?? this.endTime,
       notify: notify ?? this.notify,
       type: type ?? this.type,
       saintId: saintId ?? this.saintId,
@@ -157,8 +175,10 @@ class CalendarEvent {
     'categoryId': categoryId,
     'categoryName': categoryName,
     'categoryColor': categoryColor,
+    if (endDate != null && endDate != date) 'endDate': endDate,
     if (memo != null) 'memo': memo,
     if (time != null) 'time': time,
+    if (endTime != null && endTime != time) 'endTime': endTime,
     'notify': notify,
     'type': type.name,
     if (saintId != null) 'saintId': saintId,
@@ -180,8 +200,8 @@ class CalendarEvent {
     final legacySaintName = _legacySaintFeastName(rawCategoryName);
     final legacyCategorySaintName =
         rawType == CalendarEventType.regular &&
-        _isSaintFeastCategoryName(rawCategoryName) &&
-        _hasText(rawMemo)
+            _isSaintFeastCategoryName(rawCategoryName) &&
+            _hasText(rawMemo)
         ? rawMemo!.trim()
         : null;
     final hasSaintPayload =
@@ -192,9 +212,7 @@ class CalendarEvent {
             hasSaintPayload ||
             legacySaintName != null ||
             _isSaintFeastCategoryName(rawCategoryName));
-    final type = isLegacySaintFeast
-        ? CalendarEventType.saintFeast
-        : rawType;
+    final type = isLegacySaintFeast ? CalendarEventType.saintFeast : rawType;
     // 하위호환: recurrence 필드가 없으면, 축일은 매년 반복(yearlyDate)을 기본으로
     // 적용하고(사용자 의도 "축일 기본 매년 반복"), 일반 이벤트는 반복 없음으로 둔다.
     final RecurrenceType recurrence = json.containsKey('recurrence')
@@ -215,8 +233,10 @@ class CalendarEvent {
       categoryColor: type == CalendarEventType.saintFeast
           ? kSaintFeastEventColor
           : ((json['categoryColor'] as num?)?.toInt() ?? kDefaultEventColor),
+      endDate: json['endDate'] as String?,
       memo: legacyCategorySaintName == null ? rawMemo : null,
       time: json['time'] as String?,
+      endTime: json['endTime'] as String?,
       notify: json['notify'] as bool? ?? true,
       type: type,
       saintId: saintId,

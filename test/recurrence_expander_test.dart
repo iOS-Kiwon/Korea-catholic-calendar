@@ -9,9 +9,11 @@ CalendarEvent _ev(
   String date,
   RecurrenceType recurrence, {
   String? feastId,
+  String? endDate,
 }) => CalendarEvent(
   id: 'e-$date-${recurrence.name}',
   date: date,
+  endDate: endDate,
   categoryId: 'c1',
   categoryName: '가족',
   recurrence: recurrence,
@@ -19,12 +21,23 @@ CalendarEvent _ev(
 );
 
 void main() {
-  final expander = RecurrenceExpander(CalendarService(engine: LiturgicalCalendar()));
+  final expander = RecurrenceExpander(
+    CalendarService(engine: LiturgicalCalendar()),
+  );
 
   test('none: 앵커일에만 발생', () {
     final e = _ev('2026-04-23', RecurrenceType.none);
     expect(expander.occursOn(e, DateTime(2026, 4, 23)), isTrue);
     expect(expander.occursOn(e, DateTime(2026, 4, 24)), isFalse);
+  });
+
+  test('none: 연속 일정은 시작일부터 종료일까지 발생', () {
+    final e = _ev('2026-04-23', RecurrenceType.none, endDate: '2026-04-24');
+
+    expect(expander.occursOn(e, DateTime(2026, 4, 22)), isFalse);
+    expect(expander.occursOn(e, DateTime(2026, 4, 23)), isTrue);
+    expect(expander.occursOn(e, DateTime(2026, 4, 24)), isTrue);
+    expect(expander.occursOn(e, DateTime(2026, 4, 25)), isFalse);
   });
 
   test('daily: 앵커 이후 매일, 이전은 미발생', () {
@@ -73,6 +86,19 @@ void main() {
     final on430 = expander.eventsOn(map, DateTime(2026, 4, 30)); // 목요일
     expect(on430, hasLength(1));
     expect(on430.first.date, '2026-04-23');
+  });
+
+  test('eventsOn: 연속 일정은 종료일에도 수집된다', () {
+    final map = {
+      '2026-04-23': [
+        _ev('2026-04-23', RecurrenceType.none, endDate: '2026-04-24'),
+      ],
+    };
+
+    final on424 = expander.eventsOn(map, DateTime(2026, 4, 24));
+    expect(on424, hasLength(1));
+    expect(on424.first.date, '2026-04-23');
+    expect(on424.first.effectiveEndDate, '2026-04-24');
   });
 
   test('nextOccurrences: daily 3개', () {
