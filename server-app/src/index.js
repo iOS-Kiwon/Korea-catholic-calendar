@@ -3,6 +3,10 @@ import fs from 'node:fs';
 import pg from 'pg';
 
 import { enrichCalendarPayloadWithSaintUrls } from './saint-calendar-enrichment.js';
+import {
+  enrichCalendarPayloadWithDisplayTypes,
+  liturgicalDisplayTitleKey,
+} from './liturgical-display-enrichment.js';
 
 const port = Number(process.env.API_PORT || 8080);
 const host = process.env.API_HOST || '0.0.0.0';
@@ -296,6 +300,44 @@ async function ensureSchema() {
   await db.query(`
     CREATE INDEX IF NOT EXISTS saints_search_text_idx ON saints (search_text)
   `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS liturgical_display_rules (
+      id bigserial PRIMARY KEY,
+      source text NOT NULL DEFAULT 'any',
+      title text NOT NULL,
+      title_key text NOT NULL,
+      display_type text NOT NULL,
+      note text NOT NULL DEFAULT '',
+      enabled boolean NOT NULL DEFAULT true,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      CHECK (source IN ('any', 'primary', 'alternative')),
+      CHECK (display_type IN ('liturgy', 'saintFeast'))
+    )
+  `);
+
+  await db.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS liturgical_display_rules_source_title_key_idx
+    ON liturgical_display_rules (source, title_key)
+    WHERE enabled
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS liturgical_display_overrides (
+      date text NOT NULL,
+      source text NOT NULL,
+      source_index integer NOT NULL DEFAULT 0,
+      title text NOT NULL,
+      title_key text NOT NULL,
+      display_type text NOT NULL,
+      note text NOT NULL DEFAULT '',
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (date, source, source_index, title_key),
+      CHECK (source IN ('primary', 'alternative')),
+      CHECK (display_type IN ('liturgy', 'saintFeast'))
+    )
+  `);
 }
 
 async function initializeStorage() {
@@ -389,11 +431,103 @@ async function findUniqueSaintInfoUrlForCalendarDay({ query, month, day }) {
 }
 
 async function enrichCalendarPayload(payload) {
-  const result = await enrichCalendarPayloadWithSaintUrls(
+  const withSaintUrls = await enrichCalendarPayloadWithSaintUrls(
     payload,
     findUniqueSaintInfoUrlForCalendarDay,
   );
-  return result;
+  const withDisplayTypes = await enrichCalendarPayloadWithDisplayTypes(
+    withSaintUrls.payload,
+    {
+      findManualDecision: findLiturgicalDisplayDecision,
+      findSaintCandidates: findSaintCandidatesForDisplay,
+    },
+  );
+  return {
+    payload: withDisplayTypes.payload,
+    changed: withSaintUrls.changed || withDisplayTypes.changed,
+  };
+}
+
+async function findLiturgicalDisplayDecision({
+  date,
+  source,
+  sourceIndex,
+  title,
+  titleKey,
+}) {
+  if (!db) return null;
+
+  const override = await db.query(
+    `
+      SELECT display_type, note
+      FROM liturgical_display_overrides
+      WHERE date = $1
+        AND source = $2
+        AND source_index = $3
+        AND title_key = $4
+      LIMIT 1
+    `,
+    [date, source, sourceIndex, titleKey],
+  );
+  if (override.rows[0]) {
+    return {
+      displayType: override.rows[0].display_type,
+      matchStatus: 'manualOverride',
+      note: override.rows[0].note || 'manual display override',
+    };
+  }
+
+  const rule = await db.query(
+    `
+      SELECT display_type, note
+      FROM liturgical_display_rules
+      WHERE enabled = true
+        AND title_key = $1
+        AND source IN ('any', $2)
+      ORDER BY CASE WHEN source = $2 THEN 0 ELSE 1 END, updated_at DESC
+      LIMIT 1
+    `,
+    [titleKey || liturgicalDisplayTitleKey(title), source],
+  );
+  if (!rule.rows[0]) return null;
+  return {
+    displayType: rule.rows[0].display_type,
+    matchStatus: 'manualRule',
+    note: rule.rows[0].note || 'manual display rule',
+  };
+}
+
+async function findSaintCandidatesForDisplay({ queries, month, day }) {
+  if (!db || !Array.isArray(queries) || queries.length === 0) return [];
+
+  const conditions = [];
+  const args = [month, day];
+  for (const query of queries) {
+    args.push(`%${query}%`);
+    const index = args.length;
+    conditions.push(
+      `(name_ko ILIKE $${index} OR name_latin ILIKE $${index} OR search_text ILIKE $${index})`,
+    );
+  }
+
+  const result = await db.query(
+    `
+      SELECT source_saint_id, name_ko, url
+      FROM saints
+      WHERE feast_month = $1
+        AND feast_day = $2
+        AND (${conditions.join(' OR ')})
+      ORDER BY name_ko
+      LIMIT 3
+    `,
+    args,
+  );
+
+  return result.rows.map((row) => ({
+    id: Number(row.source_saint_id),
+    name: row.name_ko,
+    url: row.url,
+  }));
 }
 
 async function findAppUpdatePolicy() {

@@ -213,6 +213,44 @@ async function ensureSchema() {
   await db.query(`
     CREATE INDEX IF NOT EXISTS saints_name_idx ON saints (name_ko)
   `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS liturgical_display_rules (
+      id bigserial PRIMARY KEY,
+      source text NOT NULL DEFAULT 'any',
+      title text NOT NULL,
+      title_key text NOT NULL,
+      display_type text NOT NULL,
+      note text NOT NULL DEFAULT '',
+      enabled boolean NOT NULL DEFAULT true,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      CHECK (source IN ('any', 'primary', 'alternative')),
+      CHECK (display_type IN ('liturgy', 'saintFeast'))
+    )
+  `);
+
+  await db.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS liturgical_display_rules_source_title_key_idx
+    ON liturgical_display_rules (source, title_key)
+    WHERE enabled
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS liturgical_display_overrides (
+      date text NOT NULL,
+      source text NOT NULL,
+      source_index integer NOT NULL DEFAULT 0,
+      title text NOT NULL,
+      title_key text NOT NULL,
+      display_type text NOT NULL,
+      note text NOT NULL DEFAULT '',
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (date, source, source_index, title_key),
+      CHECK (source IN ('primary', 'alternative')),
+      CHECK (display_type IN ('liturgy', 'saintFeast'))
+    )
+  `);
 }
 
 function loadSaintAliasDoc() {
@@ -314,6 +352,17 @@ function escapeHtml(value) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
+}
+
+function normalizeText(value) {
+  return String(value ?? '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function liturgicalDisplayTitleKey(value) {
+  return normalizeText(value).toLowerCase();
 }
 
 function normalizeJsonText(payload) {
@@ -1227,6 +1276,7 @@ function layout(title, content, activeNav = 'calendar') {
       </div>
       <nav>
         ${navItem(activeNav, 'calendar', basePath || '/', '전례력 캐시')}
+        ${navItem(activeNav, 'display-review', `${basePath}/display-review`, '전례 표시 검토')}
         ${navItem(activeNav, 'saints', `${basePath}/saints`, '성인')}
         ${navItem(activeNav, 'app-update', `${basePath}/app-update-policy`, '업데이트 정책')}
         ${navItem(activeNav, 'app-metadata', `${basePath}/app-metadata`, '앱 메타데이터')}
@@ -1311,6 +1361,247 @@ async function handleIndex(req, res, url) {
     ${monthRows(rows)}
   `;
   sendHtml(res, 200, layout('전례력 캐시', content, 'calendar'));
+}
+
+async function listLiturgicalDisplayReviewRows() {
+  const result = await db.query(`
+    SELECT year, month, source, payload_json
+    FROM calendar_months
+    ORDER BY year DESC, month DESC
+  `);
+
+  const rows = [];
+  for (const monthRow of result.rows) {
+    const payload = monthRow.payload_json || {};
+    for (const day of payload.days || []) {
+      if (!day || typeof day !== 'object') continue;
+      const date = String(day.date || '');
+      if (isDisplayReviewTarget(day)) {
+        rows.push({
+          year: Number(monthRow.year),
+          month: Number(monthRow.month),
+          date,
+          source: 'primary',
+          sourceIndex: 0,
+          title: String(day.title || ''),
+          reason: String(day.displayReason || ''),
+        });
+      }
+      for (const [index, alternative] of (day.alternatives || []).entries()) {
+        if (!alternative || typeof alternative !== 'object') continue;
+        if (!isDisplayReviewTarget(alternative)) continue;
+        rows.push({
+          year: Number(monthRow.year),
+          month: Number(monthRow.month),
+          date,
+          source: 'alternative',
+          sourceIndex: index,
+          title: String(alternative.name || ''),
+          reason: String(alternative.displayReason || ''),
+        });
+      }
+    }
+  }
+  return rows;
+}
+
+function isDisplayReviewTarget(value) {
+  return (
+    value?.displayType === 'review' ||
+    value?.displayMatchStatus === 'manualReview'
+  );
+}
+
+async function handleDisplayReview(req, res, url) {
+  const rows = await listLiturgicalDisplayReviewRows();
+  const message = url.searchParams.get('message');
+  const content = `
+    ${message ? `<div class="message">${escapeHtml(message)}</div>` : ''}
+    <div class="toolbar">
+      <div>
+        <h2>전례/축일 표시 검토</h2>
+        <div class="sub">서버가 자동 판정하지 못한 항목만 표시합니다. 확정하면 같은 출처와 같은 제목에 대한 규칙으로 저장되어 이후 연도에도 재사용됩니다.</div>
+      </div>
+    </div>
+    ${displayReviewRows(rows)}
+  `;
+  sendHtml(res, 200, layout('전례 표시 검토', content, 'display-review'));
+}
+
+function displayReviewRows(rows) {
+  if (rows.length === 0) {
+    return '<div class="empty">검토가 필요한 전례 표시 항목이 없습니다.</div>';
+  }
+
+  const cells = rows
+    .map((row) => {
+      const hidden = `
+        <input type="hidden" name="date" value="${escapeHtml(row.date)}">
+        <input type="hidden" name="source" value="${escapeHtml(row.source)}">
+        <input type="hidden" name="sourceIndex" value="${row.sourceIndex}">
+        <input type="hidden" name="title" value="${escapeHtml(row.title)}">
+      `;
+      return `<tr>
+        <td>${escapeHtml(row.date)}</td>
+        <td>${escapeHtml(row.source)} #${row.sourceIndex}</td>
+        <td>${escapeHtml(row.title)}</td>
+        <td>${escapeHtml(row.reason)}</td>
+        <td>
+          <div class="actions">
+            <form method="post" action="${basePath}/display-review/confirm">
+              ${hidden}
+              <input type="hidden" name="displayType" value="saintFeast">
+              <button type="submit">축일</button>
+            </form>
+            <form method="post" action="${basePath}/display-review/confirm">
+              ${hidden}
+              <input type="hidden" name="displayType" value="liturgy">
+              <button class="secondary" type="submit">전례</button>
+            </form>
+          </div>
+        </td>
+      </tr>`;
+    })
+    .join('');
+
+  return `<table>
+    <thead>
+      <tr>
+        <th>날짜</th>
+        <th>출처</th>
+        <th>제목</th>
+        <th>검토 사유</th>
+        <th>확정</th>
+      </tr>
+    </thead>
+    <tbody>${cells}</tbody>
+  </table>`;
+}
+
+async function handleDisplayReviewConfirm(req, res) {
+  const form = await readForm(req);
+  const date = normalizeText(form.get('date'));
+  const source = normalizeText(form.get('source'));
+  const sourceIndex = Number(form.get('sourceIndex') || 0);
+  const title = normalizeText(form.get('title'));
+  const displayType = normalizeText(form.get('displayType'));
+
+  if (
+    !date ||
+    !title ||
+    !['primary', 'alternative'].includes(source) ||
+    !Number.isInteger(sourceIndex) ||
+    !['liturgy', 'saintFeast'].includes(displayType)
+  ) {
+    sendHtml(
+      res,
+      400,
+      layout('전례 표시 검토', '<div class="empty">잘못된 요청입니다.</div>', 'display-review'),
+    );
+    return;
+  }
+
+  const note = `백오피스 수동 확정 · ${date}`;
+  await upsertLiturgicalDisplayRule({
+    source,
+    title,
+    displayType,
+    note,
+  });
+  const updatedMonths = await applyLiturgicalDisplayRuleToCachedMonths({
+    source,
+    title,
+    displayType,
+    note,
+  });
+  await logAdminAction(req, 'liturgical_display_rule_update', 'liturgical_display_rule', `${source}:${title}`, {
+    source,
+    sourceIndex,
+    title,
+    display_type: displayType,
+    updated_months: updatedMonths,
+  });
+  redirect(
+    res,
+    `${basePath}/display-review?message=${encodeURIComponent(`${title} 표시 규칙을 저장했습니다.`)}`,
+  );
+}
+
+async function upsertLiturgicalDisplayRule({ source, title, displayType, note }) {
+  const titleKey = liturgicalDisplayTitleKey(title);
+  await db.query(
+    `
+      INSERT INTO liturgical_display_rules (
+        source, title, title_key, display_type, note, enabled, created_at, updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, true, now(), now())
+      ON CONFLICT (source, title_key) WHERE enabled
+      DO UPDATE SET
+        title = EXCLUDED.title,
+        display_type = EXCLUDED.display_type,
+        note = EXCLUDED.note,
+        updated_at = now()
+    `,
+    [source, title, titleKey, displayType, note],
+  );
+}
+
+async function applyLiturgicalDisplayRuleToCachedMonths({
+  source,
+  title,
+  displayType,
+  note,
+}) {
+  const titleKey = liturgicalDisplayTitleKey(title);
+  const result = await db.query(`
+    SELECT year, month, payload_json
+    FROM calendar_months
+  `);
+
+  let updated = 0;
+  for (const row of result.rows) {
+    const payload = row.payload_json || {};
+    let changed = false;
+    for (const day of payload.days || []) {
+      if (!day || typeof day !== 'object') continue;
+      if (
+        source === 'primary' &&
+        liturgicalDisplayTitleKey(day.title) === titleKey
+      ) {
+        applyDisplayDecision(day, displayType, note);
+        changed = true;
+      }
+      if (source === 'alternative') {
+        for (const alternative of day.alternatives || []) {
+          if (
+            alternative &&
+            typeof alternative === 'object' &&
+            liturgicalDisplayTitleKey(alternative.name) === titleKey
+          ) {
+            applyDisplayDecision(alternative, displayType, note);
+            changed = true;
+          }
+        }
+      }
+    }
+    if (!changed) continue;
+    await db.query(
+      `
+        UPDATE calendar_months
+        SET payload_json = $3::jsonb, updated_at = now()
+        WHERE year = $1 AND month = $2
+      `,
+      [Number(row.year), Number(row.month), JSON.stringify(payload)],
+    );
+    updated += 1;
+  }
+  return updated;
+}
+
+function applyDisplayDecision(target, displayType, note) {
+  target.displayType = displayType;
+  target.displayMatchStatus = 'manualRule';
+  target.displayReason = note || 'manual display rule';
 }
 
 function auditLogRows(rows) {
@@ -2727,6 +3018,16 @@ async function handleRequest(req, res) {
 
   if (url.pathname === `${basePath}/app-metadata/save` && req.method === 'POST') {
     await handleAppMetadataSave(req, res);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/display-review` && req.method === 'GET') {
+    await handleDisplayReview(req, res, url);
+    return;
+  }
+
+  if (url.pathname === `${basePath}/display-review/confirm` && req.method === 'POST') {
+    await handleDisplayReviewConfirm(req, res);
     return;
   }
 

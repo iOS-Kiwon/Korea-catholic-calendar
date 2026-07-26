@@ -555,6 +555,23 @@ iOS는 Apple 앱 ID `6791044471`, Android는 번들 ID `com.sidore.catholiccalen
 조회한다. 서버는 요청 플랫폼의 기준 버전과 현재 앱 버전을 비교해 팝업 표시 여부를 응답한다.
 API 호출이 실패하면 앱 사용을 허용한다.
 
+`전례 표시 검토` 화면은 서버가 월별 전례력 JSON을 가져온 뒤 `전례/축일` 표시 타입을 자동 판정하지
+못한 항목만 보여준다. 항목별로 `축일` 또는 `전례`를 확정하면 `liturgical_display_rules`에
+`source + title` 기준 규칙으로 저장되고, 기존 `calendar_months.payload_json` 캐시에도 즉시
+반영된다. 따라서 2027년처럼 새 연도 데이터가 들어와도 같은 제목은 다시 전체 수동 검토하지 않고
+저장된 규칙을 재사용한다.
+
+기존 2026년 수동 검토 결과를 운영 DB 규칙으로 옮길 때는 호스트에서 아래 1회성 명령을 실행한다.
+
+```bash
+cd scripts && npm install
+node --env-file=../ops/.env import-liturgical-display-rules.mjs --year 2026 --dry
+node --env-file=../ops/.env import-liturgical-display-rules.mjs --year 2026
+```
+
+이 import는 `assets/calendar/liturgical_display_2026.json`의 `manualConfirmed` 항목만 대상으로 하며,
+제목 기준 중복은 한 번만 저장한다.
+
 주의:
 
 - 백오피스는 공개 앱 API와 다른 도메인을 쓰는 편이 좋다.
