@@ -386,9 +386,6 @@ struct HighlightedEventLine: View {
                     RoundedRectangle(cornerRadius: 3)
                         .fill(argbColor(color).opacity(0.24))
                 )
-                .fixedSize(horizontal: true, vertical: false)
-                .frame(maxWidth: 72, alignment: .leading)
-                .clipped()
 
             if !memo.isEmpty {
                 Text(memo)
@@ -396,6 +393,7 @@ struct HighlightedEventLine: View {
                     .foregroundStyle(Color.black)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
+                    .layoutPriority(1)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
