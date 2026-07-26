@@ -6,75 +6,77 @@
 
 - 전체 항목: 468
 - 자동 축일 확정: 109
-- 수동 검토 필요: 62
+- 수동 검토 대상: 62
+- 수동 검토 완료: 62
+- 수동 미확정: 0
 - 기본 전례: 297
 
 ## 수동 검토 필요
 
 | 날짜 | 원천 | 항목 | 사유 | 검색어 | 후보 | 판단 | 메모 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-01-02 | primary | 성 대 바실리오와 나지안조의 성 그레고리오 주교 학자 기념일 | grouped saint title | 그레고리오, 대 바실리오와 나지안조의 성 그레고리오, 성 그레고리오, 나지안조의 성 그레고리오 |  |  |  |
-| 2026-01-03 | alternative | 지극히 거룩하신 예수 성명 | no same-date saint match | 지극히 거룩하신 예수 성명, 성명, 예수 성명, 거룩하신 예수 성명 |  |  |  |
-| 2026-01-17 | primary | 성 안토니오 아빠스 기념일 | multiple same-date saint matches | 안토니오 | 안토니오(3192), 안토니오(1629) |  |  |
-| 2026-01-22 | alternative | 성 빈첸시오 부제 순교자 | multiple same-date saint matches | 빈첸시오 | 빈첸시오(1153), 빈첸시오(3217) |  |  |
-| 2026-01-26 | primary | 성 티모테오와 성 티토 주교 기념일 | grouped saint title | 티토, 티모테오와 성 티토, 성 티토 |  |  |  |
-| 2026-02-06 | primary | 성 바오로 미키와 동료 순교자들 기념일 | no same-date saint match | 바오로 미키와 동료 순교자들, 순교자들, 동료 순교자들, 미키와 동료 순교자들 |  |  |  |
-| 2026-02-07 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  |  |  |
-| 2026-02-11 | alternative | 루르드의 복되신 동정 마리아 | no same-date saint match | 마리아, 루르드의 복되신 동정 마리아, 동정 마리아, 복되신 동정 마리아 |  |  |  |
-| 2026-02-14 | primary | 성 치릴로 수도자와 성 메토디오 주교 기념일 | grouped saint title | 메토디오, 치릴로 수도자와 성 메토디오, 성 메토디오, 수도자와 성 메토디오 |  |  |  |
-| 2026-05-12 | alternative | 성 네레오와 성 아킬레오 순교자 | grouped saint title | 아킬레오, 네레오와 성 아킬레오, 성 아킬레오 |  |  |  |
-| 2026-05-13 | alternative | 파티마의 복되신 동정 마리아 | no same-date saint match | 마리아, 파티마의 복되신 동정 마리아, 동정 마리아, 복되신 동정 마리아 |  |  |  |
-| 2026-05-21 | alternative | 성 크리스토포로 마가야네스 사제와 동료 순교자들 | no same-date saint match | 크리스토포로 마가야네스 사제와 동료 순교자들, 순교자들, 동료 순교자들, 사제와 동료 순교자들 |  |  |  |
-| 2026-05-25 | primary | 교회의 어머니 복되신 동정 마리아 기념일 | no same-date saint match | 마리아, 교회의 어머니 복되신 동정 마리아, 동정 마리아, 복되신 동정 마리아 |  |  |  |
-| 2026-05-30 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  |  |  |
-| 2026-06-02 | alternative | 성 마르첼리노와 성 베드로  순교자 | grouped saint title | 베드로, 마르첼리노와 성 베드로, 성 베드로 |  |  |  |
-| 2026-06-03 | primary | 성 가롤로 르왕가와 동료 순교자들 기념일 | no same-date saint match | 가롤로 르왕가와 동료 순교자들, 순교자들, 동료 순교자들, 르왕가와 동료 순교자들 |  |  |  |
-| 2026-06-06 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  |  |  |
-| 2026-06-13 | primary | 티 없이 깨끗하신 성모 성심 기념일 | no same-date saint match | 티 없이 깨끗하신 성모 성심, 성심, 성모 성심, 깨끗하신 성모 성심 |  |  |  |
-| 2026-06-20 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  |  |  |
-| 2026-06-22 | alternative | 성 요한 피셔 주교와 성 토마스 모어 순교자 | grouped saint title | 토마스 모어, 모어, 요한 피셔 주교와 성 토마스 모어, 성 토마스 모어 |  |  |  |
-| 2026-06-27 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  |  |  |
-| 2026-06-30 | alternative | 로마 교회의 초기 순교자들 | no same-date saint match | 로마 교회의 초기 순교자들, 순교자들, 초기 순교자들, 교회의 초기 순교자들 |  |  |  |
-| 2026-07-04 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  |  |  |
-| 2026-07-09 | alternative | 성 아우구스티노 자오룽 사제와 동료 순교자들 | no same-date saint match | 아우구스티노 자오룽 사제와 동료 순교자들, 순교자들, 동료 순교자들, 사제와 동료 순교자들 |  |  |  |
-| 2026-07-16 | alternative | 카르멜산의 복되신 동정 마리아 | no same-date saint match | 마리아, 카르멜산의 복되신 동정 마리아, 동정 마리아, 복되신 동정 마리아 |  |  |  |
-| 2026-07-18 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  |  |  |
-| 2026-07-29 | primary | 성녀 마르타와 성녀 마리아와 성 라자로 기념일 | grouped saint title | 라자로, 마르타와 성녀 마리아와 성 라자로, 성 라자로, 마리아와 성 라자로 |  |  |  |
-| 2026-08-07 | alternative | 성 식스토 2세 교황과 동료 순교자들 | no same-date saint match | 식스토 2세 교황과 동료 순교자들, 순교자들, 동료 순교자들, 교황과 동료 순교자들 |  |  |  |
-| 2026-08-13 | alternative | 성 폰시아노 교황과 성 히폴리토 사제 순교자 | grouped saint title | 히폴리토, 폰시아노 교황과 성 히폴리토, 성 히폴리토, 교황과 성 히폴리토 |  |  |  |
-| 2026-08-22 | primary | 복되신 동정 마리아 모후 기념일 | no same-date saint match | 동정 마리아 모후, 모후, 마리아 모후 |  |  |  |
-| 2026-08-29 | primary | 성 요한 세례자의 수난 기념일 | no same-date saint match | 요한 세례자의 수난, 수난, 세례자의 수난 |  |  |  |
-| 2026-09-03 | primary | 성 대 그레고리오 교황 학자 기념일 | no same-date saint match | 대 그레고리오, 그레고리오 |  |  |  |
-| 2026-09-05 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  |  |  |
-| 2026-09-08 | primary | 복되신 동정 마리아 탄생 축일 | no same-date saint match | 동정 마리아 탄생, 탄생, 마리아 탄생 |  |  |  |
-| 2026-09-12 | alternative | 지극히 거룩하신 마리아 성명 | no same-date saint match | 지극히 거룩하신 마리아 성명, 성명, 마리아 성명, 거룩하신 마리아 성명 |  |  |  |
-| 2026-09-15 | primary | 고통의 성모 마리아 기념일 | no same-date saint match | 고통의 성모 마리아, 마리아, 성모 마리아 |  |  |  |
-| 2026-09-16 | primary | 성 고르넬리오 교황과 성 치프리아노 주교 순교자 기념일 | grouped saint title | 치프리아노, 고르넬리오 교황과 성 치프리아노, 성 치프리아노, 교황과 성 치프리아노 |  |  |  |
-| 2026-09-19 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  |  |  |
-| 2026-09-26 | alternative | 성 고스마와 성 다미아노 순교자 | grouped saint title | 다미아노, 고스마와 성 다미아노, 성 다미아노 |  |  |  |
-| 2026-09-26 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  |  |  |
-| 2026-09-28 | alternative | 성 라우렌시오 루이스와 동료 순교자들 | no same-date saint match | 라우렌시오 루이스와 동료 순교자들, 순교자들, 동료 순교자들, 루이스와 동료 순교자들 |  |  |  |
-| 2026-09-29 | primary | 성 미카엘, 성 가브리엘, 성 라파엘 대천사 축일 | grouped saint title | 라파엘 대천사, 대천사, 미카엘, 성 가브리엘, 성 라파엘 대천사, 성 라파엘 대천사 |  |  |  |
-| 2026-10-02 | primary | 수호천사 기념일 | no same-date saint match | 수호천사 |  |  |  |
-| 2026-10-03 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  |  |  |
-| 2026-10-07 | primary | 묵주 기도의 복되신 동정 마리아 기념일 | no same-date saint match | 마리아, 묵주 기도의 복되신 동정 마리아, 동정 마리아, 복되신 동정 마리아 |  |  |  |
-| 2026-10-09 | alternative | 성 디오니시오 주교와 동료 순교자들 | no same-date saint match | 디오니시오 주교와 동료 순교자들, 순교자들, 동료 순교자들, 주교와 동료 순교자들 |  |  |  |
-| 2026-10-10 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  |  |  |
-| 2026-10-19 | alternative | 성 요한 드 브레뵈프 사제, 성 이사악 조그 사제와 동료 순교자들 | grouped saint title | 이사악 조그 사제와 동료 순교자들, 순교자들, 동료 순교자들, 사제와 동료 순교자들, 요한 드 브레뵈프 사제, 성 이사악 조그 사제와 동료 순교자들 |  |  |  |
-| 2026-10-23 | alternative | 카페스트라노의 성 요한 사제 | multiple same-date saint matches | 요한, 카페스트라노의 성 요한, 성 요한 | 요한(2030), 요한(5247) |  |  |
-| 2026-10-24 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  |  |  |
-| 2026-10-28 | primary | 성 시몬과 성 유다(타대오) 사도 축일 | grouped saint title | 유다, 시몬과 성 유다, 성 유다 |  |  |  |
-| 2026-10-31 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  |  |  |
-| 2026-11-07 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  |  |  |
-| 2026-11-14 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  |  |  |
-| 2026-11-21 | primary | 복되신 동정 마리아의 자헌 기념일 | no same-date saint match | 동정 마리아의 자헌, 자헌, 마리아의 자헌 |  |  |  |
-| 2026-11-24 | primary | 성 안드레아 둥락 사제와 동료 순교자들 기념일 | no same-date saint match | 안드레아 둥락 사제와 동료 순교자들, 순교자들, 동료 순교자들, 사제와 동료 순교자들 |  |  |  |
-| 2026-11-28 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  |  |  |
-| 2026-11-30 | primary | 성 안드레아 사도 축일 | multiple same-date saint matches | 안드레아 | 안드레아(1583), 안드레아(1584) |  |  |
-| 2026-12-09 | alternative | 성 요한 디다코(후안 디에고) 쿠아우틀라토아친 | no same-date saint match | 요한 디다코 쿠아우틀라토아친, 쿠아우틀라토아친, 디다코 쿠아우틀라토아친 |  |  |  |
-| 2026-12-10 | alternative | 로레토의 복되신 동정 마리아 | no same-date saint match | 마리아, 로레토의 복되신 동정 마리아, 동정 마리아, 복되신 동정 마리아 |  |  |  |
-| 2026-12-12 | alternative | 과달루페의 복되신 동정 마리아 | grouped saint title | 마리아, 과달루페의 복되신 동정 마리아, 동정 마리아, 복되신 동정 마리아 |  |  |  |
-| 2026-12-28 | primary | 죄 없는 아기 순교자들 축일 | no same-date saint match | 죄 없는 아기 순교자들, 순교자들, 아기 순교자들, 없는 아기 순교자들 |  |  |  |
+| 2026-01-02 | primary | 성 대 바실리오와 나지안조의 성 그레고리오 주교 학자 기념일 | grouped saint title | 그레고리오, 대 바실리오와 나지안조의 성 그레고리오, 성 그레고리오, 나지안조의 성 그레고리오 |  | 축일 | 사용자 수동 확정 |
+| 2026-01-03 | alternative | 지극히 거룩하신 예수 성명 | no same-date saint match | 지극히 거룩하신 예수 성명, 성명, 예수 성명, 거룩하신 예수 성명 |  | 전례 | 사용자 수동 확정 |
+| 2026-01-17 | primary | 성 안토니오 아빠스 기념일 | multiple same-date saint matches | 안토니오 | 안토니오(3192), 안토니오(1629) | 축일 | 사용자 수동 확정 |
+| 2026-01-22 | alternative | 성 빈첸시오 부제 순교자 | multiple same-date saint matches | 빈첸시오 | 빈첸시오(1153), 빈첸시오(3217) | 축일 | 사용자 수동 확정 |
+| 2026-01-26 | primary | 성 티모테오와 성 티토 주교 기념일 | grouped saint title | 티토, 티모테오와 성 티토, 성 티토 |  | 축일 | 사용자 수동 확정 |
+| 2026-02-06 | primary | 성 바오로 미키와 동료 순교자들 기념일 | no same-date saint match | 바오로 미키와 동료 순교자들, 순교자들, 동료 순교자들, 미키와 동료 순교자들 |  | 축일 | 사용자 수동 확정 |
+| 2026-02-07 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  | 전례 | 사용자 수동 확정 |
+| 2026-02-11 | alternative | 루르드의 복되신 동정 마리아 | no same-date saint match | 마리아, 루르드의 복되신 동정 마리아, 동정 마리아, 복되신 동정 마리아 |  | 전례 | 사용자 수동 확정 |
+| 2026-02-14 | primary | 성 치릴로 수도자와 성 메토디오 주교 기념일 | grouped saint title | 메토디오, 치릴로 수도자와 성 메토디오, 성 메토디오, 수도자와 성 메토디오 |  | 축일 | 사용자 수동 확정 |
+| 2026-05-12 | alternative | 성 네레오와 성 아킬레오 순교자 | grouped saint title | 아킬레오, 네레오와 성 아킬레오, 성 아킬레오 |  | 축일 | 사용자 수동 확정 |
+| 2026-05-13 | alternative | 파티마의 복되신 동정 마리아 | no same-date saint match | 마리아, 파티마의 복되신 동정 마리아, 동정 마리아, 복되신 동정 마리아 |  | 전례 | 사용자 수동 확정 |
+| 2026-05-21 | alternative | 성 크리스토포로 마가야네스 사제와 동료 순교자들 | no same-date saint match | 크리스토포로 마가야네스 사제와 동료 순교자들, 순교자들, 동료 순교자들, 사제와 동료 순교자들 |  | 축일 | 사용자 수동 확정 |
+| 2026-05-25 | primary | 교회의 어머니 복되신 동정 마리아 기념일 | no same-date saint match | 마리아, 교회의 어머니 복되신 동정 마리아, 동정 마리아, 복되신 동정 마리아 |  | 전례 | 사용자 수동 확정 |
+| 2026-05-30 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  | 전례 | 사용자 수동 확정 |
+| 2026-06-02 | alternative | 성 마르첼리노와 성 베드로  순교자 | grouped saint title | 베드로, 마르첼리노와 성 베드로, 성 베드로 |  | 축일 | 사용자 수동 확정 |
+| 2026-06-03 | primary | 성 가롤로 르왕가와 동료 순교자들 기념일 | no same-date saint match | 가롤로 르왕가와 동료 순교자들, 순교자들, 동료 순교자들, 르왕가와 동료 순교자들 |  | 축일 | 사용자 수동 확정 |
+| 2026-06-06 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  | 전례 | 사용자 수동 확정 |
+| 2026-06-13 | primary | 티 없이 깨끗하신 성모 성심 기념일 | no same-date saint match | 티 없이 깨끗하신 성모 성심, 성심, 성모 성심, 깨끗하신 성모 성심 |  | 전례 | 사용자 수동 확정 |
+| 2026-06-20 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  | 전례 | 사용자 수동 확정 |
+| 2026-06-22 | alternative | 성 요한 피셔 주교와 성 토마스 모어 순교자 | grouped saint title | 토마스 모어, 모어, 요한 피셔 주교와 성 토마스 모어, 성 토마스 모어 |  | 축일 | 사용자 수동 확정 |
+| 2026-06-27 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  | 전례 | 사용자 수동 확정 |
+| 2026-06-30 | alternative | 로마 교회의 초기 순교자들 | no same-date saint match | 로마 교회의 초기 순교자들, 순교자들, 초기 순교자들, 교회의 초기 순교자들 |  | 전례 | 사용자 수동 확정 |
+| 2026-07-04 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  | 전례 | 사용자 수동 확정 |
+| 2026-07-09 | alternative | 성 아우구스티노 자오룽 사제와 동료 순교자들 | no same-date saint match | 아우구스티노 자오룽 사제와 동료 순교자들, 순교자들, 동료 순교자들, 사제와 동료 순교자들 |  | 축일 | 사용자 수동 확정 |
+| 2026-07-16 | alternative | 카르멜산의 복되신 동정 마리아 | no same-date saint match | 마리아, 카르멜산의 복되신 동정 마리아, 동정 마리아, 복되신 동정 마리아 |  | 전례 | 사용자 수동 확정 |
+| 2026-07-18 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  | 전례 | 사용자 수동 확정 |
+| 2026-07-29 | primary | 성녀 마르타와 성녀 마리아와 성 라자로 기념일 | grouped saint title | 라자로, 마르타와 성녀 마리아와 성 라자로, 성 라자로, 마리아와 성 라자로 |  | 축일 | 사용자 수동 확정 |
+| 2026-08-07 | alternative | 성 식스토 2세 교황과 동료 순교자들 | no same-date saint match | 식스토 2세 교황과 동료 순교자들, 순교자들, 동료 순교자들, 교황과 동료 순교자들 |  | 축일 | 사용자 수동 확정 |
+| 2026-08-13 | alternative | 성 폰시아노 교황과 성 히폴리토 사제 순교자 | grouped saint title | 히폴리토, 폰시아노 교황과 성 히폴리토, 성 히폴리토, 교황과 성 히폴리토 |  | 축일 | 사용자 수동 확정 |
+| 2026-08-22 | primary | 복되신 동정 마리아 모후 기념일 | no same-date saint match | 동정 마리아 모후, 모후, 마리아 모후 |  | 전례 | 사용자 수동 확정 |
+| 2026-08-29 | primary | 성 요한 세례자의 수난 기념일 | no same-date saint match | 요한 세례자의 수난, 수난, 세례자의 수난 |  | 축일 | 사용자 수동 확정 |
+| 2026-09-03 | primary | 성 대 그레고리오 교황 학자 기념일 | no same-date saint match | 대 그레고리오, 그레고리오 |  | 축일 | 사용자 수동 확정 |
+| 2026-09-05 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  | 전례 | 사용자 수동 확정 |
+| 2026-09-08 | primary | 복되신 동정 마리아 탄생 축일 | no same-date saint match | 동정 마리아 탄생, 탄생, 마리아 탄생 |  | 축일 | 사용자 수동 확정 |
+| 2026-09-12 | alternative | 지극히 거룩하신 마리아 성명 | no same-date saint match | 지극히 거룩하신 마리아 성명, 성명, 마리아 성명, 거룩하신 마리아 성명 |  | 전례 | 사용자 수동 확정 |
+| 2026-09-15 | primary | 고통의 성모 마리아 기념일 | no same-date saint match | 고통의 성모 마리아, 마리아, 성모 마리아 |  | 전례 | 사용자 수동 확정 |
+| 2026-09-16 | primary | 성 고르넬리오 교황과 성 치프리아노 주교 순교자 기념일 | grouped saint title | 치프리아노, 고르넬리오 교황과 성 치프리아노, 성 치프리아노, 교황과 성 치프리아노 |  | 축일 | 사용자 수동 확정 |
+| 2026-09-19 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  | 전례 | 사용자 수동 확정 |
+| 2026-09-26 | alternative | 성 고스마와 성 다미아노 순교자 | grouped saint title | 다미아노, 고스마와 성 다미아노, 성 다미아노 |  | 축일 | 사용자 수동 확정 |
+| 2026-09-26 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  | 전례 | 사용자 수동 확정 |
+| 2026-09-28 | alternative | 성 라우렌시오 루이스와 동료 순교자들 | no same-date saint match | 라우렌시오 루이스와 동료 순교자들, 순교자들, 동료 순교자들, 루이스와 동료 순교자들 |  | 축일 | 사용자 수동 확정 |
+| 2026-09-29 | primary | 성 미카엘, 성 가브리엘, 성 라파엘 대천사 축일 | grouped saint title | 라파엘 대천사, 대천사, 미카엘, 성 가브리엘, 성 라파엘 대천사, 성 라파엘 대천사 |  | 축일 | 사용자 수동 확정 |
+| 2026-10-02 | primary | 수호천사 기념일 | no same-date saint match | 수호천사 |  | 전례 | 사용자 수동 확정 |
+| 2026-10-03 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  | 전례 | 사용자 수동 확정 |
+| 2026-10-07 | primary | 묵주 기도의 복되신 동정 마리아 기념일 | no same-date saint match | 마리아, 묵주 기도의 복되신 동정 마리아, 동정 마리아, 복되신 동정 마리아 |  | 전례 | 사용자 수동 확정 |
+| 2026-10-09 | alternative | 성 디오니시오 주교와 동료 순교자들 | no same-date saint match | 디오니시오 주교와 동료 순교자들, 순교자들, 동료 순교자들, 주교와 동료 순교자들 |  | 축일 | 사용자 수동 확정 |
+| 2026-10-10 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  | 전례 | 사용자 수동 확정 |
+| 2026-10-19 | alternative | 성 요한 드 브레뵈프 사제, 성 이사악 조그 사제와 동료 순교자들 | grouped saint title | 이사악 조그 사제와 동료 순교자들, 순교자들, 동료 순교자들, 사제와 동료 순교자들, 요한 드 브레뵈프 사제, 성 이사악 조그 사제와 동료 순교자들 |  | 축일 | 사용자 수동 확정 |
+| 2026-10-23 | alternative | 카페스트라노의 성 요한 사제 | multiple same-date saint matches | 요한, 카페스트라노의 성 요한, 성 요한 | 요한(2030), 요한(5247) | 축일 | 사용자 수동 확정 |
+| 2026-10-24 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  | 전례 | 사용자 수동 확정 |
+| 2026-10-28 | primary | 성 시몬과 성 유다(타대오) 사도 축일 | grouped saint title | 유다, 시몬과 성 유다, 성 유다 |  | 축일 | 사용자 수동 확정 |
+| 2026-10-31 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  | 전례 | 사용자 수동 확정 |
+| 2026-11-07 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  | 전례 | 사용자 수동 확정 |
+| 2026-11-14 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  | 전례 | 사용자 수동 확정 |
+| 2026-11-21 | primary | 복되신 동정 마리아의 자헌 기념일 | no same-date saint match | 동정 마리아의 자헌, 자헌, 마리아의 자헌 |  | 전례 | 사용자 수동 확정 |
+| 2026-11-24 | primary | 성 안드레아 둥락 사제와 동료 순교자들 기념일 | no same-date saint match | 안드레아 둥락 사제와 동료 순교자들, 순교자들, 동료 순교자들, 사제와 동료 순교자들 |  | 축일 | 사용자 수동 확정 |
+| 2026-11-28 | alternative | 복되신 동정 마리아 | no same-date saint match | 마리아 |  | 전례 | 사용자 수동 확정 |
+| 2026-11-30 | primary | 성 안드레아 사도 축일 | multiple same-date saint matches | 안드레아 | 안드레아(1583), 안드레아(1584) | 축일 | 사용자 수동 확정 |
+| 2026-12-09 | alternative | 성 요한 디다코(후안 디에고) 쿠아우틀라토아친 | no same-date saint match | 요한 디다코 쿠아우틀라토아친, 쿠아우틀라토아친, 디다코 쿠아우틀라토아친 |  | 축일 | 사용자 수동 확정 |
+| 2026-12-10 | alternative | 로레토의 복되신 동정 마리아 | no same-date saint match | 마리아, 로레토의 복되신 동정 마리아, 동정 마리아, 복되신 동정 마리아 |  | 전례 | 사용자 수동 확정 |
+| 2026-12-12 | alternative | 과달루페의 복되신 동정 마리아 | grouped saint title | 마리아, 과달루페의 복되신 동정 마리아, 동정 마리아, 복되신 동정 마리아 |  | 전례 | 사용자 수동 확정 |
+| 2026-12-28 | primary | 죄 없는 아기 순교자들 축일 | no same-date saint match | 죄 없는 아기 순교자들, 순교자들, 아기 순교자들, 없는 아기 순교자들 |  | 축일 | 사용자 수동 확정 |
 
 ## 자동 축일 확정
 
