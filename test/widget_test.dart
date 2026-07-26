@@ -502,6 +502,78 @@ void main() {
     expect(find.text('축일'), findsNothing);
   });
 
+  testWidgets('bottom info bar uses displayType over rank/title heuristics', (
+    tester,
+  ) async {
+    final day = LiturgicalCalendar()
+        .day(DateTime(2026, 7, 25))
+        .copyWith(
+          title: '성 야고보 사도 축일',
+          celebration: const Celebration(
+            id: 'james_apostle',
+            name: '성 야고보 사도 축일',
+            rank: Rank.feast,
+            color: LiturgicalColor.red,
+            kind: CelebrationKind.sanctorale,
+            precedence: PrecedenceCode.generalFeast,
+            displayType: LiturgicalDisplayType.liturgy,
+          ),
+        );
+
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(
+          body: DayInfoBar(day: day, onTapDetail: () {}),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('전례'), findsOneWidget);
+    expect(find.text('성 야고보 사도 축일'), findsOneWidget);
+    expect(find.text('축일'), findsNothing);
+  });
+
+  testWidgets('day detail uses displayType for 축일 추가 visibility', (
+    tester,
+  ) async {
+    final liturgyRankFeast = LiturgicalCalendar()
+        .day(DateTime(2026, 7, 25))
+        .copyWith(
+          title: '성 야고보 사도 축일',
+          celebration: const Celebration(
+            id: 'james_apostle',
+            name: '성 야고보 사도 축일',
+            rank: Rank.feast,
+            color: LiturgicalColor.red,
+            kind: CelebrationKind.sanctorale,
+            precedence: PrecedenceCode.generalFeast,
+            displayType: LiturgicalDisplayType.liturgy,
+          ),
+        );
+
+    await tester.pumpWidget(
+      _wrap(Scaffold(body: DayDetailView(day: liturgyRankFeast))),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('전례'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, '축일 추가'), findsNothing);
+
+    final saintFeast = liturgyRankFeast.copyWith(
+      celebration: liturgyRankFeast.celebration.copyWith(
+        displayType: LiturgicalDisplayType.saintFeast,
+      ),
+    );
+    await tester.pumpWidget(
+      _wrap(Scaffold(body: DayDetailView(day: saintFeast))),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('축일'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, '축일 추가'), findsOneWidget);
+  });
+
   testWidgets('adding an event by picking a category persists and shows it', (
     tester,
   ) async {

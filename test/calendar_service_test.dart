@@ -102,6 +102,45 @@ void main() {
     expect(d.optionalMemorials.last.name, '성 요셉 데 갈라산즈 사제');
   });
 
+  test(
+    'applies liturgical display dataset to primary and alternative rows',
+    () {
+      final cbck = CalendarService.parseDays(const [
+        {
+          'date': '2026-08-25',
+          'color': 'green',
+          'title': '연중 제21주간 화요일',
+          'alternatives': [
+            {'name': '성 루도비코', 'color': 'white'},
+            {'name': '성 요셉 데 갈라산즈 사제', 'color': 'white'},
+          ],
+        },
+        {'date': '2026-11-02', 'color': 'white', 'title': '위령의 날'},
+      ]);
+      final service = CalendarService(
+        engine: engine,
+        cbck: CalendarService.applyDisplayDataset(cbck, '''
+      {"entries":[
+        {"date":"2026-08-25","source":"primary","sourceIndex":0,"title":"연중 제21주간 화요일","displayType":"liturgy"},
+        {"date":"2026-08-25","source":"alternative","sourceIndex":0,"title":"성 루도비코","displayType":"saintFeast"},
+        {"date":"2026-08-25","source":"alternative","sourceIndex":1,"title":"성 요셉 데 갈라산즈 사제","displayType":"saintFeast"},
+        {"date":"2026-11-02","source":"primary","sourceIndex":0,"title":"위령의 날","displayType":"liturgy"}
+      ]}'''),
+      );
+
+      final aug25 = service.day(DateTime(2026, 8, 25));
+      expect(aug25.celebration.displayType, LiturgicalDisplayType.liturgy);
+      expect(
+        aug25.optionalMemorials.map((m) => m.displayType),
+        everyElement(LiturgicalDisplayType.saintFeast),
+      );
+
+      final allSouls = service.day(DateTime(2026, 11, 2));
+      expect(allSouls.celebration.rank, Rank.feast);
+      expect(allSouls.celebration.displayType, LiturgicalDisplayType.liturgy);
+    },
+  );
+
   test('remote data merged later overrides bundled snapshot days', () {
     const snapshot = '''
     {"source":"test","days":[
@@ -128,4 +167,45 @@ void main() {
     expect(d.color, LiturgicalColor.white);
     expect(d.scriptureReadings, hasLength(1));
   });
+
+  test(
+    'remote merge preserves bundled display type when response omits it',
+    () {
+      final service = CalendarService(
+        engine: engine,
+        cbck: CalendarService.parseDays(const [
+          {
+            'date': '2026-08-25',
+            'color': 'green',
+            'title': '연중 제21주간 화요일',
+            'displayType': 'liturgy',
+            'alternatives': [
+              {'name': '성 루도비코', 'color': 'white', 'displayType': 'saintFeast'},
+            ],
+          },
+        ]),
+      );
+
+      service.merge(
+        CalendarService.parseDays(const [
+          {
+            'date': '2026-08-25',
+            'color': 'green',
+            'title': '서버 제목',
+            'alternatives': [
+              {'name': '성 루도비코', 'color': 'white'},
+            ],
+          },
+        ]),
+      );
+
+      final d = service.day(DateTime(2026, 8, 25));
+      expect(d.title, '서버 제목');
+      expect(d.celebration.displayType, LiturgicalDisplayType.liturgy);
+      expect(
+        d.optionalMemorials.single.displayType,
+        LiturgicalDisplayType.saintFeast,
+      );
+    },
+  );
 }

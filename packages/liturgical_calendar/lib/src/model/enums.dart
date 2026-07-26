@@ -45,3 +45,13 @@ enum WeekdayCycle { i, ii }
 /// Whether a celebration comes from the Proper of Time (temporale) or the
 /// Proper of Saints (sanctorale).
 enum CelebrationKind { temporale, sanctorale }
+
+/// App-facing display classification for a liturgical row.
+///
+/// This is intentionally separate from [Rank]. A liturgical `feast` rank can be
+/// displayed as 일반 전례 when it is not a saint feast in the app's domain.
+enum LiturgicalDisplayType {
+  liturgy, // 전례
+  saintFeast, // 축일
+  review, // 미확정/검토 필요
+}

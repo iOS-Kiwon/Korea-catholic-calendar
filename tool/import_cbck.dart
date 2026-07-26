@@ -100,16 +100,17 @@ Map<String, dynamic> _parseEntry(Map<String, dynamic> e) {
   final special = (e['special'] as String? ?? '').trim();
   final url = (e['url'] as String? ?? '').trim();
 
-  return {
+  final result = {
     'date': e['start'],
     'color': color,
     'title': title,
-    if (rank != null) 'rank': rank,
     if (special.isNotEmpty) 'special': special,
     if (readings.isNotEmpty) 'readings': readings,
     if (alternatives.isNotEmpty) 'alternatives': alternatives,
     if (url.isNotEmpty) 'url': url.startsWith('http') ? url : '$_base$url',
   };
+  if (rank != null) result['rank'] = rank;
+  return result;
 }
 
 Future<List<dynamic>> _fetch(

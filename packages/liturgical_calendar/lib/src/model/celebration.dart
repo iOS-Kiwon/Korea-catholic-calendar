@@ -17,6 +17,7 @@ class Celebration {
     required this.precedence,
     this.isProperToKorea = false,
     this.titles = const [],
+    this.displayType,
   });
 
   /// Stable identifier, e.g. `korean_martyrs`, `advent_sunday_2`.
@@ -37,6 +38,9 @@ class Celebration {
   /// Optional epithets, e.g. `순교자`, `사제`, `동정녀`.
   final List<String> titles;
 
+  /// App-facing display classification, when supplied by authoritative data.
+  final LiturgicalDisplayType? displayType;
+
   Celebration copyWith({
     String? id,
     String? name,
@@ -46,6 +50,7 @@ class Celebration {
     PrecedenceCode? precedence,
     bool? isProperToKorea,
     List<String>? titles,
+    LiturgicalDisplayType? displayType,
   }) {
     return Celebration(
       id: id ?? this.id,
@@ -56,6 +61,7 @@ class Celebration {
       precedence: precedence ?? this.precedence,
       isProperToKorea: isProperToKorea ?? this.isProperToKorea,
       titles: titles ?? this.titles,
+      displayType: displayType ?? this.displayType,
     );
   }
 
