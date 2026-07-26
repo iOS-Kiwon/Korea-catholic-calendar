@@ -470,27 +470,6 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
             ),
             const SizedBox(height: 4),
 
-            // 반복 (선택)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.repeat),
-              title: const Text('반복'),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    _recurrenceSummary(),
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const Icon(Icons.chevron_right),
-                ],
-              ),
-              onTap: _pickRecurrence,
-            ),
-            const SizedBox(height: 4),
-
             // 메모 (선택) - 한 줄, 최대 100자, 완료(return) 키로 입력 종료.
             TextField(
               controller: _memo,
@@ -527,6 +506,27 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
               time: allDay ? null : _endTime!,
               onTapDate: _pickEndDate,
               onTapTime: allDay ? null : _pickEndTime,
+            ),
+            const SizedBox(height: 4),
+
+            // 반복 (선택)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.repeat),
+              title: const Text('반복'),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _recurrenceSummary(),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right),
+                ],
+              ),
+              onTap: _pickRecurrence,
             ),
 
             // 알림
