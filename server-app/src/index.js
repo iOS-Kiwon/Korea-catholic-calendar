@@ -7,6 +7,7 @@ import {
   enrichCalendarPayloadWithDisplayTypes,
   liturgicalDisplayTitleKey,
 } from './liturgical-display-enrichment.js';
+import { enrichCalendarPayloadWithShortTitles } from './liturgical-short-titles.js';
 
 const port = Number(process.env.API_PORT || 8080);
 const host = process.env.API_HOST || '0.0.0.0';
@@ -431,8 +432,9 @@ async function findUniqueSaintInfoUrlForCalendarDay({ query, month, day }) {
 }
 
 async function enrichCalendarPayload(payload) {
+  const withShortTitles = enrichCalendarPayloadWithShortTitles(payload);
   const withSaintUrls = await enrichCalendarPayloadWithSaintUrls(
-    payload,
+    withShortTitles.payload,
     findUniqueSaintInfoUrlForCalendarDay,
   );
   const withDisplayTypes = await enrichCalendarPayloadWithDisplayTypes(
@@ -444,7 +446,8 @@ async function enrichCalendarPayload(payload) {
   );
   return {
     payload: withDisplayTypes.payload,
-    changed: withSaintUrls.changed || withDisplayTypes.changed,
+    changed:
+      withShortTitles.changed || withSaintUrls.changed || withDisplayTypes.changed,
   };
 }
 

@@ -222,6 +222,7 @@ struct SmallTodayWidgetView: View {
                 .foregroundStyle(color(for: liturgicalColor))
                 .lineLimit(2)
                 .minimumScaleFactor(0.75)
+                .padding(.leading, 2)
                 .padding(.bottom, 4)
 
             if let eventText {
@@ -381,7 +382,6 @@ struct HighlightedEventLine: View {
                 .minimumScaleFactor(0.72)
                 .padding(.horizontal, 4)
                 .padding(.vertical, 1)
-                .frame(maxWidth: 72, alignment: .leading)
                 .background(
                     RoundedRectangle(cornerRadius: 3)
                         .fill(argbColor(color).opacity(0.24))
@@ -393,6 +393,7 @@ struct HighlightedEventLine: View {
                     .foregroundStyle(Color.black)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
+                    .layoutPriority(1)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

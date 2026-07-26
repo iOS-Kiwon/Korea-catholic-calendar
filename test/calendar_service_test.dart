@@ -78,6 +78,24 @@ void main() {
     );
   });
 
+  test('uses remote shortTitle before bundled short title mapping', () {
+    final service = CalendarService(
+      engine: engine,
+      cbck: CalendarService.parseDays(const [
+        {
+          'date': '2026-04-05',
+          'color': 'white',
+          'title': '주님 부활 대축일',
+          'shortTitle': '부활',
+        },
+      ]),
+    );
+
+    final day = service.day(DateTime(2026, 4, 5));
+    expect(day.celebration.id, 'easter');
+    expect(service.shortTitleFor(day), '부활');
+  });
+
   test('parses saint alternatives as optional memorials', () {
     final service = CalendarService(
       engine: engine,
@@ -178,6 +196,7 @@ void main() {
             'date': '2026-08-25',
             'color': 'green',
             'title': '연중 제21주간 화요일',
+            'shortTitle': '연중',
             'displayType': 'liturgy',
             'alternatives': [
               {'name': '성 루도비코', 'color': 'white', 'displayType': 'saintFeast'},
@@ -201,6 +220,7 @@ void main() {
 
       final d = service.day(DateTime(2026, 8, 25));
       expect(d.title, '서버 제목');
+      expect(service.shortTitleFor(d), '연중');
       expect(d.celebration.displayType, LiturgicalDisplayType.liturgy);
       expect(
         d.optionalMemorials.single.displayType,

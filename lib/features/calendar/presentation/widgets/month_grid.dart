@@ -45,9 +45,11 @@ class MonthGrid extends ConsumerWidget {
       final isToday = _sameDay(date, today);
       final isSelected = selectedDate != null && _sameDay(date, selectedDate!);
       final hasEvent = ref.watch(dayHasEventProvider(date));
+      final shortTitle = inMonth ? calendar.shortTitleFor(day) : null;
       return compact
           ? CompactDayCell(
               day: day,
+              shortTitle: shortTitle,
               inCurrentMonth: inMonth,
               isToday: isToday,
               isSelected: isSelected,
@@ -56,6 +58,7 @@ class MonthGrid extends ConsumerWidget {
             )
           : DayCell(
               day: day,
+              shortTitle: shortTitle,
               inCurrentMonth: inMonth,
               isToday: isToday,
               isSelected: isSelected,

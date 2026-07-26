@@ -1,0 +1,46 @@
+import 'dart:convert';
+
+import 'package:liturgical_calendar/liturgical_calendar.dart';
+
+const Map<String, String> kDefaultLiturgicalShortTitles = {
+  'mary_mother_of_god': '천주의 성모',
+  'epiphany': '주님 공현',
+  'baptism_of_the_lord': '주님 세례',
+  'presentation_of_the_lord': '주님 봉헌',
+  'joseph': '성 요셉',
+  'annunciation': '주님 탄생 예고',
+  'palm_sunday': '성지 주일',
+  'easter': '부활절',
+  'ascension': '주님 승천',
+  'pentecost': '성령 강림',
+  'trinity': '삼위일체',
+  'corpus_christi': '성체 성혈',
+  'sacred_heart': '예수 성심',
+  'john_baptist_birth': '성 요한 탄생',
+  'peter_and_paul': '베드로와 바오로',
+  'transfiguration': '주님 변모',
+  'assumption': '성모 승천',
+  'exaltation_of_the_cross': '성 십자가',
+  'korean_martyrs': '한국 순교자',
+  'all_saints': '모든 성인',
+  'all_souls': '위령의 날',
+  'lateran_basilica': '라테라노 봉헌',
+  'christ_the_king': '그리스도왕',
+  'immaculate_conception': '원죄 없이 잉태',
+  'christmas': '성탄절',
+};
+
+Map<String, String> parseLiturgicalShortTitles(String jsonStr) {
+  final doc = jsonDecode(jsonStr) as Map<String, dynamic>;
+  final raw = doc['titles'] as Map<String, dynamic>? ?? const {};
+  return {
+    for (final entry in raw.entries)
+      if (entry.value is String && (entry.value as String).trim().isNotEmpty)
+        entry.key: (entry.value as String).trim(),
+  };
+}
+
+String? liturgicalShortTitleFromMap(
+  Map<String, String> titles,
+  LiturgicalDay day,
+) => titles[day.celebration.id];

@@ -51,6 +51,8 @@ class WidgetSnapshotService {
     final expander = RecurrenceExpander(calendar);
     final todayKey = eventDateKey(today);
     final todayDay = calendar.day(today);
+    final todayLiturgicalTitle =
+        calendar.shortTitleFor(todayDay) ?? todayDay.title;
     final todayEvents = expander.eventsOn(events, today)..sort(_compareEvents);
     final todayEvent = todayEvents.isEmpty ? null : todayEvents.first;
     final todayRegularEvent = _firstRegularEvent(todayEvents);
@@ -79,7 +81,7 @@ class WidgetSnapshotService {
         'dateKey': todayKey,
         'dateLabel':
             '${today.month}/${today.day} ${_weekdayLabel(today.weekday)}요일',
-        'liturgicalTitle': todayDay.title,
+        'liturgicalTitle': todayLiturgicalTitle,
         'liturgicalColor': _colorName(todayDay.color),
         'eventTitle': todayEvents.isEmpty ? '' : todayEvents.first.title,
         'eventDisplayText': todayEvent == null
@@ -164,6 +166,7 @@ class WidgetSnapshotService {
   }) {
     final key = eventDateKey(date);
     final day = calendar.day(date);
+    final liturgicalTitle = calendar.shortTitleFor(day) ?? day.title;
     final dayEvents = expander.eventsOn(events, date)..sort(_compareEvents);
     final firstEvent = dayEvents.isEmpty ? null : dayEvents.first;
     final regularEvent = _firstRegularEvent(dayEvents);
@@ -176,10 +179,10 @@ class WidgetSnapshotService {
       'inMonth': inMonth,
       'isToday': isToday,
       // 달력 격자 셀에 표시되는 텍스트(주요 전례일만).
-      'liturgicalTitle': notable ? day.title : '',
+      'liturgicalTitle': notable ? liturgicalTitle : '',
       // 위젯이 이 날을 '오늘'로 판정했을 때 작은 위젯에 쓰는 전체 정보.
       // (자정이 지나면 위젯은 baked된 today가 아니라 이 격자에서 오늘을 찾아 그린다.)
-      'titleFull': day.title,
+      'titleFull': liturgicalTitle,
       'dateLabel': '${date.month}/${date.day} ${_weekdayLabel(date.weekday)}요일',
       'liturgicalColor': _colorName(day.color),
       'eventTitle': dayEvents.isEmpty ? '' : dayEvents.first.title,

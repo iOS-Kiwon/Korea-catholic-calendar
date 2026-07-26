@@ -155,6 +155,39 @@ void main() {
     expect(liturgicalDots, isEmpty);
   });
 
+  testWidgets('compact month grid shows transferred solemnity short label', (
+    tester,
+  ) async {
+    final service = CalendarService(engine: LiturgicalCalendar());
+
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(
+          body: SizedBox(
+            width: 390,
+            height: 360,
+            child: MonthGrid(
+              calendar: service,
+              month: const YearMonth(2026, 5),
+              today: DateTime(2026, 5, 1),
+              selectedDate: null,
+              onSelectDay: (_) {},
+              compact: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('주님 승천'), findsOneWidget);
+    expect(service.day(DateTime(2026, 5, 17)).celebration.id, 'ascension');
+    expect(
+      service.day(DateTime(2026, 5, 14)).celebration.id,
+      isNot('ascension'),
+    );
+  });
+
   testWidgets('day detail shows the 전례력 and 일정 sections', (tester) async {
     // 2026-12-25 — Christmas.
     final day = LiturgicalCalendar().day(DateTime(2026, 12, 25));

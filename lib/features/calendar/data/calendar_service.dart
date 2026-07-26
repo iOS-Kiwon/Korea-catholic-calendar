@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:liturgical_calendar/liturgical_calendar.dart';
 
+import 'liturgical_short_titles.dart';
+
 /// A parsed authoritative day from the CBCK snapshot / gateway.
 class CbckDay {
   const CbckDay({
@@ -11,6 +13,7 @@ class CbckDay {
     this.special,
     this.url,
     this.saintInfoUrl,
+    this.shortTitle,
     this.displayType,
     this.readings = const [],
     this.alternatives = const [],
@@ -22,6 +25,7 @@ class CbckDay {
   final String? special;
   final String? url;
   final String? saintInfoUrl;
+  final String? shortTitle;
   final LiturgicalDisplayType? displayType;
   final List<String> readings;
   final List<Celebration> alternatives;
@@ -33,6 +37,7 @@ class CbckDay {
     String? special,
     String? url,
     String? saintInfoUrl,
+    String? shortTitle,
     LiturgicalDisplayType? displayType,
     List<String>? readings,
     List<Celebration>? alternatives,
@@ -44,6 +49,7 @@ class CbckDay {
       special: special ?? this.special,
       url: url ?? this.url,
       saintInfoUrl: saintInfoUrl ?? this.saintInfoUrl,
+      shortTitle: shortTitle ?? this.shortTitle,
       displayType: displayType ?? this.displayType,
       readings: readings ?? this.readings,
       alternatives: alternatives ?? this.alternatives,
@@ -52,6 +58,7 @@ class CbckDay {
 
   CbckDay withFallbackDisplayFrom(CbckDay fallback) {
     return copyWith(
+      shortTitle: shortTitle ?? fallback.shortTitle,
       displayType: displayType ?? fallback.displayType,
       alternatives: [
         for (var i = 0; i < alternatives.length; i++)
@@ -89,15 +96,26 @@ String _pad2(int n) => n.toString().padLeft(2, '0');
 /// CBCK data can be merged in per month at runtime ([merge]); [hasMonth] lets
 /// callers avoid re-fetching a month that is already loaded.
 class CalendarService {
-  CalendarService({required this.engine, Map<String, CbckDay>? cbck})
-    : _cbck = {...?cbck} {
+  CalendarService({
+    required this.engine,
+    Map<String, CbckDay>? cbck,
+    Map<String, String>? shortTitles,
+  }) : _cbck = {...?cbck},
+       _shortTitles = {...kDefaultLiturgicalShortTitles, ...?shortTitles} {
     _recomputeMonths();
   }
 
   final LiturgicalCalendar engine;
   final Map<String, CbckDay> _cbck;
+  final Map<String, String> _shortTitles;
   final Set<String> _months = {}; // 'YYYY-MM' loaded
   final Map<String, DateTime?> _feastDateCache = {}; // 'id@year' -> date
+
+  String? shortTitleFor(LiturgicalDay day) {
+    final remote = _cbck[_key(day.date)]?.shortTitle?.trim();
+    if (remote != null && remote.isNotEmpty) return remote;
+    return liturgicalShortTitleFromMap(_shortTitles, day);
+  }
 
   /// 전례 축일 키([celebrationId], 예: `'easter'`)에 해당하는 [year]의 날짜.
   /// 이동 축일 매년 반복(yearlyFeast) 전개에 쓰인다. 없으면 null. 결과는 캐시한다
@@ -215,6 +233,7 @@ class CalendarService {
         special: d['special'] as String?,
         url: d['url'] as String?,
         saintInfoUrl: d['saintInfoUrl'] as String?,
+        shortTitle: d['shortTitle'] as String?,
         displayType: _displayType(d['displayType'] as String?),
         readings: (d['readings'] as List? ?? const []).cast<String>(),
         alternatives: alternatives,
