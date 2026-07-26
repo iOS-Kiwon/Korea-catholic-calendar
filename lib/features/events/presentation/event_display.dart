@@ -75,24 +75,40 @@ class RegularEventDisplayLine extends StatelessWidget {
     final effectiveStyle = style ?? theme.textTheme.bodyLarge;
     final memo = event.memo?.trim();
     final time = event.isAllDay ? '종일' : event.time!;
-    return Text.rich(
-      TextSpan(
-        style: effectiveStyle,
-        children: [
-          TextSpan(
-            text: event.categoryName,
-            style: effectiveStyle?.copyWith(
-              backgroundColor: Color(
-                event.categoryColor,
-              ).withValues(alpha: 0.24),
+    final detailText = [
+      time,
+      if (memo != null && memo.isNotEmpty) memo,
+    ].join(' ');
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxLabelWidth = constraints.hasBoundedWidth
+            ? constraints.maxWidth * 0.45
+            : double.infinity;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxLabelWidth),
+              child: EventLabelHighlight(
+                label: event.categoryName,
+                color: Color(event.categoryColor),
+                style: effectiveStyle,
+                maxLines: maxLines,
+              ),
             ),
-          ),
-          TextSpan(text: ' $time'),
-          if (memo != null && memo.isNotEmpty) TextSpan(text: ' $memo'),
-        ],
-      ),
-      maxLines: maxLines,
-      overflow: TextOverflow.ellipsis,
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                detailText,
+                maxLines: maxLines,
+                overflow: TextOverflow.ellipsis,
+                style: effectiveStyle,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

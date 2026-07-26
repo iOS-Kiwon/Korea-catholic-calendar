@@ -355,7 +355,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('일정'), findsOneWidget);
-    expect(find.text('성경 공부 19:30'), findsOneWidget);
+    expect(find.text('성경 공부'), findsOneWidget);
+    expect(find.text('19:30'), findsOneWidget);
   });
 
   testWidgets('bottom info bar summarizes event time category and memo', (
@@ -388,7 +389,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final summary = tester.widget<Text>(find.text('성경 공부 19:30 루카복음 긴 메모'));
+    expect(find.text('성경 공부'), findsOneWidget);
+    final summary = tester.widget<Text>(find.text('19:30 루카복음 긴 메모'));
     expect(summary.maxLines, 1);
     expect(summary.overflow, TextOverflow.ellipsis);
     expect(find.text('전례'), findsOneWidget);
