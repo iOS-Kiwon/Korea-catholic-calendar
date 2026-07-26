@@ -10,13 +10,12 @@
       "alternative": 103
     },
     "byDisplayType": {
-      "liturgy": 297,
-      "review": 62,
-      "saintFeast": 109
+      "liturgy": 329,
+      "saintFeast": 139
     },
     "byMatchStatus": {
       "defaultLiturgy": 297,
-      "manualReview": 62,
+      "manualConfirmed": 62,
       "autoMatched": 109
     }
   },
@@ -43,16 +42,19 @@
       "color": "white",
       "dayTitle": "성 대 바실리오와 나지안조의 성 그레고리오 주교 학자 기념일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260102",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "grouped saint title",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
+      "manualDecision": "축일",
       "queries": [
         "그레고리오",
         "대 바실리오와 나지안조의 성 그레고리오",
         "성 그레고리오",
         "나지안조의 성 그레고리오"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "user confirmed grouped saint title as saint feast"
     },
     {
       "date": "2026-01-03",
@@ -76,16 +78,19 @@
       "color": "white",
       "dayTitle": "주님 공현 대축일 전 토요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260103/16535",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "지극히 거룩하신 예수 성명",
         "성명",
         "예수 성명",
         "거룩하신 예수 성명"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-01-04",
@@ -353,9 +358,9 @@
       "color": "white",
       "dayTitle": "성 안토니오 아빠스 기념일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260117",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "multiple same-date saint matches",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "안토니오"
       ],
@@ -380,7 +385,10 @@
           "kind": "성인",
           "url": "https://m.mariasarang.net/saint/bbs_view.asp?index=bbs_saint&no=1629"
         }
-      ]
+      ],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "multiple same-date saint matches"
     },
     {
       "date": "2026-01-18",
@@ -557,9 +565,9 @@
       "color": "red",
       "dayTitle": "연중 제2주간 목요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260122",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "multiple same-date saint matches",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "빈첸시오"
       ],
@@ -584,7 +592,10 @@
           "kind": "성인",
           "url": "https://m.mariasarang.net/saint/bbs_view.asp?index=bbs_saint&no=3217"
         }
-      ]
+      ],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "multiple same-date saint matches"
     },
     {
       "date": "2026-01-23",
@@ -660,15 +671,18 @@
       "color": "white",
       "dayTitle": "성 티모테오와 성 티토 주교 기념일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260126",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "grouped saint title",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "티토",
         "티모테오와 성 티토",
         "성 티토"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "grouped saint title"
     },
     {
       "date": "2026-01-27",
@@ -1001,16 +1015,19 @@
       "color": "red",
       "dayTitle": "성 바오로 미키와 동료 순교자들 기념일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260206",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "바오로 미키와 동료 순교자들",
         "순교자들",
         "동료 순교자들",
         "미키와 동료 순교자들"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-02-07",
@@ -1034,13 +1051,16 @@
       "color": "white",
       "dayTitle": "연중 제4주간 토요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260207",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "마리아"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-02-08",
@@ -1129,16 +1149,19 @@
       "color": "white",
       "dayTitle": "연중 제5주간 수요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260211",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "마리아",
         "루르드의 복되신 동정 마리아",
         "동정 마리아",
         "복되신 동정 마리아"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-02-12",
@@ -1176,16 +1199,19 @@
       "color": "white",
       "dayTitle": "성 치릴로 수도자와 성 메토디오 주교 기념일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260214",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "grouped saint title",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "메토디오",
         "치릴로 수도자와 성 메토디오",
         "성 메토디오",
         "수도자와 성 메토디오"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "grouped saint title"
     },
     {
       "date": "2026-02-15",
@@ -2788,15 +2814,18 @@
       "color": "red",
       "dayTitle": "부활 제6주간 화요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260512",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "grouped saint title",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "아킬레오",
         "네레오와 성 아킬레오",
         "성 아킬레오"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "grouped saint title"
     },
     {
       "date": "2026-05-12",
@@ -2857,16 +2886,19 @@
       "color": "white",
       "dayTitle": "부활 제6주간 수요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260513",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "마리아",
         "파티마의 복되신 동정 마리아",
         "동정 마리아",
         "복되신 동정 마리아"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-05-14",
@@ -3088,16 +3120,19 @@
       "color": "red",
       "dayTitle": "부활 제7주간 목요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260521",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "크리스토포로 마가야네스 사제와 동료 순교자들",
         "순교자들",
         "동료 순교자들",
         "사제와 동료 순교자들"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-05-22",
@@ -3188,16 +3223,19 @@
       "color": "white",
       "dayTitle": "교회의 어머니 복되신 동정 마리아 기념일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260525",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "마리아",
         "교회의 어머니 복되신 동정 마리아",
         "동정 마리아",
         "복되신 동정 마리아"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-05-26",
@@ -3364,13 +3402,16 @@
       "color": "white",
       "dayTitle": "연중 제8주간 토요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260530",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "마리아"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-05-31",
@@ -3445,15 +3486,18 @@
       "color": "red",
       "dayTitle": "연중 제9주간 화요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260602",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "grouped saint title",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "베드로",
         "마르첼리노와 성 베드로",
         "성 베드로"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "grouped saint title"
     },
     {
       "date": "2026-06-03",
@@ -3463,16 +3507,19 @@
       "color": "red",
       "dayTitle": "성 가롤로 르왕가와 동료 순교자들 기념일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260603",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "가롤로 르왕가와 동료 순교자들",
         "순교자들",
         "동료 순교자들",
         "르왕가와 동료 순교자들"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-06-04",
@@ -3584,13 +3631,16 @@
       "color": "white",
       "dayTitle": "연중 제9주간 토요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260606",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "마리아"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-06-07",
@@ -3744,16 +3794,19 @@
       "color": "white",
       "dayTitle": "티 없이 깨끗하신 성모 성심 기념일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260613",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "티 없이 깨끗하신 성모 성심",
         "성심",
         "성모 성심",
         "깨끗하신 성모 성심"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-06-14",
@@ -3898,13 +3951,16 @@
       "color": "white",
       "dayTitle": "연중 제11주간 토요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260620",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "마리아"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-06-21",
@@ -3981,16 +4037,19 @@
       "color": "red",
       "dayTitle": "연중 제12주간 월요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260622",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "grouped saint title",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "토마스 모어",
         "모어",
         "요한 피셔 주교와 성 토마스 모어",
         "성 토마스 모어"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "grouped saint title"
     },
     {
       "date": "2026-06-23",
@@ -4109,13 +4168,16 @@
       "color": "white",
       "dayTitle": "연중 제12주간 토요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260627",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "마리아"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-06-28",
@@ -4167,16 +4229,19 @@
       "color": "red",
       "dayTitle": "연중 제13주간 화요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260630",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "로마 교회의 초기 순교자들",
         "순교자들",
         "초기 순교자들",
         "교회의 초기 순교자들"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-07-01",
@@ -4304,13 +4369,16 @@
       "color": "white",
       "dayTitle": "연중 제13주간 토요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260704",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "마리아"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-07-05",
@@ -4428,16 +4496,19 @@
       "color": "red",
       "dayTitle": "연중 제14주간 목요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260709",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "아우구스티노 자오룽 사제와 동료 순교자들",
         "순교자들",
         "동료 순교자들",
         "사제와 동료 순교자들"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-07-10",
@@ -4667,16 +4738,19 @@
       "color": "white",
       "dayTitle": "연중 제15주간 목요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260716",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "마리아",
         "카르멜산의 복되신 동정 마리아",
         "동정 마리아",
         "복되신 동정 마리아"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-07-17",
@@ -4714,13 +4788,16 @@
       "color": "white",
       "dayTitle": "연중 제15주간 토요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260718",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "마리아"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-07-19",
@@ -5068,16 +5145,19 @@
       "color": "white",
       "dayTitle": "성녀 마르타와 성녀 마리아와 성 라자로 기념일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260729",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "grouped saint title",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "라자로",
         "마르타와 성녀 마리아와 성 라자로",
         "성 라자로",
         "마리아와 성 라자로"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "grouped saint title"
     },
     {
       "date": "2026-07-30",
@@ -5341,16 +5421,19 @@
       "color": "red",
       "dayTitle": "연중 제18주간 금요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260807",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "식스토 2세 교황과 동료 순교자들",
         "순교자들",
         "동료 순교자들",
         "교황과 동료 순교자들"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-08-07",
@@ -5590,16 +5673,19 @@
       "color": "red",
       "dayTitle": "연중 제19주간 목요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260813",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "grouped saint title",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "히폴리토",
         "폰시아노 교황과 성 히폴리토",
         "성 히폴리토",
         "교황과 성 히폴리토"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "grouped saint title"
     },
     {
       "date": "2026-08-14",
@@ -5831,15 +5917,18 @@
       "color": "white",
       "dayTitle": "복되신 동정 마리아 모후 기념일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260822",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "동정 마리아 모후",
         "모후",
         "마리아 모후"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-08-23",
@@ -6078,15 +6167,18 @@
       "color": "red",
       "dayTitle": "성 요한 세례자의 수난 기념일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260829",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "요한 세례자의 수난",
         "수난",
         "세례자의 수난"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-08-30",
@@ -6152,14 +6244,17 @@
       "color": "white",
       "dayTitle": "성 대 그레고리오 교황 학자 기념일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260903",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "대 그레고리오",
         "그레고리오"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-09-04",
@@ -6236,13 +6331,16 @@
       "color": "white",
       "dayTitle": "연중 제22주간 토요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260905",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "마리아"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-09-06",
@@ -6280,15 +6378,18 @@
       "color": "white",
       "dayTitle": "복되신 동정 마리아 탄생 축일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260908",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "동정 마리아 탄생",
         "탄생",
         "마리아 탄생"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-09-09",
@@ -6392,16 +6493,19 @@
       "color": "white",
       "dayTitle": "연중 제23주간 토요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260912",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "지극히 거룩하신 마리아 성명",
         "성명",
         "마리아 성명",
         "거룩하신 마리아 성명"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-09-13",
@@ -6439,15 +6543,18 @@
       "color": "white",
       "dayTitle": "고통의 성모 마리아 기념일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260915",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "고통의 성모 마리아",
         "마리아",
         "성모 마리아"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-09-16",
@@ -6457,16 +6564,19 @@
       "color": "red",
       "dayTitle": "성 고르넬리오 교황과 성 치프리아노 주교 순교자 기념일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260916",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "grouped saint title",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "치프리아노",
         "고르넬리오 교황과 성 치프리아노",
         "성 치프리아노",
         "교황과 성 치프리아노"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "grouped saint title"
     },
     {
       "date": "2026-09-17",
@@ -6632,13 +6742,16 @@
       "color": "white",
       "dayTitle": "연중 제24주간 토요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260919",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "마리아"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-09-20",
@@ -6794,15 +6907,18 @@
       "color": "red",
       "dayTitle": "연중 제25주간 토요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260926",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "grouped saint title",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "다미아노",
         "고스마와 성 다미아노",
         "성 다미아노"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "grouped saint title"
     },
     {
       "date": "2026-09-26",
@@ -6812,13 +6928,16 @@
       "color": "white",
       "dayTitle": "연중 제25주간 토요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260926",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "마리아"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-09-27",
@@ -6893,16 +7012,19 @@
       "color": "red",
       "dayTitle": "연중 제26주간 월요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260928",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "라우렌시오 루이스와 동료 순교자들",
         "순교자들",
         "동료 순교자들",
         "루이스와 동료 순교자들"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-09-29",
@@ -6912,16 +7034,19 @@
       "color": "white",
       "dayTitle": "성 미카엘, 성 가브리엘, 성 라파엘 대천사 축일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20260929",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "grouped saint title",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "라파엘 대천사",
         "대천사",
         "미카엘, 성 가브리엘, 성 라파엘 대천사",
         "성 라파엘 대천사"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "grouped saint title"
     },
     {
       "date": "2026-09-30",
@@ -7008,13 +7133,16 @@
       "color": "white",
       "dayTitle": "수호천사 기념일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20261002",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "수호천사"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-10-03",
@@ -7038,13 +7166,16 @@
       "color": "white",
       "dayTitle": "연중 제26주간 토요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20261003",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "마리아"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-10-04",
@@ -7171,16 +7302,19 @@
       "color": "white",
       "dayTitle": "묵주 기도의 복되신 동정 마리아 기념일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20261007",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "마리아",
         "묵주 기도의 복되신 동정 마리아",
         "동정 마리아",
         "복되신 동정 마리아"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-10-08",
@@ -7218,16 +7352,19 @@
       "color": "red",
       "dayTitle": "연중 제27주간 금요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20261009",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "디오니시오 주교와 동료 순교자들",
         "순교자들",
         "동료 순교자들",
         "주교와 동료 순교자들"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-10-09",
@@ -7289,13 +7426,16 @@
       "color": "white",
       "dayTitle": "연중 제27주간 토요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20261010",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "마리아"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-10-11",
@@ -7595,9 +7735,9 @@
       "color": "red",
       "dayTitle": "연중 제29주간 월요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20261019",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "grouped saint title",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "이사악 조그 사제와 동료 순교자들",
         "순교자들",
@@ -7605,7 +7745,10 @@
         "사제와 동료 순교자들",
         "요한 드 브레뵈프 사제, 성 이사악 조그 사제와 동료 순교자들"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "grouped saint title"
     },
     {
       "date": "2026-10-19",
@@ -7749,9 +7892,9 @@
       "color": "white",
       "dayTitle": "연중 제29주간 금요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20261023",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "multiple same-date saint matches",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "요한",
         "카페스트라노의 성 요한",
@@ -7778,7 +7921,10 @@
           "kind": "성인",
           "url": "https://m.mariasarang.net/saint/bbs_view.asp?index=bbs_saint&no=5247"
         }
-      ]
+      ],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "multiple same-date saint matches"
     },
     {
       "date": "2026-10-24",
@@ -7841,13 +7987,16 @@
       "color": "white",
       "dayTitle": "연중 제29주간 토요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20261024",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "마리아"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-10-25",
@@ -7899,15 +8048,18 @@
       "color": "red",
       "dayTitle": "성 시몬과 성 유다(타대오) 사도 축일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20261028",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "grouped saint title",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "유다",
         "시몬과 성 유다",
         "성 유다"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "grouped saint title"
     },
     {
       "date": "2026-10-29",
@@ -7959,13 +8111,16 @@
       "color": "white",
       "dayTitle": "연중 제30주간 토요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20261031",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "마리아"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-11-01",
@@ -8136,13 +8291,16 @@
       "color": "white",
       "dayTitle": "연중 제31주간 토요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20261107",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "마리아"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-11-08",
@@ -8322,13 +8480,16 @@
       "color": "white",
       "dayTitle": "연중 제32주간 토요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20261114",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "마리아"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-11-15",
@@ -8537,15 +8698,18 @@
       "color": "white",
       "dayTitle": "복되신 동정 마리아의 자헌 기념일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20261121",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "동정 마리아의 자헌",
         "자헌",
         "마리아의 자헌"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-11-22",
@@ -8658,16 +8822,19 @@
       "color": "red",
       "dayTitle": "성 안드레아 둥락 사제와 동료 순교자들 기념일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20261124",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "안드레아 둥락 사제와 동료 순교자들",
         "순교자들",
         "동료 순교자들",
         "사제와 동료 순교자들"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-11-25",
@@ -8772,13 +8939,16 @@
       "color": "white",
       "dayTitle": "연중 제34주간 토요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20261128",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "마리아"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-11-29",
@@ -8802,9 +8972,9 @@
       "color": "red",
       "dayTitle": "성 안드레아 사도 축일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20261130",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "multiple same-date saint matches",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "안드레아"
       ],
@@ -8829,7 +8999,10 @@
           "kind": "복자",
           "url": "https://m.mariasarang.net/saint/bbs_view.asp?index=bbs_saint&no=1584"
         }
-      ]
+      ],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "multiple same-date saint matches"
     },
     {
       "date": "2026-12-01",
@@ -9051,15 +9224,18 @@
       "color": "white",
       "dayTitle": "대림 제2주간 수요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20261209",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "요한 디다코 쿠아우틀라토아친",
         "쿠아우틀라토아친",
         "디다코 쿠아우틀라토아친"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-12-10",
@@ -9083,16 +9259,19 @@
       "color": "white",
       "dayTitle": "대림 제2주간 목요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20261210",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "마리아",
         "로레토의 복되신 동정 마리아",
         "동정 마리아",
         "복되신 동정 마리아"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-12-11",
@@ -9168,16 +9347,19 @@
       "color": "white",
       "dayTitle": "대림 제2주간 토요일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20261212",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "grouped saint title",
+      "displayType": "liturgy",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as liturgy",
       "queries": [
         "마리아",
         "과달루페의 복되신 동정 마리아",
         "동정 마리아",
         "복되신 동정 마리아"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "전례",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "grouped saint title"
     },
     {
       "date": "2026-12-13",
@@ -9445,16 +9627,19 @@
       "color": "red",
       "dayTitle": "죄 없는 아기 순교자들 축일",
       "dayUrl": "https://missa.cbck.or.kr/DailyMissa/20261228",
-      "displayType": "review",
-      "matchStatus": "manualReview",
-      "reason": "no same-date saint match",
+      "displayType": "saintFeast",
+      "matchStatus": "manualConfirmed",
+      "reason": "user confirmed as saint feast",
       "queries": [
         "죄 없는 아기 순교자들",
         "순교자들",
         "아기 순교자들",
         "없는 아기 순교자들"
       ],
-      "candidates": []
+      "candidates": [],
+      "manualDecision": "축일",
+      "manualNote": "사용자 수동 확정",
+      "reviewReason": "no same-date saint match"
     },
     {
       "date": "2026-12-29",
