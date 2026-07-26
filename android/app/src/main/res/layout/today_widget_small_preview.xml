@@ -40,17 +40,42 @@
         android:textColor="#5D576B"
         android:textSize="15sp" />
 
-    <TextView
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="4dp"
-        android:ellipsize="end"
-        android:fontFamily="sans-serif"
-        android:includeFontPadding="false"
-        android:maxLines="1"
-        android:text="본당 행사 * 바자회"
-        android:textColor="#625B71"
-        android:textSize="13sp" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/today_widget_event_label_background"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:paddingStart="4dp"
+            android:paddingTop="1dp"
+            android:paddingEnd="4dp"
+            android:paddingBottom="1dp"
+            android:text="본당 행사"
+            android:textColor="#1D1B20"
+            android:textSize="14sp" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:text="바자회"
+            android:textColor="#1D1B20"
+            android:textSize="14sp" />
+    </LinearLayout>
 
     <TextView
         android:layout_width="match_parent"

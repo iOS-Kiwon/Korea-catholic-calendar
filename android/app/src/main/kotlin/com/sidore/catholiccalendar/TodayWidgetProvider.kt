@@ -7,7 +7,12 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.Typeface
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.View
@@ -18,6 +23,8 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import kotlin.math.ceil
+import kotlin.math.min
 
 open class TodayWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(
@@ -192,12 +199,18 @@ open class TodayWidgetProvider : AppWidgetProvider() {
             val liturgyTitle: String
             val liturgyColor: String
             val regularEventDisplayText: String
+            val regularEventCategoryName: String
+            val regularEventMemo: String
+            val regularEventColor: Int
             val saintFeastDisplayText: String
             if (dayCell != null) {
                 dateLabel = dayCell.optString("dateLabel").ifBlank { fallbackDateLabel() }
                 liturgyTitle = dayCell.optString("titleFull").ifBlank { "오늘의 전례" }
                 liturgyColor = dayCell.optString("liturgicalColor")
                 regularEventDisplayText = dayCell.optString("regularEventDisplayText")
+                regularEventCategoryName = regularEventCategoryLabel(dayCell, regularEventDisplayText)
+                regularEventMemo = regularEventMemoText(dayCell, regularEventDisplayText, regularEventCategoryName)
+                regularEventColor = regularEventLabelColor(dayCell)
                 saintFeastDisplayText = dayCell.optString("saintFeastDisplayText")
                 return buildSmallViewsWithText(
                     context,
@@ -206,6 +219,9 @@ open class TodayWidgetProvider : AppWidgetProvider() {
                     liturgyTitle,
                     liturgyColor,
                     regularEventDisplayText,
+                    regularEventCategoryName,
+                    regularEventMemo,
+                    regularEventColor,
                     saintFeastDisplayText
                 )
             } else {
@@ -214,6 +230,9 @@ open class TodayWidgetProvider : AppWidgetProvider() {
                 liturgyTitle = today.optString("liturgicalTitle", "오늘의 전례")
                 liturgyColor = today.optString("liturgicalColor")
                 regularEventDisplayText = today.optString("regularEventDisplayText")
+                regularEventCategoryName = regularEventCategoryLabel(today, regularEventDisplayText)
+                regularEventMemo = regularEventMemoText(today, regularEventDisplayText, regularEventCategoryName)
+                regularEventColor = regularEventLabelColor(today)
                 saintFeastDisplayText = today.optString("saintFeastDisplayText")
                 return buildSmallViewsWithText(
                     context,
@@ -222,6 +241,9 @@ open class TodayWidgetProvider : AppWidgetProvider() {
                     liturgyTitle,
                     liturgyColor,
                     regularEventDisplayText,
+                    regularEventCategoryName,
+                    regularEventMemo,
+                    regularEventColor,
                     saintFeastDisplayText
                 )
             }
@@ -234,6 +256,9 @@ open class TodayWidgetProvider : AppWidgetProvider() {
             liturgyTitle: String,
             liturgyColor: String,
             regularEventDisplayText: String,
+            regularEventCategoryName: String,
+            regularEventMemo: String,
+            regularEventColor: Int,
             saintFeastDisplayText: String
         ): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.today_widget_small)
@@ -248,12 +273,21 @@ open class TodayWidgetProvider : AppWidgetProvider() {
                 R.id.today_widget_liturgy,
                 liturgicalColor(liturgyColor)
             )
-            val regularText = regularEventDisplayText
+            val regularText = regularEventCategoryName.ifBlank { regularEventDisplayText }
             if (regularText.isBlank() || mode == WidgetMode.Tiny) {
                 views.setViewVisibility(R.id.today_widget_event, View.GONE)
             } else {
                 views.setViewVisibility(R.id.today_widget_event, View.VISIBLE)
-                views.setTextViewText(R.id.today_widget_event, regularText)
+                views.setImageViewBitmap(
+                    R.id.today_widget_event_category,
+                    categoryLabelBitmap(
+                        context,
+                        regularText,
+                        regularEventColor,
+                        eventTextSizeSp(mode)
+                    )
+                )
+                views.setTextViewText(R.id.today_widget_event_memo, regularEventMemo)
             }
             if (saintFeastDisplayText.isBlank() || mode == WidgetMode.Tiny) {
                 views.setViewVisibility(R.id.today_widget_feast, View.GONE)
@@ -280,7 +314,7 @@ open class TodayWidgetProvider : AppWidgetProvider() {
                 WidgetMode.WideShort -> {
                     views.setTextViewTextSize(R.id.today_widget_date, TypedValue.COMPLEX_UNIT_SP, 19f)
                     views.setTextViewTextSize(R.id.today_widget_liturgy, TypedValue.COMPLEX_UNIT_SP, 13f)
-                    views.setTextViewTextSize(R.id.today_widget_event, TypedValue.COMPLEX_UNIT_SP, 12f)
+                    views.setTextViewTextSize(R.id.today_widget_event_memo, TypedValue.COMPLEX_UNIT_SP, 13f)
                     views.setViewPadding(
                         R.id.today_widget_root,
                         dp(context, 6),
@@ -292,8 +326,8 @@ open class TodayWidgetProvider : AppWidgetProvider() {
                 WidgetMode.Compact -> {
                     views.setTextViewTextSize(R.id.today_widget_date, TypedValue.COMPLEX_UNIT_SP, 24f)
                     views.setTextViewTextSize(R.id.today_widget_liturgy, TypedValue.COMPLEX_UNIT_SP, 15f)
-                    views.setTextViewTextSize(R.id.today_widget_event, TypedValue.COMPLEX_UNIT_SP, 13f)
-                    views.setTextViewTextSize(R.id.today_widget_feast, TypedValue.COMPLEX_UNIT_SP, 13f)
+                    views.setTextViewTextSize(R.id.today_widget_event_memo, TypedValue.COMPLEX_UNIT_SP, 14f)
+                    views.setTextViewTextSize(R.id.today_widget_feast, TypedValue.COMPLEX_UNIT_SP, 14f)
                     views.setViewPadding(
                         R.id.today_widget_root,
                         dp(context, 6),
@@ -539,6 +573,93 @@ open class TodayWidgetProvider : AppWidgetProvider() {
 
         private fun dateLabelForMode(dateLabel: String, mode: WidgetMode): String =
             if (mode == WidgetMode.Tiny) dateLabel.substringBefore(' ') else dateLabel
+
+        private fun regularEventCategoryLabel(source: JSONObject, displayText: String): String {
+            val category = source.optString("regularEventCategoryName")
+            if (category.isNotBlank()) return category
+            return displayText.substringBefore(" * ").ifBlank {
+                displayText.substringBefore(' ')
+            }
+        }
+
+        private fun regularEventMemoText(
+            source: JSONObject,
+            displayText: String,
+            category: String
+        ): String {
+            val memo = source.optString("regularEventMemo")
+            if (memo.isNotBlank()) return memo
+            if (displayText.contains(" * ")) return displayText.substringAfter(" * ")
+            return displayText.removePrefix(category).trim()
+        }
+
+        private fun regularEventLabelColor(source: JSONObject): Int =
+            source.optInt(
+                "regularEventColor",
+                source.optInt("eventColor", Color.rgb(46, 125, 50))
+            )
+
+        private fun eventTextSizeSp(mode: WidgetMode): Float =
+            when (mode) {
+                WidgetMode.Compact -> 14f
+                WidgetMode.WideShort -> 13f
+                else -> 12f
+            }
+
+        private fun categoryLabelBitmap(
+            context: Context,
+            text: String,
+            color: Int,
+            textSizeSp: Float
+        ): Bitmap {
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                this.color = Color.rgb(29, 27, 32)
+                textSize = TypedValue.applyDimension(
+                    TypedValue.COMPLEX_UNIT_SP,
+                    textSizeSp,
+                    context.resources.displayMetrics
+                )
+                typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
+            }
+            val horizontalPadding = dp(context, 4)
+            val verticalPadding = dp(context, 1)
+            val maxWidth = dp(context, 96)
+            val maxTextWidth = maxWidth - horizontalPadding * 2
+            val label = ellipsize(text, paint, maxTextWidth.toFloat())
+            val fontMetrics = paint.fontMetrics
+            val width = min(
+                maxWidth,
+                ceil(paint.measureText(label) + horizontalPadding * 2).toInt()
+            ).coerceAtLeast(1)
+            val height = ceil(
+                (fontMetrics.descent - fontMetrics.ascent) + verticalPadding * 2
+            ).toInt().coerceAtLeast(1)
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            val background = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                this.color = Color.argb(
+                    (255 * 0.24f).toInt(),
+                    Color.red(color),
+                    Color.green(color),
+                    Color.blue(color)
+                )
+            }
+            val rect = RectF(0f, 0f, width.toFloat(), height.toFloat())
+            canvas.drawRoundRect(rect, dp(context, 3).toFloat(), dp(context, 3).toFloat(), background)
+            val baseline = verticalPadding - fontMetrics.ascent
+            canvas.drawText(label, horizontalPadding.toFloat(), baseline, paint)
+            return bitmap
+        }
+
+        private fun ellipsize(text: String, paint: Paint, maxWidth: Float): String {
+            if (paint.measureText(text) <= maxWidth) return text
+            val ellipsis = "…"
+            var result = text
+            while (result.isNotEmpty() && paint.measureText(result + ellipsis) > maxWidth) {
+                result = result.dropLast(1)
+            }
+            return result + ellipsis
+        }
 
         private fun dp(context: Context, value: Int): Int =
             (value * context.resources.displayMetrics.density).toInt()

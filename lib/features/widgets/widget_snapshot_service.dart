@@ -88,6 +88,11 @@ class WidgetSnapshotService {
         'regularEventDisplayText': todayRegularEvent == null
             ? ''
             : _regularEventDisplayText(todayRegularEvent),
+        'regularEventCategoryName': todayRegularEvent?.categoryName ?? '',
+        'regularEventMemo': todayRegularEvent == null
+            ? ''
+            : _eventMemo(todayRegularEvent),
+        'regularEventColor': todayRegularEvent?.categoryColor,
         'saintFeastDisplayText': todaySaintFeast == null
             ? ''
             : _saintFeastDisplayText(todaySaintFeast),
@@ -184,6 +189,9 @@ class WidgetSnapshotService {
       'regularEventDisplayText': regularEvent == null
           ? ''
           : _regularEventDisplayText(regularEvent),
+      'regularEventCategoryName': regularEvent?.categoryName ?? '',
+      'regularEventMemo': regularEvent == null ? '' : _eventMemo(regularEvent),
+      'regularEventColor': regularEvent?.categoryColor,
       'saintFeastDisplayText': saintFeast == null
           ? ''
           : _saintFeastDisplayText(saintFeast),
@@ -257,16 +265,15 @@ CalendarEvent? _firstSaintFeast(List<CalendarEvent> events) {
 }
 
 String _regularEventDisplayText(CalendarEvent event) {
-  final memo = event.memo?.trim();
-  if (memo != null && memo.isNotEmpty) {
-    return '${event.categoryName} * $memo';
-  }
-  return event.categoryName;
+  final memo = _eventMemo(event);
+  return [event.categoryName, if (memo.isNotEmpty) memo].join(' ');
 }
 
 String _saintFeastDisplayText(CalendarEvent event) {
   return event.saintFeastDisplayText;
 }
+
+String _eventMemo(CalendarEvent event) => event.memo?.trim() ?? '';
 
 List<Map<String, dynamic>> _eventItems(List<CalendarEvent> events) => [
   for (final event in events.take(3))

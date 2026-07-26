@@ -35,17 +35,33 @@
         android:textColor="#2E7D32"
         android:textSize="14sp" />
 
-    <TextView
+    <LinearLayout
         android:id="@+id/today_widget_event"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="4dp"
-        android:ellipsize="end"
-        android:fontFamily="sans-serif"
-        android:includeFontPadding="false"
-        android:maxLines="1"
-        android:textColor="#625B71"
-        android:textSize="13sp" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:id="@+id/today_widget_event_category"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:adjustViewBounds="true" />
+
+        <TextView
+            android:id="@+id/today_widget_event_memo"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:textColor="#1D1B20"
+            android:textSize="13sp" />
+    </LinearLayout>
 
     <TextView
         android:id="@+id/today_widget_feast"
