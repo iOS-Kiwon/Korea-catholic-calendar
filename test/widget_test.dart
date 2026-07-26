@@ -9,6 +9,7 @@ import 'package:catholic_calendar/features/calendar/presentation/pages/calendar_
 import 'package:catholic_calendar/features/calendar/presentation/pages/day_detail_page.dart';
 import 'package:catholic_calendar/features/calendar/presentation/widgets/day_detail_view.dart';
 import 'package:catholic_calendar/features/calendar/presentation/widgets/day_info_bar.dart';
+import 'package:catholic_calendar/features/calendar/presentation/widgets/month_grid.dart';
 import 'package:catholic_calendar/features/events/analytics/category_log_service.dart';
 import 'package:catholic_calendar/features/events/application/event_providers.dart';
 import 'package:catholic_calendar/features/events/application/recurrence_expander.dart';
@@ -117,6 +118,41 @@ void main() {
     expect(find.text('2026년 7월'), findsOneWidget); // colored header
     // Sundays are "notable" and show their name in the wide grid.
     expect(find.text('연중 제15주일'), findsWidgets); // 2026-07-12
+  });
+
+  testWidgets('compact month grid hides liturgical color dots', (tester) async {
+    final service = CalendarService(engine: LiturgicalCalendar());
+
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(
+          body: SizedBox(
+            width: 390,
+            height: 360,
+            child: MonthGrid(
+              calendar: service,
+              month: const YearMonth(2026, 7),
+              today: DateTime(2026, 7, 1),
+              selectedDate: null,
+              onSelectDay: (_) {},
+              compact: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final liturgicalDots = tester
+        .widgetList<Container>(find.byType(Container))
+        .where(
+          (widget) =>
+              widget.constraints?.minWidth == 6 &&
+              widget.constraints?.maxWidth == 6 &&
+              widget.constraints?.minHeight == 6 &&
+              widget.constraints?.maxHeight == 6,
+        );
+    expect(liturgicalDots, isEmpty);
   });
 
   testWidgets('day detail shows the 전례력 and 일정 sections', (tester) async {

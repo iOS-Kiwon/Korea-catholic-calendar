@@ -9,7 +9,7 @@ import '../../data/calendar_service.dart';
 import 'day_cell.dart';
 
 /// A monthly grid. Weeks start on Sunday; adjacent-month days are shown muted.
-/// [compact] switches between the phone (dot) cells and the wide (named) cells.
+/// [compact] switches between the phone cells and the wide (named) cells.
 class MonthGrid extends ConsumerWidget {
   const MonthGrid({
     super.key,

@@ -163,7 +163,7 @@ class DayCell extends StatelessWidget {
   }
 }
 
-/// Compact (phone) day cell: date circle + a small liturgical-color dot below.
+/// Compact (phone) day cell: date circle + optional personal-event marker.
 class CompactDayCell extends StatelessWidget {
   const CompactDayCell({
     super.key,
@@ -184,9 +184,6 @@ class CompactDayCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final notable = inCurrentMonth && isNotableDay(day);
-    final accent = context.liturgical.of(day.color);
-
     return InkWell(
       onTap: onTap,
       customBorder: const CircleBorder(),
@@ -206,15 +203,6 @@ class CompactDayCell extends StatelessWidget {
               if (hasEvent)
                 const Positioned(right: 0, top: 0, child: EventDot()),
             ],
-          ),
-          const SizedBox(height: 3),
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: notable ? accent : Colors.transparent,
-            ),
           ),
         ],
       ),
