@@ -623,7 +623,18 @@ async function handleSaints(req, res, url) {
   const q = String(url.searchParams.get('q') || '').trim();
   const month = Number(url.searchParams.get('month') || 0);
   const day = Number(url.searchParams.get('day') || 0);
-  const limit = Math.min(50, Math.max(1, Number(url.searchParams.get('limit') || 30)));
+  const boundedInt = (value, fallback, min, max) => {
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed)) return fallback;
+    return Math.min(max, Math.max(min, parsed));
+  };
+  const limit = boundedInt(url.searchParams.get('limit') || 30, 30, 1, 50);
+  const offset = boundedInt(
+    url.searchParams.get('offset') || 0,
+    0,
+    0,
+    Number.MAX_SAFE_INTEGER,
+  );
   const where = [];
   const args = [];
   if (q) {
@@ -640,6 +651,8 @@ async function handleSaints(req, res, url) {
   }
   args.push(limit);
   const limitIndex = args.length;
+  args.push(offset);
+  const offsetIndex = args.length;
 
   const result = await db.query(
     `
@@ -649,11 +662,24 @@ async function handleSaints(req, res, url) {
       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
       ORDER BY feast_month NULLS LAST, feast_day NULLS LAST, name_ko
       LIMIT $${limitIndex}
+      OFFSET $${offsetIndex}
     `,
     args,
   );
+  const countArgs = args.slice(0, args.length - 2);
+  const countResult = await db.query(
+    `SELECT count(*)::int AS total FROM saints ${where.length ? `WHERE ${where.join(' AND ')}` : ''}`,
+    countArgs,
+  );
+  const total = countResult.rows[0]?.total || 0;
+  const nextOffset = offset + result.rows.length;
 
   sendJson(res, 200, {
+    total,
+    limit,
+    offset,
+    hasMore: nextOffset < total,
+    nextOffset,
     items: result.rows.map((r) => ({
       id: Number(r.source_saint_id),
       nameKo: r.name_ko,
