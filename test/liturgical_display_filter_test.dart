@@ -1,5 +1,4 @@
 import 'package:catholic_calendar/features/calendar/application/liturgical_display_filter.dart';
-import 'package:catholic_calendar/features/events/application/event_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liturgical_calendar/liturgical_calendar.dart';
