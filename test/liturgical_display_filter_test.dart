@@ -40,15 +40,30 @@ void main() {
     final solemnityWeekday = day(2026, 8, 15); // 성모 승천 대축일 (토)
     final saintFeast = saintFeastOf(2026, 7, 25); // 성 야고보 사도 축일 (sanctorale)
     final feria = day(2026, 7, 28); // 연중 평일
+    // 주님 변모 축일(rank feastOfTheLord, kind temporale): 엔진 기본 데이터셋에
+    // 개별 축일이 없으므로 solemnity/sanctorale이 아닌 실제 rank만 copyWith로
+    // 덧씌워 feastOfTheLord 분기를 직접 검증한다(기존 saintFeastOf 패턴과 동일).
+    final lordFeast = day(2026, 8, 6).copyWith(
+      title: '주님의 거룩한 변모 축일',
+      celebration: day(2026, 8, 6).celebration.copyWith(
+        rank: Rank.feastOfTheLord,
+        kind: CelebrationKind.temporale,
+      ),
+    );
 
     test('all = 평일 제외', () {
       expect(showsLabelFor(LiturgicalDisplayFilter.all, ordinarySunday), isTrue);
       expect(showsLabelFor(LiturgicalDisplayFilter.all, saintFeast), isTrue);
       expect(showsLabelFor(LiturgicalDisplayFilter.all, feria), isFalse);
     });
-    test('feastsOnly = 대축일 또는 성인일', () {
+    test('feastsOnly = 대축일 또는 주님 축일 또는 성인일', () {
       expect(showsLabelFor(LiturgicalDisplayFilter.feastsOnly, solemnityWeekday), isTrue);
       expect(showsLabelFor(LiturgicalDisplayFilter.feastsOnly, saintFeast), isTrue);
+      // 주님 축일(feastOfTheLord)은 solemnity도 sanctorale도 아니지만 표시되어야 함.
+      expect(lordFeast.celebration.rank, Rank.feastOfTheLord);
+      expect(lordFeast.celebration.rank, isNot(Rank.solemnity));
+      expect(lordFeast.celebration.kind, isNot(CelebrationKind.sanctorale));
+      expect(showsLabelFor(LiturgicalDisplayFilter.feastsOnly, lordFeast), isTrue);
       expect(showsLabelFor(LiturgicalDisplayFilter.feastsOnly, ordinarySunday), isFalse);
       expect(showsLabelFor(LiturgicalDisplayFilter.feastsOnly, feria), isFalse);
     });

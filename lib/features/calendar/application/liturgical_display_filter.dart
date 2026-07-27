@@ -47,8 +47,10 @@ bool showsLabelFor(LiturgicalDisplayFilter filter, LiturgicalDay day) {
     case LiturgicalDisplayFilter.all:
       return rank != Rank.feria;
     case LiturgicalDisplayFilter.feastsOnly:
-      // 대축일 + 성인일(sanctorale). 성인 판정은 kind가 모든 연도에 안정적.
+      // 대축일 + 주님 축일(feastOfTheLord) + 성인일(sanctorale).
+      // 성인 판정은 kind가 모든 연도에 안정적.
       return rank == Rank.solemnity ||
+          rank == Rank.feastOfTheLord ||
           day.celebration.kind == CelebrationKind.sanctorale;
     case LiturgicalDisplayFilter.sundaysAndSolemnities:
       return day.date.weekday == DateTime.sunday || rank == Rank.solemnity;
