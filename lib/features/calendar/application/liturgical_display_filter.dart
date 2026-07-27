@@ -84,6 +84,7 @@ class LiturgicalDisplayFilterController
 
   Future<void> _hydrate() async {
     final prefs = await ref.read(sharedPreferencesProvider.future);
+    if (!ref.mounted) return;
     final restored = LiturgicalDisplayFilter.fromStorage(
       prefs.getString(_storageKey),
     );
