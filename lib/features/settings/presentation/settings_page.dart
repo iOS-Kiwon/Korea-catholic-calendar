@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app_update/app_update_providers.dart';
+import '../../calendar/application/liturgical_display_filter.dart';
 import '../../events/application/event_providers.dart';
 import '../../events/data/personal_cloud_backup_store.dart';
 import 'backup_settings_page.dart';
+import 'liturgical_display_settings_page.dart';
 
 const String kPrivacyPolicyUrl = 'https://sidore.org/catholic-calendar-privacy';
 
@@ -63,6 +65,26 @@ class SettingsPage extends ConsumerWidget {
                   ),
                   const SizedBox(height: 16),
                 ],
+                const _SectionLabel('달력'),
+                Card(
+                  child: Consumer(
+                    builder: (context, ref, _) {
+                      final filter = ref.watch(liturgicalDisplayFilterProvider);
+                      return ListTile(
+                        leading: const Icon(Icons.event_note_outlined),
+                        title: const Text('전례일 표시'),
+                        subtitle: Text(filter.displayName),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const LiturgicalDisplaySettingsPage(),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 16),
                 const _SectionLabel('약관 및 정책'),
                 Card(
                   child: ListTile(
