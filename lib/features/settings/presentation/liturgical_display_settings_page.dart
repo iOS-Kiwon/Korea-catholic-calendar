@@ -98,9 +98,7 @@ class _PreviewCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final day = calendar.day(date);
-    final label = filter == LiturgicalDisplayFilter.none
-        ? null
-        : gridLiturgicalLabel(filter, calendar.shortTitleFor(day), day);
+    final label = gridLiturgicalLabel(filter, calendar.shortTitleFor(day), day);
     final isSunday = date.weekday == DateTime.sunday;
     return Column(
       children: [

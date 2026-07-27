@@ -104,7 +104,6 @@ class DayCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final notable = inCurrentMonth && isNotableDay(day);
-    final title = shortTitle ?? day.title;
     final accent = context.liturgical.of(day.color);
 
     return InkWell(
@@ -141,7 +140,7 @@ class DayCell extends StatelessWidget {
                           const Positioned(right: 0, top: 0, child: EventDot()),
                       ],
                     ),
-                    if (notable) ...[
+                    if (shortTitle case final title?) ...[
                       const SizedBox(height: 2),
                       Expanded(
                         child: Text(
