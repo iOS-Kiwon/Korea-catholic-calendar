@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/date/year_month.dart';
 import '../../../events/application/event_providers.dart';
+import '../../application/liturgical_display_filter.dart';
 import '../../data/calendar_service.dart';
 import 'day_cell.dart';
 
@@ -37,6 +38,7 @@ class MonthGrid extends ConsumerWidget {
     final leading = first.weekday % 7; // Sunday = 0
     final rows = (leading + month.daysInMonth + 6) ~/ 7;
     final start = DateTime(month.year, month.month, 1 - leading);
+    final filter = ref.watch(liturgicalDisplayFilterProvider);
 
     Widget cellAt(int r, int c) {
       final date = DateTime(start.year, start.month, start.day + r * 7 + c);
@@ -45,7 +47,9 @@ class MonthGrid extends ConsumerWidget {
       final isToday = _sameDay(date, today);
       final isSelected = selectedDate != null && _sameDay(date, selectedDate!);
       final hasEvent = ref.watch(dayHasEventProvider(date));
-      final shortTitle = inMonth ? calendar.shortTitleFor(day) : null;
+      final shortTitle = inMonth
+          ? gridLiturgicalLabel(filter, calendar.shortTitleFor(day), day)
+          : null;
       return compact
           ? CompactDayCell(
               day: day,

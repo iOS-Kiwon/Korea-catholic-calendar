@@ -116,8 +116,9 @@ void main() {
     await tester.pumpAndSettle(); // resolve async month service
 
     expect(find.text('2026년 7월'), findsOneWidget); // colored header
-    // Sundays are "notable" and show their name in the wide grid.
-    expect(find.text('연중 제15주일'), findsWidgets); // 2026-07-12
+    // Sundays are "notable" and show their (abbreviated) name in the wide grid.
+    // 기본 필터(주일에 대축일만)에서 주일 표기는 "주일"을 뗀 축약형으로 표시된다.
+    expect(find.text('연중 제15'), findsWidgets); // 2026-07-12
   });
 
   testWidgets('compact month grid hides liturgical color dots', (tester) async {
