@@ -232,11 +232,21 @@ class CalendarEvent {
     final reminders = remindersRaw == null
         ? const [ReminderLead.day1]
         : (remindersRaw
-                  .map((e) => ReminderLead.fromStorage(e as String?))
-                  .whereType<ReminderLead>()
-                  .toList());
-    final safeReminders =
-        reminders.isEmpty ? const [ReminderLead.day1] : reminders;
+              .map((e) => ReminderLead.fromStorage(e as String?))
+              .whereType<ReminderLead>()
+              .toList());
+    final safeReminders = reminders.isEmpty
+        ? const [ReminderLead.day1]
+        : reminders;
+    // 종일 일정(time 없음)엔 분/시간 리드가 무의미하므로 제거하고, 그 결과 비면
+    // [day1]로 되돌린다(예: 예전에 시간이 있었다가 이후 종일로 바뀐 데이터 방어).
+    final bool loadedAllDay = (json['time'] as String?) == null;
+    final normalizedReminders = loadedAllDay
+        ? safeReminders.where((r) => !r.isSubDay).toList()
+        : safeReminders;
+    final finalReminders = normalizedReminders.isEmpty
+        ? const [ReminderLead.day1]
+        : normalizedReminders;
     return CalendarEvent(
       id: json['id'] as String,
       date: json['date'] as String,
@@ -261,7 +271,7 @@ class CalendarEvent {
       saintUrl: saintUrl,
       recurrence: recurrence,
       feastId: json['feastId'] as String?,
-      reminders: safeReminders,
+      reminders: finalReminders,
     );
   }
 }

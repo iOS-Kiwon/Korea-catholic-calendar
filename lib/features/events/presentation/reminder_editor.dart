@@ -23,6 +23,15 @@ class ReminderEditor extends StatelessWidget {
       : ReminderLead.values.toList();
 
   Future<void> _pick(BuildContext context, int index) async {
+    // 다른 슬롯이 이미 고른 리드는 목록에서 빼서, 같은 순간에 알림 2개가 겹치는
+    // 것을 막는다. 현재 슬롯 자신의 값은 남겨서(체크 표시 그대로) 보여준다.
+    final usedByOthers = {
+      for (var j = 0; j < reminders.length; j++)
+        if (j != index) reminders[j],
+    };
+    final pickable = _available
+        .where((l) => !usedByOthers.contains(l))
+        .toList();
     final picked = await showModalBottomSheet<ReminderLead>(
       context: context,
       showDragHandle: true,
@@ -30,10 +39,12 @@ class ReminderEditor extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            for (final l in _available)
+            for (final l in pickable)
               ListTile(
                 title: Text(l.displayName),
-                trailing: reminders[index] == l ? const Icon(Icons.check) : null,
+                trailing: reminders[index] == l
+                    ? const Icon(Icons.check)
+                    : null,
                 onTap: () => Navigator.of(ctx).pop(l),
               ),
           ],
@@ -110,7 +121,12 @@ class ReminderEditor extends StatelessWidget {
 }
 
 /// 종일 여부에 맞게 리드 목록을 보정(종일이면 분/시간 제거). 비면 [day1].
-List<ReminderLead> sanitizeReminders(List<ReminderLead> reminders, {required bool allDay}) {
-  final filtered = allDay ? reminders.where((l) => !l.isSubDay).toList() : reminders.toList();
+List<ReminderLead> sanitizeReminders(
+  List<ReminderLead> reminders, {
+  required bool allDay,
+}) {
+  final filtered = allDay
+      ? reminders.where((l) => !l.isSubDay).toList()
+      : reminders.toList();
   return filtered.isEmpty ? const [ReminderLead.day1] : filtered;
 }

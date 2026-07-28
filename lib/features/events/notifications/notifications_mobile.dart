@@ -166,11 +166,11 @@ class _LocalNotificationService implements NotificationService {
           body: r.body,
           scheduledDate: r.when,
           notificationDetails: details,
-          // Inexact avoids requiring the Android 12+ SCHEDULE_EXACT_ALARM
-          // permission. Trade-off: under Doze/battery optimization, short
-          // sub-day leads (5분~2시간 전) may fire late. Revisit exact mode
-          // (USE_EXACT_ALARM + exactAllowWhileIdle) if precision is needed.
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          // Exact so short leads (5분~2시간 전) fire on time; USE_EXACT_ALARM/
+          // SCHEDULE_EXACT_ALARM declared in the manifest. A calendar/reminder
+          // app qualifies under Play policy, so this is auto-granted with no
+          // runtime prompt.
+          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         );
       } catch (e) {
         if (kDebugMode) debugPrint('Failed to schedule reminder: $e');
