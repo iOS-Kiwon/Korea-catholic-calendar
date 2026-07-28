@@ -6,7 +6,9 @@ import '../../ads/ads.dart';
 import '../../events/application/event_providers.dart';
 import '../../events/model/calendar_event.dart';
 import '../../events/model/recurrence.dart';
+import '../../events/model/reminder_lead.dart';
 import '../../events/presentation/backup_notice.dart';
+import '../../events/presentation/reminder_editor.dart';
 import '../model/saint.dart';
 import 'saint_search_page.dart';
 
@@ -43,6 +45,7 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
   late final TextEditingController _memo;
   late DateTime _date;
   late bool _notify;
+  late List<ReminderLead> _reminders;
   late bool _repeatYearly; // 매년 반복(ON=yearlyDate, OFF=none). 기본 ON.
   Saint? _saint;
   bool _saintError = false;
@@ -59,6 +62,10 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
     _memo = TextEditingController(text: e?.memo ?? '');
     _date = e != null ? parseEventDate(e.date) : _dateOnly(widget.date);
     _notify = e?.notify ?? true;
+    _reminders = sanitizeReminders(
+      e?.reminders ?? const [ReminderLead.day1],
+      allDay: true,
+    );
     // 신규는 기본 ON. 편집은 저장된 반복 규칙을 따른다(yearlyDate=ON, none=OFF).
     _repeatYearly =
         (e?.recurrence ?? RecurrenceType.yearlyDate) ==
@@ -187,9 +194,7 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
     });
   }
 
-  String _reminderHelpText() {
-    return '알림은 전날 오후 9:00, 당일 오전 9:00에 보냅니다. 이미 지난 시간의 알림은 예약하지 않습니다.';
-  }
+  String _reminderHelpText() => '알림 시점을 선택하세요';
 
   Future<void> _save() async {
     final saint = _saint;
@@ -219,6 +224,7 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
       recurrence: _repeatYearly
           ? RecurrenceType.yearlyDate
           : RecurrenceType.none,
+      reminders: _reminders,
     );
 
     final store = ref.read(eventStoreProvider.notifier);
@@ -346,6 +352,12 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
               value: _systemNotificationsEnabled == false ? false : _notify,
               onChanged: _toggleNotifications,
             ),
+            if (_systemNotificationsEnabled != false && _notify)
+              ReminderEditor(
+                reminders: _reminders,
+                allDay: true, // 축일은 항상 종일 -> 일/주 리드만
+                onChanged: (v) => setState(() => _reminders = v),
+              ),
           ],
         ),
       ),

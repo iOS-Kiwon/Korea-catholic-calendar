@@ -8,9 +8,11 @@ import '../application/event_providers.dart';
 import '../model/calendar_event.dart';
 import '../model/event_category.dart';
 import '../model/recurrence.dart';
+import '../model/reminder_lead.dart';
 import 'backup_notice.dart';
 import 'category_manager_page.dart';
 import 'event_display.dart';
+import 'reminder_editor.dart';
 
 const _weekdays = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -50,6 +52,7 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
   TimeOfDay? _time; // null = 종일(all-day)
   TimeOfDay? _endTime;
   late bool _notify;
+  late List<ReminderLead> _reminders;
   String? _selectedCategoryId;
   bool _categoryError = false;
   bool? _systemNotificationsEnabled;
@@ -72,6 +75,10 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
     _time = _parseTime(e?.time);
     _endTime = _parseTime(e?.endTime) ?? _defaultEndTime(_time);
     _notify = e?.notify ?? true;
+    _reminders = sanitizeReminders(
+      e?.reminders ?? const [ReminderLead.day1],
+      allDay: _time == null,
+    );
     _selectedCategoryId = e?.categoryId;
     _recurrence = e?.recurrence ?? RecurrenceType.none;
     _feastId = e?.feastId;
@@ -201,6 +208,7 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
         _time = const TimeOfDay(hour: 9, minute: 0);
         _endTime = const TimeOfDay(hour: 10, minute: 0);
       }
+      _reminders = sanitizeReminders(_reminders, allDay: value);
     });
   }
 
@@ -280,10 +288,7 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
     });
   }
 
-  String _reminderHelpText() {
-    final dayOfTime = _time == null ? '오전 9:00' : _time!.format(context);
-    return '알림은 전날 오후 9:00, 당일 $dayOfTime에 보냅니다. 이미 지난 시간의 알림은 예약하지 않습니다.';
-  }
+  String _reminderHelpText() => '알림 시점을 선택하세요';
 
   /// 현재 반복 설정을 사람이 읽는 요약으로. yearlyFeast는 그 날의 전례 축일명을 보여준다.
   String _recurrenceSummary() {
@@ -384,6 +389,7 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
       notify: _systemNotificationsEnabled == false ? false : _notify,
       recurrence: _recurrence,
       feastId: _recurrence == RecurrenceType.yearlyFeast ? _feastId : null,
+      reminders: _reminders,
     );
 
     final store = ref.read(eventStoreProvider.notifier);
@@ -538,6 +544,12 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
               value: _systemNotificationsEnabled == false ? false : _notify,
               onChanged: _toggleNotifications,
             ),
+            if (_systemNotificationsEnabled != false && _notify)
+              ReminderEditor(
+                reminders: _reminders,
+                allDay: _time == null,
+                onChanged: (v) => setState(() => _reminders = v),
+              ),
           ],
         ),
       ),
