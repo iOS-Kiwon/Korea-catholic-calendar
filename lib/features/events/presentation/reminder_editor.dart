@@ -2,6 +2,16 @@ import 'package:flutter/material.dart';
 
 import '../model/reminder_lead.dart';
 
+const _reminderLabels = ['첫 번째 알림', '두 번째 알림'];
+const _defaultReminderAddOrder = [
+  ReminderLead.day1,
+  ReminderLead.day2,
+  ReminderLead.week1,
+];
+
+String _reminderLabel(int index) =>
+    index < _reminderLabels.length ? _reminderLabels[index] : '알림 ${index + 1}';
+
 /// 알림 리드타임 목록 편집기(최대 [max]개). 종일이면 분/시간 리드는 숨긴다.
 /// 상태는 상위가 소유([reminders]) - 변경 시 [onChanged]로 새 목록 전달.
 class ReminderEditor extends StatelessWidget {
@@ -35,21 +45,30 @@ class ReminderEditor extends StatelessWidget {
     final picked = await showModalBottomSheet<ReminderLead>(
       context: context,
       showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final l in pickable)
-              ListTile(
-                title: Text(l.displayName),
-                trailing: reminders[index] == l
-                    ? const Icon(Icons.check)
-                    : null,
-                onTap: () => Navigator.of(ctx).pop(l),
-              ),
-          ],
-        ),
-      ),
+      isScrollControlled: true,
+      builder: (ctx) {
+        final height = MediaQuery.sizeOf(ctx).height;
+        return SafeArea(
+          top: false,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: height * 0.75),
+            child: ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.only(bottom: 12),
+              children: [
+                for (final l in pickable)
+                  ListTile(
+                    title: Text(l.displayName),
+                    trailing: reminders[index] == l
+                        ? const Icon(Icons.check)
+                        : null,
+                    onTap: () => Navigator.of(ctx).pop(l),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
     if (picked != null) {
       final next = [...reminders];
@@ -60,10 +79,10 @@ class ReminderEditor extends StatelessWidget {
 
   void _add() {
     final used = reminders.toSet();
-    final candidate = _available.firstWhere(
-      (l) => !used.contains(l),
-      orElse: () => _available.first,
-    );
+    final preferred = _defaultReminderAddOrder.where(_available.contains);
+    final candidate = preferred
+        .followedBy(_available)
+        .firstWhere((l) => !used.contains(l), orElse: () => _available.first);
     onChanged([...reminders, candidate]);
   }
 
@@ -81,7 +100,7 @@ class ReminderEditor extends StatelessWidget {
         for (var i = 0; i < reminders.length; i++)
           ListTile(
             contentPadding: const EdgeInsets.only(left: 40, right: 8),
-            title: Text('알림 ${i + 1}'),
+            title: Text(_reminderLabel(i)),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
