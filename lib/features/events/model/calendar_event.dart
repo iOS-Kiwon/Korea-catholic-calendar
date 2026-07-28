@@ -1,4 +1,5 @@
 import 'recurrence.dart';
+import 'reminder_lead.dart';
 
 String _pad2(int n) => n.toString().padLeft(2, '0');
 
@@ -60,6 +61,7 @@ class CalendarEvent {
     this.saintUrl,
     this.recurrence = RecurrenceType.none,
     this.feastId,
+    this.reminders = const [ReminderLead.day1],
   });
 
   /// Stable local id (millis/micros-based; no external uuid dependency).
@@ -107,6 +109,9 @@ class CalendarEvent {
   /// `yearlyFeast`일 때 매년 재계산의 기준이 되는 전례 축일 키(`celebration.id`).
   final String? feastId;
 
+  /// 알림 리드타임 목록(최대 2). notify가 켜졌을 때만 예약된다. 기본 [1일 전].
+  final List<ReminderLead> reminders;
+
   bool get isRecurring => recurrence != RecurrenceType.none;
 
   bool get isSaintFeast => type == CalendarEventType.saintFeast;
@@ -148,6 +153,7 @@ class CalendarEvent {
     String? saintUrl,
     RecurrenceType? recurrence,
     String? feastId,
+    List<ReminderLead>? reminders,
   }) {
     return CalendarEvent(
       id: id ?? this.id,
@@ -166,6 +172,7 @@ class CalendarEvent {
       saintUrl: saintUrl ?? this.saintUrl,
       recurrence: recurrence ?? this.recurrence,
       feastId: feastId ?? this.feastId,
+      reminders: reminders ?? this.reminders,
     );
   }
 
@@ -186,6 +193,7 @@ class CalendarEvent {
     if (saintUrl != null) 'saintUrl': saintUrl,
     if (recurrence != RecurrenceType.none) 'recurrence': recurrence.name,
     if (feastId != null) 'feastId': feastId,
+    'reminders': [for (final r in reminders) r.name],
   };
 
   factory CalendarEvent.fromJson(Map<String, dynamic> json) {
@@ -220,6 +228,15 @@ class CalendarEvent {
         : (type == CalendarEventType.saintFeast
               ? RecurrenceType.yearlyDate
               : RecurrenceType.none);
+    final remindersRaw = json['reminders'] as List?;
+    final reminders = remindersRaw == null
+        ? const [ReminderLead.day1]
+        : (remindersRaw
+                  .map((e) => ReminderLead.fromStorage(e as String?))
+                  .whereType<ReminderLead>()
+                  .toList());
+    final safeReminders =
+        reminders.isEmpty ? const [ReminderLead.day1] : reminders;
     return CalendarEvent(
       id: json['id'] as String,
       date: json['date'] as String,
@@ -244,6 +261,7 @@ class CalendarEvent {
       saintUrl: saintUrl,
       recurrence: recurrence,
       feastId: json['feastId'] as String?,
+      reminders: safeReminders,
     );
   }
 }
