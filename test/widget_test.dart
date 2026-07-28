@@ -20,6 +20,7 @@ import 'package:catholic_calendar/features/events/notifications/notifications.da
 import 'package:catholic_calendar/features/events/presentation/category_manager_page.dart'
     show CategoryPickerPage;
 import 'package:catholic_calendar/features/events/presentation/event_editor_sheet.dart';
+import 'package:catholic_calendar/features/events/presentation/reminder_editor.dart';
 import 'package:catholic_calendar/features/saints/presentation/saint_feast_editor_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,9 +31,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// A no-op notification service so tests never touch platform channels.
 class _FakeNotifications implements NotificationService {
-  _FakeNotifications({this.enabled = true, this.onOpenSettings});
+  _FakeNotifications({
+    this.enabled = true,
+    this.status,
+    this.requestGranted = true,
+    this.onRequestPermission,
+    this.onOpenSettings,
+  });
 
   final bool enabled;
+  final NotificationPermissionStatus? status;
+  final bool requestGranted;
+  final VoidCallback? onRequestPermission;
   final VoidCallback? onOpenSettings;
 
   @override
@@ -40,6 +50,19 @@ class _FakeNotifications implements NotificationService {
 
   @override
   Future<bool> areNotificationsEnabled() async => enabled;
+
+  @override
+  Future<NotificationPermissionStatus> notificationPermissionStatus() async =>
+      status ??
+      (enabled
+          ? NotificationPermissionStatus.authorized
+          : NotificationPermissionStatus.denied);
+
+  @override
+  Future<bool> requestNotificationPermission() async {
+    onRequestPermission?.call();
+    return requestGranted;
+  }
 
   @override
   Future<void> openNotificationSettings() async => onOpenSettings?.call();
@@ -359,6 +382,7 @@ void main() {
         Scaffold(body: DayDetailView(day: day)),
         notificationService: _FakeNotifications(
           enabled: false,
+          status: NotificationPermissionStatus.denied,
           onOpenSettings: () => openedSettings = true,
         ),
       ),
@@ -382,6 +406,38 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(openedSettings, isTrue);
+  });
+
+  testWidgets('notification toggle requests permission before settings', (
+    tester,
+  ) async {
+    var requestedPermission = false;
+    var openedSettings = false;
+    final day = LiturgicalCalendar().day(DateTime(2026, 7, 16));
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(body: DayDetailView(day: day)),
+        notificationService: _FakeNotifications(
+          enabled: false,
+          status: NotificationPermissionStatus.notDetermined,
+          requestGranted: true,
+          onRequestPermission: () => requestedPermission = true,
+          onOpenSettings: () => openedSettings = true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(TextButton, '추가'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(SwitchListTile, '알림'));
+    await tester.pumpAndSettle();
+
+    expect(requestedPermission, isTrue);
+    expect(openedSettings, isFalse);
+    expect(find.text('시스템 알림이 꺼져있어 알림을 보낼수 없습니다. 알림을 설정하시겠습니까?'), findsNothing);
+    expect(find.byType(ReminderEditor), findsOneWidget);
   });
 
   testWidgets('day detail lists stored personal events', (tester) async {

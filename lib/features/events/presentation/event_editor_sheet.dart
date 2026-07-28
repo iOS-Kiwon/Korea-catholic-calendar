@@ -10,6 +10,7 @@ import '../model/calendar_event.dart';
 import '../model/event_category.dart';
 import '../model/recurrence.dart';
 import '../model/reminder_lead.dart';
+import '../notifications/notification_service.dart';
 import 'backup_notice.dart';
 import 'category_manager_page.dart';
 import 'event_display.dart';
@@ -252,9 +253,19 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
     }
 
     final service = ref.read(notificationServiceProvider);
-    final enabled = await service.areNotificationsEnabled();
+    final status = await service.notificationPermissionStatus();
     if (!mounted) return;
-    if (!enabled) {
+    if (status == NotificationPermissionStatus.notDetermined) {
+      final granted = await service.requestNotificationPermission();
+      if (!mounted) return;
+      setState(() {
+        _systemNotificationsEnabled = granted;
+        _notify = granted;
+      });
+      return;
+    }
+
+    if (status == NotificationPermissionStatus.denied) {
       setState(() {
         _systemNotificationsEnabled = false;
         _notify = false;

@@ -14,6 +14,11 @@ class _FakeNotifications implements NotificationService {
   @override
   Future<bool> areNotificationsEnabled() async => true;
   @override
+  Future<NotificationPermissionStatus> notificationPermissionStatus() async =>
+      NotificationPermissionStatus.authorized;
+  @override
+  Future<bool> requestNotificationPermission() async => true;
+  @override
   Future<void> openNotificationSettings() async {}
   @override
   Future<void> sync(

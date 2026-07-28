@@ -14,6 +14,13 @@ class _NoopNotificationService implements NotificationService {
   Future<bool> areNotificationsEnabled() async => false;
 
   @override
+  Future<NotificationPermissionStatus> notificationPermissionStatus() async =>
+      NotificationPermissionStatus.denied;
+
+  @override
+  Future<bool> requestNotificationPermission() async => false;
+
+  @override
   Future<void> openNotificationSettings() async {}
 
   @override

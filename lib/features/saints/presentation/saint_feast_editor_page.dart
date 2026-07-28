@@ -8,6 +8,7 @@ import '../../events/application/event_providers.dart';
 import '../../events/model/calendar_event.dart';
 import '../../events/model/recurrence.dart';
 import '../../events/model/reminder_lead.dart';
+import '../../events/notifications/notification_service.dart';
 import '../../events/presentation/backup_notice.dart';
 import '../../events/presentation/reminder_editor.dart';
 import '../model/saint.dart';
@@ -158,9 +159,19 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
     }
 
     final service = ref.read(notificationServiceProvider);
-    final enabled = await service.areNotificationsEnabled();
+    final status = await service.notificationPermissionStatus();
     if (!mounted) return;
-    if (!enabled) {
+    if (status == NotificationPermissionStatus.notDetermined) {
+      final granted = await service.requestNotificationPermission();
+      if (!mounted) return;
+      setState(() {
+        _systemNotificationsEnabled = granted;
+        _notify = granted;
+      });
+      return;
+    }
+
+    if (status == NotificationPermissionStatus.denied) {
       setState(() {
         _systemNotificationsEnabled = false;
         _notify = false;

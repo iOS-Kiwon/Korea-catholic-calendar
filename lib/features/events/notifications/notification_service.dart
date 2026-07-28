@@ -1,6 +1,8 @@
 import '../application/recurrence_expander.dart';
 import '../model/calendar_event.dart';
 
+enum NotificationPermissionStatus { notDetermined, authorized, denied }
+
 /// Schedules on-device (local) reminders for personal events.
 ///
 /// "Local" means the OS itself fires the notification at the scheduled time —
@@ -13,6 +15,12 @@ abstract class NotificationService {
 
   /// Whether the app can currently display notifications.
   Future<bool> areNotificationsEnabled();
+
+  /// Detailed permission state used before turning an in-app reminder on.
+  Future<NotificationPermissionStatus> notificationPermissionStatus();
+
+  /// Requests OS notification permission and returns whether it was granted.
+  Future<bool> requestNotificationPermission();
 
   /// Opens this app's system notification/settings screen when available.
   Future<void> openNotificationSettings();

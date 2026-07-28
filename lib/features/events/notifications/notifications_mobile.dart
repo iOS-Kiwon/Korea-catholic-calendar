@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_10y.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -28,6 +29,7 @@ const _channelId = 'personal_events';
 const _channelName = '일정 알림';
 const _channelDescription = '내가 추가한 개인 일정 알림';
 const _settingsChannel = MethodChannel('com.sidore.catholiccalendar/settings');
+const _permissionRequestedKey = 'notification_permission_requested';
 
 bool get _supported => Platform.isAndroid || Platform.isIOS;
 
@@ -40,7 +42,6 @@ class _LocalNotificationService implements NotificationService {
   @override
   Future<void> init() async {
     await _ensureReady();
-    await _requestPermissions();
   }
 
   Future<void> _ensureReady() async {
@@ -71,7 +72,8 @@ class _LocalNotificationService implements NotificationService {
     _ready = true;
   }
 
-  Future<void> _requestPermissions() async {
+  Future<bool> _requestPermissions() async {
+    if (!_supported) return false;
     if (Platform.isIOS) {
       await _plugin
           .resolvePlatformSpecificImplementation<
@@ -85,6 +87,9 @@ class _LocalNotificationService implements NotificationService {
           >()
           ?.requestNotificationsPermission();
     }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_permissionRequestedKey, true);
+    return areNotificationsEnabled();
   }
 
   @override
@@ -108,6 +113,26 @@ class _LocalNotificationService implements NotificationService {
       return permissions?.isEnabled ?? false;
     }
     return false;
+  }
+
+  @override
+  Future<NotificationPermissionStatus> notificationPermissionStatus() async {
+    if (!_supported) return NotificationPermissionStatus.denied;
+    if (await areNotificationsEnabled()) {
+      return NotificationPermissionStatus.authorized;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final requested = prefs.getBool(_permissionRequestedKey) ?? false;
+    return requested
+        ? NotificationPermissionStatus.denied
+        : NotificationPermissionStatus.notDetermined;
+  }
+
+  @override
+  Future<bool> requestNotificationPermission() async {
+    if (!_supported) return false;
+    if (!_ready) await _ensureReady();
+    return _requestPermissions();
   }
 
   @override
@@ -143,7 +168,7 @@ class _LocalNotificationService implements NotificationService {
     reminders.sort((a, b) => a.when.compareTo(b.when));
     if (reminders.isEmpty) return;
 
-    await _requestPermissions();
+    await requestNotificationPermission();
     if (!await areNotificationsEnabled()) return;
 
     const details = NotificationDetails(
