@@ -23,10 +23,6 @@ const _maxScheduled = 60;
 /// 회차×2건(전날+당일)이라 이벤트 하나가 슬롯을 독점하지 않게 낮게 유지.
 const _maxOccurrencesPerEvent = 4;
 
-/// All-day reminders fire at 09:00 on the day, and 21:00 the evening before.
-const _dayOfHour = 9;
-const _dayBeforeHour = 21;
-
 const _channelId = 'personal_events';
 const _channelName = '일정 알림';
 const _channelDescription = '내가 추가한 개인 일정 알림';
@@ -179,29 +175,19 @@ class _LocalNotificationService implements NotificationService {
     }
   }
 
-  /// The future reminders for a single event: evening-before + day-of.
-  /// 반복 이벤트는 다음 [_maxOccurrencesPerEvent] 회차의 발생일 각각에 대해 예약한다.
+  /// 이벤트의 미래 알림들. 각 발생일(회차) x 선택된 리드마다 시각을 계산한다.
   Iterable<_Reminder> _remindersFor(
     CalendarEvent e,
     tz.TZDateTime now,
     RecurrenceExpander expander,
   ) {
-    final int hour;
-    final int minute;
-    if (e.isAllDay) {
-      hour = _dayOfHour;
-      minute = 0;
-    } else {
-      final parts = e.time!.split(':');
-      hour = int.tryParse(parts[0]) ?? _dayOfHour;
-      minute = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
-    }
-
     final timeLabel = e.isAllDay ? '종일' : e.time!;
     final suffix = (e.memo != null && e.memo!.trim().isNotEmpty)
         ? ' · ${e.memo!.trim()}'
         : '';
     final typeLabel = e.isSaintFeast ? '축일' : '일정';
+    final title = '$typeLabel · ${e.title}';
+    final body = '$timeLabel$suffix';
 
     // 발생일: 비반복은 앵커 1개, 반복은 오늘 이후 다음 K회차.
     final List<DateTime> occurrences = e.isRecurring
@@ -214,35 +200,18 @@ class _LocalNotificationService implements NotificationService {
 
     final reminders = <_Reminder>[];
     for (final date in occurrences) {
-      final dayOf = tz.TZDateTime(
-        tz.local,
-        date.year,
-        date.month,
-        date.day,
-        hour,
-        minute,
-      );
-      final dayBefore = tz.TZDateTime(
-        tz.local,
-        date.year,
-        date.month,
-        date.day - 1,
-        _dayBeforeHour,
-        0,
-      );
-      if (dayBefore.isAfter(now)) {
-        reminders.add(
-          _Reminder(
-            dayBefore,
-            '내일 $typeLabel · ${e.title}',
-            '$timeLabel$suffix',
-          ),
+      for (final lead in e.reminders) {
+        final when = lead.reminderTime(date, e.time);
+        if (when == null) continue; // 종일 + 분/시간 리드
+        final tzWhen = tz.TZDateTime(
+          tz.local,
+          when.year,
+          when.month,
+          when.day,
+          when.hour,
+          when.minute,
         );
-      }
-      if (dayOf.isAfter(now)) {
-        reminders.add(
-          _Reminder(dayOf, '오늘 $typeLabel · ${e.title}', '$timeLabel$suffix'),
-        );
+        if (tzWhen.isAfter(now)) reminders.add(_Reminder(tzWhen, title, body));
       }
     }
     return reminders;
