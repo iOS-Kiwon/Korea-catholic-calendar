@@ -800,6 +800,10 @@ void main() {
     await tester.tap(find.byTooltip('삭제'));
     await tester.pumpAndSettle();
 
+    expect(
+      find.descendant(of: find.byType(AlertDialog), matching: find.text('알림')),
+      findsOneWidget,
+    );
     expect(find.text('정말로 삭제하시겠습니까?'), findsOneWidget);
     expect(find.text('취소'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, '삭제'), findsOneWidget);
@@ -830,6 +834,10 @@ void main() {
     await tester.tap(find.byTooltip('삭제'));
     await tester.pumpAndSettle();
 
+    expect(
+      find.descendant(of: find.byType(AlertDialog), matching: find.text('알림')),
+      findsOneWidget,
+    );
     expect(find.text('정말로 삭제하시겠습니까?'), findsOneWidget);
     expect(find.text('취소'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, '삭제'), findsOneWidget);

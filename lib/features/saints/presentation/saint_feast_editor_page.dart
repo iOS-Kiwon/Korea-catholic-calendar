@@ -255,7 +255,8 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        content: const Text('정말로 삭제하시겠습니까?'),
+        title: const Text('알림'),
+        content: const Text('정말로 삭제하시겠습니까?', style: TextStyle(fontSize: 17)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
