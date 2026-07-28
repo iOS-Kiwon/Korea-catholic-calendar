@@ -7,7 +7,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <!-- 정시 알람: 캘린더/리마인더 앱은 Play 정책상 자동 승인 대상이라 런타임
          권한 요청 없이 부여된다. SCHEDULE_EXACT_ALARM 은 기본 승인되는 API 32
-         (Android 12)까지만 선언하고, API 33+ 에서는 USE_EXACT_ALARM 을 쓴다. -->
+         (Android 12/12L) 이하까지만 선언하고, API 33+ 에서는 USE_EXACT_ALARM 을 쓴다. -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <application
