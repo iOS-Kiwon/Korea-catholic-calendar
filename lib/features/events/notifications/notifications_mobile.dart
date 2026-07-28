@@ -20,7 +20,8 @@ NotificationService createNotificationService() => _LocalNotificationService();
 const _maxScheduled = 60;
 
 /// 반복 일정은 무한이므로 이벤트당 "다음 몇 회차"만 예약한다(앱 실행 시 리필).
-/// 회차×2건(전날+당일)이라 이벤트 하나가 슬롯을 독점하지 않게 낮게 유지.
+/// 회차 x 리드 개수(최대 2)만큼 알림이 생기므로, 이벤트 하나가 슬롯을 독점하지
+/// 않게 회차 수를 낮게 유지한다.
 const _maxOccurrencesPerEvent = 4;
 
 const _channelId = 'personal_events';
@@ -166,7 +167,9 @@ class _LocalNotificationService implements NotificationService {
           scheduledDate: r.when,
           notificationDetails: details,
           // Inexact avoids requiring the Android 12+ SCHEDULE_EXACT_ALARM
-          // permission; day-before/day-of reminders don't need second precision.
+          // permission. Trade-off: under Doze/battery optimization, short
+          // sub-day leads (5분~2시간 전) may fire late. Revisit exact mode
+          // (USE_EXACT_ALARM + exactAllowWhileIdle) if precision is needed.
           androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         );
       } catch (e) {
