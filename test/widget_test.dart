@@ -23,6 +23,7 @@ import 'package:catholic_calendar/features/events/presentation/event_editor_shee
 import 'package:catholic_calendar/features/saints/presentation/saint_feast_editor_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liturgical_calendar/liturgical_calendar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -303,6 +304,22 @@ void main() {
 
     final timedButtonCount = find.byType(TextButton).evaluate().length;
     expect(timedButtonCount, allDayButtonCount + 2);
+  });
+
+  testWidgets('event memo wraps while return key stays done', (tester) async {
+    final day = LiturgicalCalendar().day(DateTime(2026, 7, 16));
+    await tester.pumpWidget(_wrap(Scaffold(body: DayDetailView(day: day))));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(TextButton, '추가'));
+    await tester.pumpAndSettle();
+
+    final memo = _memoTextField(tester);
+    expect(memo.minLines, 1);
+    expect(memo.maxLines, isNull);
+    expect(memo.keyboardType, TextInputType.text);
+    expect(memo.textInputAction, TextInputAction.done);
+    expect(memo.inputFormatters, contains(isA<FilteringTextInputFormatter>()));
   });
 
   testWidgets('open speed dial scrim blocks month navigation', (tester) async {
@@ -762,6 +779,36 @@ void main() {
     expect(find.widgetWithText(FilledButton, '삭제'), findsOneWidget);
   });
 
+  testWidgets('saint feast memo wraps while return key stays done', (
+    tester,
+  ) async {
+    final feast = CalendarEvent(
+      id: '1',
+      date: '2026-07-16',
+      categoryId: 'saint_feast',
+      categoryName: '축일',
+      categoryColor: kSaintFeastEventColor,
+      notify: true,
+      type: CalendarEventType.saintFeast,
+      saintId: 1,
+      saintName: '성 마르코',
+      saintUrl: 'https://example.com',
+      recurrence: RecurrenceType.yearlyDate,
+    );
+
+    await tester.pumpWidget(
+      _wrap(SaintFeastEditorPage(date: DateTime(2026, 7, 16), existing: feast)),
+    );
+    await tester.pumpAndSettle();
+
+    final memo = _memoTextField(tester);
+    expect(memo.minLines, 1);
+    expect(memo.maxLines, isNull);
+    expect(memo.keyboardType, TextInputType.text);
+    expect(memo.textInputAction, TextInputAction.done);
+    expect(memo.inputFormatters, contains(isA<FilteringTextInputFormatter>()));
+  });
+
   testWidgets('category screen lists seeded categories and adds a new one', (
     tester,
   ) async {
@@ -882,4 +929,13 @@ void main() {
     expect(find.text('기도'), findsNothing);
     expect(find.text('본당 행사'), findsOneWidget); // 나머지는 유지
   });
+}
+
+TextField _memoTextField(WidgetTester tester) {
+  return tester.widget<TextField>(
+    find.byWidgetPredicate(
+      (widget) =>
+          widget is TextField && widget.decoration?.labelText == '메모 (선택)',
+    ),
+  );
 }

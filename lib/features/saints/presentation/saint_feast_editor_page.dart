@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../ads/ads.dart';
@@ -334,9 +335,14 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
             const SizedBox(height: 4),
             TextField(
               controller: _memo,
-              maxLines: 1,
+              minLines: 1,
+              maxLines: null,
               maxLength: 100,
+              keyboardType: TextInputType.text,
               textInputAction: TextInputAction.done,
+              inputFormatters: [
+                FilteringTextInputFormatter.deny(RegExp(r'[\r\n]')),
+              ],
               onSubmitted: (_) => FocusScope.of(context).unfocus(),
               decoration: const InputDecoration(
                 labelText: '메모 (선택)',

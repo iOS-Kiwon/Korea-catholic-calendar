@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
 import '../../ads/ads.dart';
 import '../../calendar/application/calendar_providers.dart';
@@ -476,12 +477,17 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
             ),
             const SizedBox(height: 4),
 
-            // 메모 (선택) - 한 줄, 최대 100자, 완료(return) 키로 입력 종료.
+            // 메모 (선택) - 자동 줄바꿈, 최대 100자, 완료(return) 키로 입력 종료.
             TextField(
               controller: _memo,
-              maxLines: 1,
+              minLines: 1,
+              maxLines: null,
               maxLength: 100,
+              keyboardType: TextInputType.text,
               textInputAction: TextInputAction.done,
+              inputFormatters: [
+                FilteringTextInputFormatter.deny(RegExp(r'[\r\n]')),
+              ],
               onSubmitted: (_) => FocusScope.of(context).unfocus(),
               decoration: const InputDecoration(
                 labelText: '메모 (선택)',
