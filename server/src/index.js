@@ -1,18 +1,24 @@
-// 가톨릭 달력 — CBCK 전례력 캐시 게이트웨이 (Cloudflare Worker)
+// 가톨릭 달력 - CBCK 전례력 캐시 게이트웨이 (Cloudflare Worker)
 //
-// 앱 → 이 Worker → (캐시 미스 시 1회) CBCK. 전례력은 발행 후 불변이라, 한 달치를
+// 앱 -> 이 Worker -> (캐시 미스 시 1회) CBCK. 전례력은 발행 후 불변이라, 한 달치를
 // 한 번만 CBCK에서 가져와 KV에 캐시하고 이후 요청은 캐시로 응답한다.
 //
 // 부하 최소화 원칙:
 //  - "월 단위"로만 요청(브라우저가 하던 작은 창과 유사). 한 번에 1년/여러 해를
-//    통째로 긁지 않는다 → 요청 1건당 CBCK 호출은 최대 1회, 응답도 작다.
+//    통째로 긁지 않는다 -> 요청 1건당 CBCK 호출은 최대 1회, 응답도 작다.
 //  - 이미 캐시된 달은 CBCK를 다시 부르지 않는다.
+//  - 미발행(빈 데이터)은 neg 마커(TTL_NEG)로, 업스트림 오류는 err 마커(TTL_ERR)로
+//    잠깐 막아 CBCK 재호출을 디바운스한다(장애 시 폭주 방지).
 //  - cron 프리워밍은 매시간 1개월만, 마지막 저장 월 다음부터 순차적으로 진행한다.
-//  - 실제 웹사이트와 동일한 헤더/User-Agent로 호출.
+//  - 실제 웹사이트와 동일한 헤더/User-Agent로 호출(타임아웃 포함).
+//  - 응답에 Cache-Control 을 붙여 브라우저/프록시 캐시로 Worker 호출도 줄인다.
 //
-// 엔드포인트:  GET /v1/calendar/:year/:month  →  { year, month, available, source?, days? }
+// 엔드포인트:  GET /v1/calendar/:year/:month  ->  { year, month, available, source?, days? }
 
 const CBCK = 'https://missa.cbck.or.kr';
+
+// CBCK 호출 타임아웃(ms). 늘어지는 업스트림에 Worker 서브요청이 매달리지 않게 한다.
+const FETCH_TIMEOUT_MS = 8000;
 
 // 실제 매일미사 웹사이트의 XHR과 동일하게 맞춘 헤더(쿠키·GA 제외).
 const BROWSER_HEADERS = {
@@ -40,6 +46,11 @@ const CORS = {
   'access-control-allow-methods': 'GET, OPTIONS',
   'content-type': 'application/json; charset=utf-8',
 };
+
+// 응답 종류별 브라우저/프록시 캐시 수명(초). 발행 후 불변인 데이터는 길게,
+// 미발행은 발행 감지를 위해 짧게, 에러는 아주 짧게(빠른 복구) 캐시한다.
+const CACHE_MAX_AGE = { data: 86400, neg: 3600, err: 60 };
+const cacheHeaders = (kind) => ({ 'cache-control': `public, max-age=${CACHE_MAX_AGE[kind]}` });
 
 const pad2 = (n) => String(n).padStart(2, '0');
 const monthKey = (year, month) => `cal:${year}-${pad2(month)}`;
@@ -77,13 +88,20 @@ function parseEntry(e) {
   return day;
 }
 
-// CBCK에서 한 달치만 조회(작은 창). 실제 사이트와 동일 헤더 + 캐시버스터.
+// CBCK에서 한 달치만 조회(작은 창). 실제 사이트와 동일 헤더 + 캐시버스터 + 타임아웃.
 async function fetchMonthFromCbck(year, month) {
   const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const start = `${year}-${pad2(month)}-01`;
   const end = `${year}-${pad2(month)}-${pad2(last)}`;
   const url = `${CBCK}/MissaLoad?start=${start}&end=${end}&_=${Date.now()}`;
-  const res = await fetch(url, { headers: BROWSER_HEADERS });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(url, { headers: BROWSER_HEADERS, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) throw new Error(`CBCK HTTP ${res.status}`);
   const arr = await res.json();
   const byDate = {};
@@ -98,6 +116,7 @@ const json = (body, extra) =>
   new Response(JSON.stringify(body), { headers: { ...CORS, ...(extra || {}) } });
 
 const TTL_NEG = 60 * 60 * 24; // 미발행 재시도 1일
+const TTL_ERR = 60; // 업스트림 오류 디바운스 1분(곧 재시도)
 const LAST_CACHED_MONTH_KEY = 'meta:last_cached_month';
 
 const formatMonth = ({ year, month }) => `${year}-${pad2(month)}`;
@@ -124,8 +143,15 @@ function monthFromKstTime(time) {
   return { year: kst.getUTCFullYear(), month: kst.getUTCMonth() + 1 };
 }
 
+// 마지막 저장 월. 정상 운영에선 메타키를 신뢰하고(매시간 전체 list 스캔 회피),
+// 메타키가 없을 때(최초 실행/초기화 후)만 1회 전체 스캔으로 복구한다.
+// rememberStoredMonth 가 저장 시마다 메타키를 앞으로만 갱신하므로 메타키는 항상
+// 최대 저장 월을 가리킨다.
 async function getLatestStoredMonth(env) {
-  let latest = parseMonth(await env.CAL.get(LAST_CACHED_MONTH_KEY));
+  const meta = parseMonth(await env.CAL.get(LAST_CACHED_MONTH_KEY));
+  if (meta) return meta;
+
+  let latest = null;
   let cursor;
   do {
     const page = await env.CAL.list({ prefix: 'cal:', cursor });
@@ -135,6 +161,7 @@ async function getLatestStoredMonth(env) {
     }
     cursor = page.list_complete ? undefined : page.cursor;
   } while (cursor);
+  if (latest) await env.CAL.put(LAST_CACHED_MONTH_KEY, formatMonth(latest)); // 메타 복구
   return latest;
 }
 
@@ -146,33 +173,65 @@ async function rememberStoredMonth(env, year, month) {
   }
 }
 
+// 한 달치를 CBCK에서 받아 KV에 반영한다(온디맨드/크론 공용).
+// 결과: { state: 'stored', body } | { state: 'empty' } | { state: 'error' }
+async function warmMonth(year, month, env) {
+  const key = monthKey(year, month);
+  let days;
+  try {
+    days = await fetchMonthFromCbck(year, month);
+  } catch (_) {
+    // 업스트림 오류 -> 짧은 TTL 로 디바운스(장애 때 CBCK 폭주 방지). 곧 재시도된다.
+    await env.CAL.put(`err:${key}`, '1', { expirationTtl: TTL_ERR });
+    return { state: 'error' };
+  }
+  if (days.length === 0) {
+    // 아직 미발행 -> 하루 뒤 재시도.
+    await env.CAL.put(`neg:${key}`, '1', { expirationTtl: TTL_NEG });
+    return { state: 'empty' };
+  }
+  const body = JSON.stringify({ year, month, available: true, source: 'cbck', days });
+  await env.CAL.put(key, body);
+  await rememberStoredMonth(env, year, month);
+  return { state: 'stored', body };
+}
+
 async function handleMonth(year, month, env) {
   if (month < 1 || month > 12) return json({ error: 'bad month' }, { status: 400 });
   const key = monthKey(year, month);
 
   const cached = await env.CAL.get(key);
-  if (cached) return new Response(cached, { headers: { ...CORS, 'x-cache': 'HIT' } });
+  if (cached) {
+    return new Response(cached, {
+      headers: { ...CORS, ...cacheHeaders('data'), 'x-cache': 'HIT' },
+    });
+  }
 
   if (await env.CAL.get(`neg:${key}`)) {
-    return json({ year, month, available: false }, { 'x-cache': 'HIT-NEG' });
+    return json({ year, month, available: false }, { ...cacheHeaders('neg'), 'x-cache': 'HIT-NEG' });
   }
 
-  let days;
-  try {
-    days = await fetchMonthFromCbck(year, month);
-  } catch (_) {
-    return json({ year, month, available: false, error: 'upstream' }, { 'x-cache': 'ERROR' });
+  // 최근 업스트림 오류로 디바운스 중이면 CBCK 를 다시 부르지 않고 즉시 응답.
+  if (await env.CAL.get(`err:${key}`)) {
+    return json(
+      { year, month, available: false, error: 'upstream' },
+      { ...cacheHeaders('err'), 'x-cache': 'HIT-ERR' },
+    );
   }
 
-  if (days.length === 0) {
-    await env.CAL.put(`neg:${key}`, '1', { expirationTtl: TTL_NEG }); // 아직 미발행 → 하루 뒤 재시도
-    return json({ year, month, available: false }, { 'x-cache': 'MISS-EMPTY' });
+  const result = await warmMonth(year, month, env);
+  if (result.state === 'stored') {
+    return new Response(result.body, {
+      headers: { ...CORS, ...cacheHeaders('data'), 'x-cache': 'MISS' },
+    });
   }
-
-  const body = JSON.stringify({ year, month, available: true, source: 'cbck', days });
-  await env.CAL.put(key, body);
-  await rememberStoredMonth(env, year, month);
-  return new Response(body, { headers: { ...CORS, 'x-cache': 'MISS' } });
+  if (result.state === 'empty') {
+    return json({ year, month, available: false }, { ...cacheHeaders('neg'), 'x-cache': 'MISS-EMPTY' });
+  }
+  return json(
+    { year, month, available: false, error: 'upstream' },
+    { ...cacheHeaders('err'), 'x-cache': 'ERROR' },
+  );
 }
 
 export default {
@@ -190,8 +249,8 @@ export default {
   },
 
   // 매시간: 마지막 저장 월 다음 1개월만 프리워밍한다.
-  // 미발행(2027+ 등) 프런티어 달은 네거티브 마커(TTL_NEG) 동안 재조회를 건너뛰어,
-  // 없는 데이터를 매시간 반복 호출하지 않는다(발행 감지용으로 TTL마다 1회만 확인).
+  // 미발행(2027+ 등) 프런티어 달은 neg 마커(TTL_NEG) 동안, 업스트림 오류는 err
+  // 마커(TTL_ERR) 동안 재조회를 건너뛰어, 없는/실패한 데이터를 반복 호출하지 않는다.
   async scheduled(event, env) {
     const latest = await getLatestStoredMonth(env);
     const base = latest || monthFromKstTime(event.scheduledTime);
@@ -203,24 +262,12 @@ export default {
       await rememberStoredMonth(env, year, month);
       return;
     }
+    if (await env.CAL.get(`neg:${key}`)) return; // 미발행 대기
+    if (await env.CAL.get(`err:${key}`)) return; // 최근 오류 디바운스 대기
 
-    // 최근 미발행으로 확인된 달이면 CBCK를 다시 부르지 않고 대기.
-    if (await env.CAL.get(`neg:${key}`)) return;
-
-    try {
-      const days = await fetchMonthFromCbck(year, month);
-      if (days.length) {
-        await env.CAL.put(
-          key,
-          JSON.stringify({ year, month, available: true, source: 'cbck', days }),
-        );
-        await rememberStoredMonth(env, year, month);
-      } else {
-        // 아직 미발행 → 네거티브 마커로 다음 TTL까지 반복 호출 방지.
-        await env.CAL.put(`neg:${key}`, '1', { expirationTtl: TTL_NEG });
-      }
-    } catch (_) {
-      /* 다음 실행에서 재시도(마커 없음) */
-    }
+    await warmMonth(year, month, env); // 저장/미발행/오류 처리 일원화
   },
 };
+
+// 테스트용 순수 헬퍼 export(파싱은 가장 깨지기 쉬운 부분이라 회귀 테스트 대상).
+export { parseEntry, cleanTitle, tagColor, stripLeadingTag, stripTags };
