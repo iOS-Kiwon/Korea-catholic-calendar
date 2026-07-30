@@ -29,6 +29,10 @@ String monthPath(YearMonth ym) =>
 /// Width at/above which the "wide" (web/desktop) layout is used.
 const _wideBreakpoint = 720.0;
 const _tabletMaxLogicalSide = 1400.0;
+const _showRemoteStatusBadge = bool.fromEnvironment(
+  'SHOW_REMOTE_STATUS_BADGE',
+  defaultValue: false,
+);
 
 class CalendarPage extends ConsumerStatefulWidget {
   const CalendarPage({super.key, required this.month, this.initialSelected});
@@ -151,7 +155,9 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   }
 
   Widget _debugRemoteStatusBadge(RemoteMonthState? state) {
-    if (!kDebugMode) return const SizedBox.shrink();
+    if (!kDebugMode || !_showRemoteStatusBadge) {
+      return const SizedBox.shrink();
+    }
 
     final status = state?.status ?? RemoteMonthStatus.idle;
     final (label, color) = switch (status) {

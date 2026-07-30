@@ -176,6 +176,7 @@ class CompactDayCell extends StatelessWidget {
     required this.onTap,
     this.hasEvent = false,
     this.shortTitle,
+    this.titleMaxLines = 1,
   });
 
   final LiturgicalDay day;
@@ -185,6 +186,7 @@ class CompactDayCell extends StatelessWidget {
   final VoidCallback onTap;
   final bool hasEvent;
   final String? shortTitle;
+  final int titleMaxLines;
 
   @override
   Widget build(BuildContext context) {
@@ -216,7 +218,7 @@ class CompactDayCell extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 1),
               child: Text(
                 title,
-                maxLines: 1,
+                maxLines: titleMaxLines,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.labelSmall?.copyWith(

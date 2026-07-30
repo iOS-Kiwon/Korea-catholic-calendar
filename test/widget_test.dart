@@ -213,6 +213,41 @@ void main() {
     );
   });
 
+  testWidgets(
+    'compact month grid uses two title lines only when space allows',
+    (tester) async {
+      final service = CalendarService(engine: LiturgicalCalendar());
+
+      Future<void> pumpGrid(double height) async {
+        await tester.pumpWidget(
+          _wrap(
+            Scaffold(
+              body: SizedBox(
+                width: 390,
+                height: height,
+                child: MonthGrid(
+                  calendar: service,
+                  month: const YearMonth(2026, 5),
+                  today: DateTime(2026, 5, 1),
+                  selectedDate: null,
+                  onSelectDay: (_) {},
+                  compact: true,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      await pumpGrid(360);
+      expect(tester.widget<Text>(find.text('주님 승천')).maxLines, 2);
+
+      await pumpGrid(300);
+      expect(tester.widget<Text>(find.text('주님 승천')).maxLines, 1);
+    },
+  );
+
   testWidgets('day detail shows the 전례력 and 일정 sections', (tester) async {
     // 2026-12-25 — Christmas.
     final day = LiturgicalCalendar().day(DateTime(2026, 12, 25));

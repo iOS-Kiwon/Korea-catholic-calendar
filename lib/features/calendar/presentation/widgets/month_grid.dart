@@ -9,6 +9,8 @@ import '../../application/liturgical_display_filter.dart';
 import '../../data/calendar_service.dart';
 import 'day_cell.dart';
 
+const _compactTwoLineTitleMinRowHeight = 56.0;
+
 /// A monthly grid. Weeks start on Sunday; adjacent-month days are shown muted.
 /// [compact] switches between the phone cells and the wide (named) cells.
 class MonthGrid extends ConsumerWidget {
@@ -40,7 +42,7 @@ class MonthGrid extends ConsumerWidget {
     final start = DateTime(month.year, month.month, 1 - leading);
     final filter = ref.watch(liturgicalDisplayFilterProvider);
 
-    Widget cellAt(int r, int c) {
+    Widget cellAt(int r, int c, {required int compactTitleMaxLines}) {
       final date = DateTime(start.year, start.month, start.day + r * 7 + c);
       final day = calendar.day(date);
       final inMonth = date.month == month.month;
@@ -58,6 +60,7 @@ class MonthGrid extends ConsumerWidget {
               isToday: isToday,
               isSelected: isSelected,
               hasEvent: hasEvent,
+              titleMaxLines: compactTitleMaxLines,
               onTap: () => onSelectDay(date),
             )
           : DayCell(
@@ -71,8 +74,13 @@ class MonthGrid extends ConsumerWidget {
             );
     }
 
-    Widget rowAt(int r) => Row(
-      children: [for (var c = 0; c < 7; c++) Expanded(child: cellAt(r, c))],
+    Widget rowAt(int r, {required int compactTitleMaxLines}) => Row(
+      children: [
+        for (var c = 0; c < 7; c++)
+          Expanded(
+            child: cellAt(r, c, compactTitleMaxLines: compactTitleMaxLines),
+          ),
+      ],
     );
 
     return LayoutBuilder(
@@ -83,12 +91,17 @@ class MonthGrid extends ConsumerWidget {
                   ? math.min(defaultRowHeight, constraints.maxHeight / rows)
                   : constraints.maxHeight / rows
             : defaultRowHeight;
+        final compactTitleMaxLines =
+            compact && rowHeight >= _compactTwoLineTitleMinRowHeight ? 2 : 1;
 
         return Column(
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
             for (var r = 0; r < rows; r++)
-              SizedBox(height: rowHeight, child: rowAt(r)),
+              SizedBox(
+                height: rowHeight,
+                child: rowAt(r, compactTitleMaxLines: compactTitleMaxLines),
+              ),
           ],
         );
       },
