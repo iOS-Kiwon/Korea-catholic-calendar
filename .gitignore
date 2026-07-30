@@ -146,6 +146,9 @@ ops/launchd/*.plist
 !ops/launchd/*.plist.example
 backups/
 
+# Node.js dependencies for operational scripts
+scripts/node_modules/
+
 ### macOS ###
 # General
 .DS_Store

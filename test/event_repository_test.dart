@@ -1,5 +1,6 @@
 import 'package:catholic_calendar/features/events/data/event_repository.dart';
 import 'package:catholic_calendar/features/events/model/calendar_event.dart';
+import 'package:catholic_calendar/features/events/model/recurrence.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -65,6 +66,61 @@ void main() {
       });
       expect(decoded.categoryName, '옛 일정');
       expect(decoded.categoryColor, kDefaultEventColor);
+    });
+
+    test('migrates legacy feast category events to saint feast events', () {
+      final decoded = CalendarEvent.fromJson({
+        'id': '1',
+        'date': '2026-04-25',
+        'categoryId': 'user-created-feast',
+        'categoryName': '축일',
+        'categoryColor': 0xFF2E7D32,
+        'memo': '성 마르코',
+        'notify': true,
+      });
+
+      expect(decoded.type, CalendarEventType.saintFeast);
+      expect(decoded.categoryId, kSaintFeastCategoryId);
+      expect(decoded.categoryName, kSaintFeastCategoryName);
+      expect(decoded.categoryColor, kSaintFeastEventColor);
+      expect(decoded.saintName, '성 마르코');
+      expect(decoded.memo, isNull);
+      expect(decoded.recurrence, RecurrenceType.yearlyDate);
+      expect(decoded.saintFeastDisplayText, '축일 성 마르코');
+    });
+
+    test('migrates legacy bracketed feast titles to saint feast events', () {
+      final decoded = CalendarEvent.fromJson({
+        'id': '1',
+        'date': '2026-04-25',
+        'title': '[축일] 성 마르코',
+        'memo': '가족',
+        'notify': true,
+      });
+
+      expect(decoded.type, CalendarEventType.saintFeast);
+      expect(decoded.saintName, '성 마르코');
+      expect(decoded.memo, '가족');
+      expect(decoded.saintFeastDisplayText, '축일 성 마르코 가족');
+    });
+
+    test('keeps memo on current saint feast events', () {
+      final decoded = CalendarEvent.fromJson({
+        'id': '1',
+        'date': '2026-04-25',
+        'categoryId': kSaintFeastCategoryId,
+        'categoryName': kSaintFeastCategoryName,
+        'categoryColor': kSaintFeastEventColor,
+        'type': 'saintFeast',
+        'saintName': '성 마르코',
+        'memo': '가족',
+        'notify': true,
+      });
+
+      expect(decoded.type, CalendarEventType.saintFeast);
+      expect(decoded.saintName, '성 마르코');
+      expect(decoded.memo, '가족');
+      expect(decoded.saintFeastDisplayText, '축일 성 마르코 가족');
     });
 
     test('copyWith replaces only the given fields', () {

@@ -3,8 +3,13 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- 로컬 일정 알림: 재부팅/앱 업데이트 후 예약된 알림을 다시 등록하기 위함.
          (POST_NOTIFICATIONS 권한은 flutter_local_notifications 매니페스트에서 병합됨.
-         부정확 예약(inexact)을 쓰므로 SCHEDULE_EXACT_ALARM 은 필요 없음.) -->
+         정시(exact) 예약을 쓰므로 짧은 리드(5분~2시간 전)도 정확한 시각에 울린다.) -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- 정시 알람: 캘린더/리마인더 앱은 Play 정책상 자동 승인 대상이라 런타임
+         권한 요청 없이 부여된다. SCHEDULE_EXACT_ALARM 은 기본 승인되는 API 32
+         (Android 12/12L) 이하까지만 선언하고, API 33+ 에서는 USE_EXACT_ALARM 을 쓴다. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <application
         android:label="가톨릭 달력"
         android:name="${applicationName}"

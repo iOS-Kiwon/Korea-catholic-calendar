@@ -15,6 +15,9 @@ struct TodaySnapshot: Decodable {
     let eventTitle: String
     let eventDisplayText: String?
     let regularEventDisplayText: String?
+    let regularEventCategoryName: String?
+    let regularEventMemo: String?
+    let regularEventColor: Int?
     let saintFeastDisplayText: String?
     let eventColor: Int?
     let eventItems: [WidgetEventItem]?
@@ -44,6 +47,9 @@ struct DaySnapshot: Decodable, Identifiable {
     let eventTitle: String
     let eventDisplayText: String?
     let regularEventDisplayText: String?
+    let regularEventCategoryName: String?
+    let regularEventMemo: String?
+    let regularEventColor: Int?
     let saintFeastDisplayText: String?
     let eventColor: Int?
     let eventItems: [WidgetEventItem]?
@@ -160,6 +166,18 @@ struct SmallTodayWidgetView: View {
         day?.regularEventDisplayText ?? snapshot.today.regularEventDisplayText ?? ""
     }
 
+    private var regularEventCategoryName: String {
+        day?.regularEventCategoryName ?? snapshot.today.regularEventCategoryName ?? ""
+    }
+
+    private var regularEventMemo: String {
+        day?.regularEventMemo ?? snapshot.today.regularEventMemo ?? ""
+    }
+
+    private var regularEventColor: Int? {
+        day?.regularEventColor ?? snapshot.today.regularEventColor ?? eventColor
+    }
+
     private var saintFeastDisplayText: String {
         day?.saintFeastDisplayText ?? snapshot.today.saintFeastDisplayText ?? ""
     }
@@ -173,8 +191,16 @@ struct SmallTodayWidgetView: View {
     }
 
     private var eventText: String? {
-        guard !regularEventDisplayText.isEmpty else { return nil }
-        return regularEventDisplayText
+        let category = regularEventCategoryName.isEmpty
+            ? fallbackCategory(from: regularEventDisplayText)
+            : regularEventCategoryName
+        guard !category.isEmpty else { return nil }
+        return category
+    }
+
+    private var eventMemo: String {
+        if !regularEventMemo.isEmpty { return regularEventMemo }
+        return fallbackMemo(from: regularEventDisplayText, category: eventText ?? "")
     }
 
     private var feastText: String? {
@@ -196,10 +222,15 @@ struct SmallTodayWidgetView: View {
                 .foregroundStyle(color(for: liturgicalColor))
                 .lineLimit(2)
                 .minimumScaleFactor(0.75)
+                .padding(.leading, 2)
                 .padding(.bottom, 4)
 
             if let eventText {
-                HighlightedEventText(text: eventText, color: eventColor)
+                HighlightedEventLine(
+                    category: eventText,
+                    memo: eventMemo,
+                    color: regularEventColor
+                )
                     .padding(.bottom, 4)
             }
 
@@ -337,23 +368,35 @@ struct MonthDayCell: View {
     }
 }
 
-struct HighlightedEventText: View {
-    let text: String
+struct HighlightedEventLine: View {
+    let category: String
+    let memo: String
     let color: Int?
 
     var body: some View {
-        Text(text)
-            .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(Color.black)
-            .lineLimit(1)
-            .minimumScaleFactor(0.72)
-            .padding(.bottom, 2)
-            .overlay(alignment: .bottomLeading) {
-                Rectangle()
-                    .fill(argbColor(color).opacity(0.42))
-                    .frame(height: 4)
-                    .offset(y: -1)
+        HStack(spacing: 6) {
+            Text(category)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Color.black)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 1)
+                .background(
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(argbColor(color).opacity(0.24))
+                )
+
+            if !memo.isEmpty {
+                Text(memo)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.black)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                    .layoutPriority(1)
             }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -417,6 +460,26 @@ private func argbColor(_ value: Int?) -> Color {
     return Color(red: red, green: green, blue: blue)
 }
 
+private func fallbackCategory(from displayText: String) -> String {
+    if let separatorRange = displayText.range(of: " * ") {
+        return String(displayText[..<separatorRange.lowerBound])
+    }
+    if let firstSpace = displayText.firstIndex(of: " ") {
+        return String(displayText[..<firstSpace])
+    }
+    return displayText
+}
+
+private func fallbackMemo(from displayText: String, category: String) -> String {
+    if let separatorRange = displayText.range(of: " * ") {
+        return String(displayText[separatorRange.upperBound...])
+    }
+    guard !category.isEmpty, displayText.hasPrefix(category) else {
+        return ""
+    }
+    return String(displayText.dropFirst(category.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
 extension WidgetSnapshot {
     static var placeholder: WidgetSnapshot {
         let today = Date()
@@ -435,7 +498,10 @@ extension WidgetSnapshot {
                 liturgicalColor: "green",
                 eventTitle: "개인일정",
                 eventDisplayText: "메모",
-                regularEventDisplayText: "본당 행사 * 바자회",
+                regularEventDisplayText: "본당 행사 바자회",
+                regularEventCategoryName: "본당 행사",
+                regularEventMemo: "바자회",
+                regularEventColor: 0xFF2E7D32,
                 saintFeastDisplayText: "[축일] 성 마르코 축하해요",
                 eventColor: 0xFF2E7D32,
                 eventItems: [
@@ -461,7 +527,10 @@ extension WidgetSnapshot {
                         liturgicalColor: "green",
                         eventTitle: index % 8 == 0 ? "일정" : "",
                         eventDisplayText: index % 8 == 0 ? "메모" : "",
-                        regularEventDisplayText: index % 8 == 0 ? "본당 행사 * 바자회" : "",
+                        regularEventDisplayText: index % 8 == 0 ? "본당 행사 바자회" : "",
+                        regularEventCategoryName: index % 8 == 0 ? "본당 행사" : "",
+                        regularEventMemo: index % 8 == 0 ? "바자회" : "",
+                        regularEventColor: 0xFF2E7D32,
                         saintFeastDisplayText: index % 9 == 0 ? "[축일] 성 마르코 축하해요" : "",
                         eventColor: 0xFF2E7D32,
                         eventItems: index % 8 == 0

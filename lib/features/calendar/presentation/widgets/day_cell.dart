@@ -89,6 +89,7 @@ class DayCell extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
     this.hasEvent = false,
+    this.shortTitle,
   });
 
   final LiturgicalDay day;
@@ -97,6 +98,7 @@ class DayCell extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onTap;
   final bool hasEvent;
+  final String? shortTitle;
 
   @override
   Widget build(BuildContext context) {
@@ -138,11 +140,11 @@ class DayCell extends StatelessWidget {
                           const Positioned(right: 0, top: 0, child: EventDot()),
                       ],
                     ),
-                    if (notable) ...[
+                    if (shortTitle case final title?) ...[
                       const SizedBox(height: 2),
                       Expanded(
                         child: Text(
-                          day.title,
+                          title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.labelMedium?.copyWith(
@@ -163,7 +165,7 @@ class DayCell extends StatelessWidget {
   }
 }
 
-/// Compact (phone) day cell: date circle + a small liturgical-color dot below.
+/// Compact (phone) day cell: date circle + optional personal-event marker.
 class CompactDayCell extends StatelessWidget {
   const CompactDayCell({
     super.key,
@@ -173,6 +175,8 @@ class CompactDayCell extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
     this.hasEvent = false,
+    this.shortTitle,
+    this.titleMaxLines = 1,
   });
 
   final LiturgicalDay day;
@@ -181,11 +185,12 @@ class CompactDayCell extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onTap;
   final bool hasEvent;
+  final String? shortTitle;
+  final int titleMaxLines;
 
   @override
   Widget build(BuildContext context) {
-    final notable = inCurrentMonth && isNotableDay(day);
-    final accent = context.liturgical.of(day.color);
+    final theme = Theme.of(context);
 
     return InkWell(
       onTap: onTap,
@@ -193,7 +198,7 @@ class CompactDayCell extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
-          const SizedBox(height: 4),
+          const SizedBox(height: 3),
           Stack(
             clipBehavior: Clip.none,
             children: [
@@ -207,15 +212,24 @@ class CompactDayCell extends StatelessWidget {
                 const Positioned(right: 0, top: 0, child: EventDot()),
             ],
           ),
-          const SizedBox(height: 3),
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: notable ? accent : Colors.transparent,
+          if (shortTitle case final title?) ...[
+            const SizedBox(height: 1),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 1),
+              child: Text(
+                title,
+                maxLines: titleMaxLines,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: context.liturgical.of(day.color),
+                  fontSize: 9,
+                  height: 1.05,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

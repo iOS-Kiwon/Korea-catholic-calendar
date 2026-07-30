@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../calendar/application/calendar_providers.dart';
 import '../data/backup_prefs.dart';
 import '../data/personal_cloud_backup_store.dart';
 import '../data/personal_data_backup_repository.dart';
@@ -11,6 +12,7 @@ import '../data/event_repository.dart';
 import '../model/calendar_event.dart';
 import '../model/event_category.dart';
 import '../notifications/notifications.dart';
+import 'recurrence_expander.dart';
 
 /// The device's [SharedPreferences] instance (loaded once).
 final sharedPreferencesProvider = FutureProvider<SharedPreferences>(
@@ -156,10 +158,29 @@ class EventStore extends AsyncNotifier<Map<String, List<CalendarEvent>>> {
     _repo = EventRepository(prefs);
     _notifications = ref.read(notificationServiceProvider);
     final map = _repo.load();
+    // 캘린더(전례력 엔진/번들)가 처음 준비되면 반복(전례 축일 포함) 알림을 한 번
+    // 재예약한다. 시작 시점엔 캘린더가 아직 로딩 중일 수 있어 feast 반복이 빠질 수
+    // 있으므로, null->준비 전환 때 리필한다(이후 원격 병합에는 반응하지 않음).
+    var calendarReady = ref.read(calendarControllerProvider).hasValue;
+    ref.listen(calendarControllerProvider, (_, next) {
+      if (!calendarReady && next.hasValue) {
+        calendarReady = true;
+        final current = state.value;
+        if (current != null && current.isNotEmpty) {
+          _notifications.sync(
+            current,
+            expander: ref.read(recurrenceExpanderProvider),
+          );
+        }
+      }
+    });
     // Re-register reminders with the OS (e.g. after reinstall). Skip entirely
     // when there are no events so we don't prompt for permission unprompted.
     if (map.isNotEmpty) {
-      await _notifications.sync(map);
+      await _notifications.sync(
+        map,
+        expander: ref.read(recurrenceExpanderProvider),
+      );
     }
     return map;
   }
@@ -235,7 +256,10 @@ class EventStore extends AsyncNotifier<Map<String, List<CalendarEvent>>> {
   Future<void> _persistAndSync(Map<String, List<CalendarEvent>> map) async {
     await _repo.save(map);
     state = AsyncData(map);
-    await _notifications.sync(map);
+    await _notifications.sync(
+      map,
+      expander: ref.read(recurrenceExpanderProvider),
+    );
     // 자동 백업은 하지 않는다. 사용자가 설정 > 백업에서 직접 백업한다.
   }
 }
@@ -246,23 +270,26 @@ int _compareEvents(CalendarEvent a, CalendarEvent b) {
   return a.time!.compareTo(b.time!);
 }
 
-/// The events on [date], all-day first then by time.
+/// 반복 규칙을 특정 날짜에 전개하는 헬퍼. 캘린더가 로딩되면(또는 원격 병합되면)
+/// 함께 갱신되어 yearlyFeast 전개가 최신 데이터를 쓴다.
+final recurrenceExpanderProvider = Provider<RecurrenceExpander>((ref) {
+  final calendar = ref.watch(calendarControllerProvider).value;
+  return RecurrenceExpander(calendar);
+});
+
+/// The events on [date] (반복 전개 포함), all-day first then by time.
 final eventsForDateProvider = Provider.family<List<CalendarEvent>, DateTime>((
   ref,
   date,
 ) {
   final map = ref.watch(eventStoreProvider).value ?? const {};
-  final list = [...?map[eventDateKey(date)]];
+  final expander = ref.watch(recurrenceExpanderProvider);
+  final list = expander.eventsOn(map, date);
   list.sort(_compareEvents);
   return list;
 });
 
-/// The set of date keys (`YYYY-MM-DD`) that have at least one event, for grid
-/// markers.
-final datesWithEventsProvider = Provider<Set<String>>((ref) {
-  final map = ref.watch(eventStoreProvider).value ?? const {};
-  return {
-    for (final entry in map.entries)
-      if (entry.value.isNotEmpty) entry.key,
-  };
+/// 달력 그리드 마커용: [date]에 (반복 전개 포함) 이벤트가 하나라도 있는가.
+final dayHasEventProvider = Provider.family<bool, DateTime>((ref, date) {
+  return ref.watch(eventsForDateProvider(date)).isNotEmpty;
 });

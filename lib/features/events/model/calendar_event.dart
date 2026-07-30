@@ -1,3 +1,6 @@
+import 'recurrence.dart';
+import 'reminder_lead.dart';
+
 String _pad2(int n) => n.toString().padLeft(2, '0');
 
 /// The `YYYY-MM-DD` key for a date, matching the liturgical calendar's keys.
@@ -15,7 +18,10 @@ DateTime parseEventDate(String key) {
 /// was created before categories carried a color.
 const int kDefaultEventColor = 0xFF455A64;
 const int kSaintFeastEventColor = 0xFF8D6E63;
-const String kSaintFeastPrefix = '[축일]';
+const String kSaintFeastCategoryId = 'saint_feast';
+const String kSaintFeastCategoryName = '축일';
+const String kSaintFeastPrefix = '축일';
+const String kLegacySaintFeastPrefix = '[축일]';
 
 enum CalendarEventType {
   regular,
@@ -44,13 +50,18 @@ class CalendarEvent {
     required this.categoryId,
     required this.categoryName,
     this.categoryColor = kDefaultEventColor,
+    this.endDate,
     this.memo,
     this.time,
+    this.endTime,
     this.notify = true,
     this.type = CalendarEventType.regular,
     this.saintId,
     this.saintName,
     this.saintUrl,
+    this.recurrence = RecurrenceType.none,
+    this.feastId,
+    this.reminders = const [ReminderLead.day1],
   });
 
   /// Stable local id (millis/micros-based; no external uuid dependency).
@@ -58,6 +69,11 @@ class CalendarEvent {
 
   /// The day the event belongs to, `YYYY-MM-DD`.
   final String date;
+
+  /// Inclusive end day of a continuous event, `YYYY-MM-DD`.
+  ///
+  /// Null means the same day as [date], preserving old single-day data.
+  final String? endDate;
 
   /// The id of the category this event was created from (may be dangling if
   /// the category was later deleted).
@@ -75,6 +91,9 @@ class CalendarEvent {
   /// Optional time-of-day `HH:mm`; null = all-day.
   final String? time;
 
+  /// Optional end time-of-day `HH:mm`; null = all-day or unspecified.
+  final String? endTime;
+
   /// Whether to schedule local reminders for this event.
   final bool notify;
 
@@ -83,6 +102,17 @@ class CalendarEvent {
   final int? saintId;
   final String? saintName;
   final String? saintUrl;
+
+  /// 반복 규칙. [date]가 시작(앵커)이며 조회/알림/위젯에서 전개한다.
+  final RecurrenceType recurrence;
+
+  /// `yearlyFeast`일 때 매년 재계산의 기준이 되는 전례 축일 키(`celebration.id`).
+  final String? feastId;
+
+  /// 알림 리드타임 목록(최대 2). notify가 켜졌을 때만 예약된다. 기본 [1일 전].
+  final List<ReminderLead> reminders;
+
+  bool get isRecurring => recurrence != RecurrenceType.none;
 
   bool get isSaintFeast => type == CalendarEventType.saintFeast;
 
@@ -102,19 +132,28 @@ class CalendarEvent {
   /// True when the event has no specific time (all-day).
   bool get isAllDay => time == null;
 
+  String get effectiveEndDate => endDate ?? date;
+
+  bool get isMultiDay => effectiveEndDate != date;
+
   CalendarEvent copyWith({
     String? id,
     String? date,
     String? categoryId,
     String? categoryName,
     int? categoryColor,
+    String? endDate,
     String? memo,
     String? time,
+    String? endTime,
     bool? notify,
     CalendarEventType? type,
     int? saintId,
     String? saintName,
     String? saintUrl,
+    RecurrenceType? recurrence,
+    String? feastId,
+    List<ReminderLead>? reminders,
   }) {
     return CalendarEvent(
       id: id ?? this.id,
@@ -122,13 +161,18 @@ class CalendarEvent {
       categoryId: categoryId ?? this.categoryId,
       categoryName: categoryName ?? this.categoryName,
       categoryColor: categoryColor ?? this.categoryColor,
+      endDate: endDate ?? this.endDate,
       memo: memo ?? this.memo,
       time: time ?? this.time,
+      endTime: endTime ?? this.endTime,
       notify: notify ?? this.notify,
       type: type ?? this.type,
       saintId: saintId ?? this.saintId,
       saintName: saintName ?? this.saintName,
       saintUrl: saintUrl ?? this.saintUrl,
+      recurrence: recurrence ?? this.recurrence,
+      feastId: feastId ?? this.feastId,
+      reminders: reminders ?? this.reminders,
     );
   }
 
@@ -138,30 +182,108 @@ class CalendarEvent {
     'categoryId': categoryId,
     'categoryName': categoryName,
     'categoryColor': categoryColor,
+    if (endDate != null && endDate != date) 'endDate': endDate,
     if (memo != null) 'memo': memo,
     if (time != null) 'time': time,
+    if (endTime != null && endTime != time) 'endTime': endTime,
     'notify': notify,
     'type': type.name,
     if (saintId != null) 'saintId': saintId,
     if (saintName != null) 'saintName': saintName,
     if (saintUrl != null) 'saintUrl': saintUrl,
+    if (recurrence != RecurrenceType.none) 'recurrence': recurrence.name,
+    if (feastId != null) 'feastId': feastId,
+    'reminders': [for (final r in reminders) r.name],
   };
 
-  factory CalendarEvent.fromJson(Map<String, dynamic> json) => CalendarEvent(
-    id: json['id'] as String,
-    date: json['date'] as String,
-    // Fall back to a legacy free-text `title` if present (pre-category data).
-    categoryId: json['categoryId'] as String? ?? '',
-    categoryName:
-        json['categoryName'] as String? ?? json['title'] as String? ?? '',
-    categoryColor:
-        (json['categoryColor'] as num?)?.toInt() ?? kDefaultEventColor,
-    memo: json['memo'] as String?,
-    time: json['time'] as String?,
-    notify: json['notify'] as bool? ?? true,
-    type: CalendarEventType.fromJson(json['type']),
-    saintId: (json['saintId'] as num?)?.toInt(),
-    saintName: json['saintName'] as String?,
-    saintUrl: json['saintUrl'] as String?,
-  );
+  factory CalendarEvent.fromJson(Map<String, dynamic> json) {
+    final rawType = CalendarEventType.fromJson(json['type']);
+    final rawCategoryId = json['categoryId'] as String? ?? '';
+    final rawCategoryName =
+        json['categoryName'] as String? ?? json['title'] as String? ?? '';
+    final saintId = (json['saintId'] as num?)?.toInt();
+    final saintName = json['saintName'] as String?;
+    final saintUrl = json['saintUrl'] as String?;
+    final rawMemo = json['memo'] as String?;
+    final legacySaintName = _legacySaintFeastName(rawCategoryName);
+    final legacyCategorySaintName =
+        rawType == CalendarEventType.regular &&
+            _isSaintFeastCategoryName(rawCategoryName) &&
+            _hasText(rawMemo)
+        ? rawMemo!.trim()
+        : null;
+    final hasSaintPayload =
+        saintId != null || _hasText(saintName) || _hasText(saintUrl);
+    final isLegacySaintFeast =
+        rawType == CalendarEventType.regular &&
+        (rawCategoryId == kSaintFeastCategoryId ||
+            hasSaintPayload ||
+            legacySaintName != null ||
+            _isSaintFeastCategoryName(rawCategoryName));
+    final type = isLegacySaintFeast ? CalendarEventType.saintFeast : rawType;
+    // 하위호환: recurrence 필드가 없으면, 축일은 매년 반복(yearlyDate)을 기본으로
+    // 적용하고(사용자 의도 "축일 기본 매년 반복"), 일반 이벤트는 반복 없음으로 둔다.
+    final RecurrenceType recurrence = json.containsKey('recurrence')
+        ? RecurrenceType.fromJson(json['recurrence'])
+        : (type == CalendarEventType.saintFeast
+              ? RecurrenceType.yearlyDate
+              : RecurrenceType.none);
+    final remindersRaw = json['reminders'] as List?;
+    final reminders = remindersRaw == null
+        ? const [ReminderLead.day1]
+        : (remindersRaw
+              .map((e) => ReminderLead.fromStorage(e as String?))
+              .whereType<ReminderLead>()
+              .toList());
+    final safeReminders = reminders.isEmpty
+        ? const [ReminderLead.day1]
+        : reminders;
+    // 종일 일정(time 없음)엔 분/시간 리드가 무의미하므로 제거하고, 그 결과 비면
+    // [day1]로 되돌린다(예: 예전에 시간이 있었다가 이후 종일로 바뀐 데이터 방어).
+    final bool loadedAllDay = (json['time'] as String?) == null;
+    final normalizedReminders = loadedAllDay
+        ? safeReminders.where((r) => !r.isSubDay).toList()
+        : safeReminders;
+    final finalReminders = normalizedReminders.isEmpty
+        ? const [ReminderLead.day1]
+        : normalizedReminders;
+    return CalendarEvent(
+      id: json['id'] as String,
+      date: json['date'] as String,
+      // Fall back to a legacy free-text `title` if present (pre-category data).
+      categoryId: type == CalendarEventType.saintFeast
+          ? kSaintFeastCategoryId
+          : rawCategoryId,
+      categoryName: type == CalendarEventType.saintFeast
+          ? kSaintFeastCategoryName
+          : rawCategoryName,
+      categoryColor: type == CalendarEventType.saintFeast
+          ? kSaintFeastEventColor
+          : ((json['categoryColor'] as num?)?.toInt() ?? kDefaultEventColor),
+      endDate: json['endDate'] as String?,
+      memo: legacyCategorySaintName == null ? rawMemo : null,
+      time: json['time'] as String?,
+      endTime: json['endTime'] as String?,
+      notify: json['notify'] as bool? ?? true,
+      type: type,
+      saintId: saintId,
+      saintName: saintName ?? legacySaintName ?? legacyCategorySaintName,
+      saintUrl: saintUrl,
+      recurrence: recurrence,
+      feastId: json['feastId'] as String?,
+      reminders: finalReminders,
+    );
+  }
+}
+
+bool _hasText(String? value) => value != null && value.trim().isNotEmpty;
+
+bool _isSaintFeastCategoryName(String value) =>
+    value.trim() == kSaintFeastCategoryName;
+
+String? _legacySaintFeastName(String value) {
+  final trimmed = value.trim();
+  if (!trimmed.startsWith(kLegacySaintFeastPrefix)) return null;
+  final name = trimmed.substring(kLegacySaintFeastPrefix.length).trim();
+  return name.isEmpty ? null : name;
 }

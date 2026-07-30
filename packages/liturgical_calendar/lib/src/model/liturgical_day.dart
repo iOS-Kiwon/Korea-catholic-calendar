@@ -25,6 +25,7 @@ class LiturgicalDay {
     this.scriptureReadings = const [],
     this.specialDay,
     this.sourceUrl,
+    this.saintInfoUrl,
   });
 
   /// Date-only value (time normalized away).
@@ -70,6 +71,9 @@ class LiturgicalDay {
   /// Deep link to the authoritative source for this day (매일미사), if any.
   final String? sourceUrl;
 
+  /// Deep link to matched saint information for the day's primary celebration.
+  final String? saintInfoUrl;
+
   bool get isSunday => date.weekday == DateTime.sunday;
 
   LiturgicalDay copyWith({
@@ -81,6 +85,7 @@ class LiturgicalDay {
     List<String>? scriptureReadings,
     String? specialDay,
     String? sourceUrl,
+    String? saintInfoUrl,
   }) {
     return LiturgicalDay(
       date: date,
@@ -98,6 +103,7 @@ class LiturgicalDay {
       scriptureReadings: scriptureReadings ?? this.scriptureReadings,
       specialDay: specialDay ?? this.specialDay,
       sourceUrl: sourceUrl ?? this.sourceUrl,
+      saintInfoUrl: saintInfoUrl ?? this.saintInfoUrl,
     );
   }
 

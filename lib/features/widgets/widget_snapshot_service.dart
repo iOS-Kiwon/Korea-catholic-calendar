@@ -7,6 +7,7 @@ import 'package:liturgical_calendar/liturgical_calendar.dart';
 import '../../core/date/year_month.dart';
 import '../calendar/data/calendar_service.dart';
 import '../calendar/presentation/season_style.dart';
+import '../events/application/recurrence_expander.dart';
 import '../events/model/calendar_event.dart';
 
 class WidgetSnapshotService {
@@ -46,9 +47,13 @@ class WidgetSnapshotService {
     required DateTime today,
     required YearMonth month,
   }) {
+    // 반복 규칙을 각 날짜에 전개(정확 날짜키 조회 대신).
+    final expander = RecurrenceExpander(calendar);
     final todayKey = eventDateKey(today);
     final todayDay = calendar.day(today);
-    final todayEvents = [...?events[todayKey]]..sort(_compareEvents);
+    final todayLiturgicalTitle =
+        calendar.shortTitleFor(todayDay) ?? todayDay.title;
+    final todayEvents = expander.eventsOn(events, today)..sort(_compareEvents);
     final todayEvent = todayEvents.isEmpty ? null : todayEvents.first;
     final todayRegularEvent = _firstRegularEvent(todayEvents);
     final todaySaintFeast = _firstSaintFeast(todayEvents);
@@ -63,6 +68,7 @@ class WidgetSnapshotService {
       for (var offset = -12; offset <= 12; offset++)
         _monthPayload(
           calendar: calendar,
+          expander: expander,
           events: events,
           month: YearMonth.fromSerial(month.serial + offset),
           todayKey: todayKey,
@@ -75,7 +81,7 @@ class WidgetSnapshotService {
         'dateKey': todayKey,
         'dateLabel':
             '${today.month}/${today.day} ${_weekdayLabel(today.weekday)}요일',
-        'liturgicalTitle': todayDay.title,
+        'liturgicalTitle': todayLiturgicalTitle,
         'liturgicalColor': _colorName(todayDay.color),
         'eventTitle': todayEvents.isEmpty ? '' : todayEvents.first.title,
         'eventDisplayText': todayEvent == null
@@ -84,6 +90,11 @@ class WidgetSnapshotService {
         'regularEventDisplayText': todayRegularEvent == null
             ? ''
             : _regularEventDisplayText(todayRegularEvent),
+        'regularEventCategoryName': todayRegularEvent?.categoryName ?? '',
+        'regularEventMemo': todayRegularEvent == null
+            ? ''
+            : _eventMemo(todayRegularEvent),
+        'regularEventColor': todayRegularEvent?.categoryColor,
         'saintFeastDisplayText': todaySaintFeast == null
             ? ''
             : _saintFeastDisplayText(todaySaintFeast),
@@ -99,6 +110,7 @@ class WidgetSnapshotService {
           for (final date in visibleDates)
             _dayPayload(
               calendar: calendar,
+              expander: expander,
               events: events,
               date: date,
               inMonth: date.month == month.month,
@@ -112,6 +124,7 @@ class WidgetSnapshotService {
 
   Map<String, dynamic> _monthPayload({
     required CalendarService calendar,
+    required RecurrenceExpander expander,
     required Map<String, List<CalendarEvent>> events,
     required YearMonth month,
     required String todayKey,
@@ -127,6 +140,7 @@ class WidgetSnapshotService {
         for (var i = 0; i < 42; i++)
           _dayPayload(
             calendar: calendar,
+            expander: expander,
             events: events,
             date: DateTime(start.year, start.month, start.day + i),
             inMonth:
@@ -144,6 +158,7 @@ class WidgetSnapshotService {
 
   Map<String, dynamic> _dayPayload({
     required CalendarService calendar,
+    required RecurrenceExpander expander,
     required Map<String, List<CalendarEvent>> events,
     required DateTime date,
     required bool inMonth,
@@ -151,7 +166,8 @@ class WidgetSnapshotService {
   }) {
     final key = eventDateKey(date);
     final day = calendar.day(date);
-    final dayEvents = [...?events[key]]..sort(_compareEvents);
+    final liturgicalTitle = calendar.shortTitleFor(day) ?? day.title;
+    final dayEvents = expander.eventsOn(events, date)..sort(_compareEvents);
     final firstEvent = dayEvents.isEmpty ? null : dayEvents.first;
     final regularEvent = _firstRegularEvent(dayEvents);
     final saintFeast = _firstSaintFeast(dayEvents);
@@ -163,10 +179,10 @@ class WidgetSnapshotService {
       'inMonth': inMonth,
       'isToday': isToday,
       // 달력 격자 셀에 표시되는 텍스트(주요 전례일만).
-      'liturgicalTitle': notable ? day.title : '',
+      'liturgicalTitle': notable ? liturgicalTitle : '',
       // 위젯이 이 날을 '오늘'로 판정했을 때 작은 위젯에 쓰는 전체 정보.
       // (자정이 지나면 위젯은 baked된 today가 아니라 이 격자에서 오늘을 찾아 그린다.)
-      'titleFull': day.title,
+      'titleFull': liturgicalTitle,
       'dateLabel': '${date.month}/${date.day} ${_weekdayLabel(date.weekday)}요일',
       'liturgicalColor': _colorName(day.color),
       'eventTitle': dayEvents.isEmpty ? '' : dayEvents.first.title,
@@ -176,6 +192,9 @@ class WidgetSnapshotService {
       'regularEventDisplayText': regularEvent == null
           ? ''
           : _regularEventDisplayText(regularEvent),
+      'regularEventCategoryName': regularEvent?.categoryName ?? '',
+      'regularEventMemo': regularEvent == null ? '' : _eventMemo(regularEvent),
+      'regularEventColor': regularEvent?.categoryColor,
       'saintFeastDisplayText': saintFeast == null
           ? ''
           : _saintFeastDisplayText(saintFeast),
@@ -249,16 +268,15 @@ CalendarEvent? _firstSaintFeast(List<CalendarEvent> events) {
 }
 
 String _regularEventDisplayText(CalendarEvent event) {
-  final memo = event.memo?.trim();
-  if (memo != null && memo.isNotEmpty) {
-    return '${event.categoryName} * $memo';
-  }
-  return event.categoryName;
+  final memo = _eventMemo(event);
+  return [event.categoryName, if (memo.isNotEmpty) memo].join(' ');
 }
 
 String _saintFeastDisplayText(CalendarEvent event) {
   return event.saintFeastDisplayText;
 }
+
+String _eventMemo(CalendarEvent event) => event.memo?.trim() ?? '';
 
 List<Map<String, dynamic>> _eventItems(List<CalendarEvent> events) => [
   for (final event in events.take(3))

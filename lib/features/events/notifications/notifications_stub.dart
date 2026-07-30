@@ -1,3 +1,4 @@
+import '../application/recurrence_expander.dart';
 import '../model/calendar_event.dart';
 import 'notification_service.dart';
 
@@ -13,8 +14,18 @@ class _NoopNotificationService implements NotificationService {
   Future<bool> areNotificationsEnabled() async => false;
 
   @override
+  Future<NotificationPermissionStatus> notificationPermissionStatus() async =>
+      NotificationPermissionStatus.denied;
+
+  @override
+  Future<bool> requestNotificationPermission() async => false;
+
+  @override
   Future<void> openNotificationSettings() async {}
 
   @override
-  Future<void> sync(Map<String, List<CalendarEvent>> events) async {}
+  Future<void> sync(
+    Map<String, List<CalendarEvent>> events, {
+    RecurrenceExpander? expander,
+  }) async {}
 }

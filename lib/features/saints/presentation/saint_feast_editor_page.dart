@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../ads/ads.dart';
 import '../../events/application/event_providers.dart';
 import '../../events/model/calendar_event.dart';
+import '../../events/model/recurrence.dart';
+import '../../events/model/reminder_lead.dart';
+import '../../events/notifications/notification_service.dart';
 import '../../events/presentation/backup_notice.dart';
+import '../../events/presentation/reminder_editor.dart';
 import '../model/saint.dart';
 import 'saint_search_page.dart';
 
 const _weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-const _saintCategoryId = 'saint_feast';
-const _saintCategoryName = '축일';
 
 String _dateLabel(DateTime d) =>
     '${d.year}년 ${d.month}월 ${d.day}일 (${_weekdays[d.weekday % 7]})';
@@ -44,6 +47,8 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
   late final TextEditingController _memo;
   late DateTime _date;
   late bool _notify;
+  late List<ReminderLead> _reminders;
+  late bool _repeatYearly; // 매년 반복(ON=yearlyDate, OFF=none). 기본 ON.
   Saint? _saint;
   bool _saintError = false;
   bool? _systemNotificationsEnabled;
@@ -59,6 +64,14 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
     _memo = TextEditingController(text: e?.memo ?? '');
     _date = e != null ? parseEventDate(e.date) : _dateOnly(widget.date);
     _notify = e?.notify ?? true;
+    _reminders = sanitizeReminders(
+      e?.reminders ?? const [ReminderLead.day1],
+      allDay: true,
+    );
+    // 신규는 기본 ON. 편집은 저장된 반복 규칙을 따른다(yearlyDate=ON, none=OFF).
+    _repeatYearly =
+        (e?.recurrence ?? RecurrenceType.yearlyDate) ==
+        RecurrenceType.yearlyDate;
     if (e?.saintId != null) {
       _saint = Saint(
         id: e!.saintId!,
@@ -146,9 +159,19 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
     }
 
     final service = ref.read(notificationServiceProvider);
-    final enabled = await service.areNotificationsEnabled();
+    final status = await service.notificationPermissionStatus();
     if (!mounted) return;
-    if (!enabled) {
+    if (status == NotificationPermissionStatus.notDetermined) {
+      final granted = await service.requestNotificationPermission();
+      if (!mounted) return;
+      setState(() {
+        _systemNotificationsEnabled = granted;
+        _notify = granted;
+      });
+      return;
+    }
+
+    if (status == NotificationPermissionStatus.denied) {
       setState(() {
         _systemNotificationsEnabled = false;
         _notify = false;
@@ -183,9 +206,7 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
     });
   }
 
-  String _reminderHelpText() {
-    return '알림은 전날 오후 9:00, 당일 오전 9:00에 보냅니다. 이미 지난 시간의 알림은 예약하지 않습니다.';
-  }
+  String _reminderHelpText() => '알림 시점을 선택하세요';
 
   Future<void> _save() async {
     final saint = _saint;
@@ -199,8 +220,8 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
           widget.existing?.id ??
           DateTime.now().microsecondsSinceEpoch.toString(),
       date: eventDateKey(_date),
-      categoryId: _saintCategoryId,
-      categoryName: _saintCategoryName,
+      categoryId: kSaintFeastCategoryId,
+      categoryName: kSaintFeastCategoryName,
       categoryColor: kSaintFeastEventColor,
       memo: memo.isEmpty ? null : memo,
       time: null,
@@ -209,6 +230,13 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
       saintId: saint.id,
       saintName: saint.nameKo,
       saintUrl: saint.url,
+      // 매년 반복 토글: ON이면 매년 같은 월·일 반복(전례력과 무관, 날짜 기준),
+      // OFF면 반복 없음(해당 연도 하루만). 편집에서 ON->OFF는 다음 해부터 사라지고,
+      // OFF->ON은 다음 해부터 다시 표시된다.
+      recurrence: _repeatYearly
+          ? RecurrenceType.yearlyDate
+          : RecurrenceType.none,
+      reminders: _reminders,
     );
 
     final store = ref.read(eventStoreProvider.notifier);
@@ -224,6 +252,25 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
   Future<void> _delete() async {
     final existing = widget.existing;
     if (existing == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('알림'),
+        content: const Text('정말로 삭제하시겠습니까?', style: TextStyle(fontSize: 17)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    if (!mounted) return;
     await ref.read(eventStoreProvider.notifier).delete(existing);
     if (mounted) Navigator.of(context).pop();
   }
@@ -283,12 +330,31 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
               trailing: const Icon(Icons.edit_outlined, size: 18),
               onTap: _pickDate,
             ),
+
+            // 매년 반복 토글(기본 ON). ON=매년 M월 D일 반복, OFF=올해 하루만.
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              secondary: const Icon(Icons.repeat),
+              title: const Text('매년 반복'),
+              subtitle: Text(
+                _repeatYearly
+                    ? '매년 ${_date.month}월 ${_date.day}일에 반복됩니다'
+                    : '${_date.year}년 ${_date.month}월 ${_date.day}일 하루만 표시됩니다',
+              ),
+              value: _repeatYearly,
+              onChanged: (v) => setState(() => _repeatYearly = v),
+            ),
             const SizedBox(height: 4),
             TextField(
               controller: _memo,
-              maxLines: 1,
+              minLines: 1,
+              maxLines: null,
               maxLength: 100,
+              keyboardType: TextInputType.text,
               textInputAction: TextInputAction.done,
+              inputFormatters: [
+                FilteringTextInputFormatter.deny(RegExp(r'[\r\n]')),
+              ],
               onSubmitted: (_) => FocusScope.of(context).unfocus(),
               decoration: const InputDecoration(
                 labelText: '메모 (선택)',
@@ -304,6 +370,12 @@ class _SaintFeastEditorPageState extends ConsumerState<SaintFeastEditorPage>
               value: _systemNotificationsEnabled == false ? false : _notify,
               onChanged: _toggleNotifications,
             ),
+            if (_systemNotificationsEnabled != false && _notify)
+              ReminderEditor(
+                reminders: _reminders,
+                allDay: true, // 축일은 항상 종일 -> 일/주 리드만
+                onChanged: (v) => setState(() => _reminders = v),
+              ),
           ],
         ),
       ),

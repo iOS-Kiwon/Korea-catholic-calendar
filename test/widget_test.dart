@@ -9,24 +9,40 @@ import 'package:catholic_calendar/features/calendar/presentation/pages/calendar_
 import 'package:catholic_calendar/features/calendar/presentation/pages/day_detail_page.dart';
 import 'package:catholic_calendar/features/calendar/presentation/widgets/day_detail_view.dart';
 import 'package:catholic_calendar/features/calendar/presentation/widgets/day_info_bar.dart';
+import 'package:catholic_calendar/features/calendar/presentation/widgets/month_grid.dart';
 import 'package:catholic_calendar/features/events/analytics/category_log_service.dart';
 import 'package:catholic_calendar/features/events/application/event_providers.dart';
+import 'package:catholic_calendar/features/events/application/recurrence_expander.dart';
 import 'package:catholic_calendar/features/events/data/personal_cloud_backup_store.dart';
 import 'package:catholic_calendar/features/events/model/calendar_event.dart';
+import 'package:catholic_calendar/features/events/model/recurrence.dart';
 import 'package:catholic_calendar/features/events/notifications/notifications.dart';
 import 'package:catholic_calendar/features/events/presentation/category_manager_page.dart'
     show CategoryPickerPage;
+import 'package:catholic_calendar/features/events/presentation/event_editor_sheet.dart';
+import 'package:catholic_calendar/features/events/presentation/reminder_editor.dart';
+import 'package:catholic_calendar/features/saints/presentation/saint_feast_editor_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liturgical_calendar/liturgical_calendar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// A no-op notification service so tests never touch platform channels.
 class _FakeNotifications implements NotificationService {
-  _FakeNotifications({this.enabled = true, this.onOpenSettings});
+  _FakeNotifications({
+    this.enabled = true,
+    this.status,
+    this.requestGranted = true,
+    this.onRequestPermission,
+    this.onOpenSettings,
+  });
 
   final bool enabled;
+  final NotificationPermissionStatus? status;
+  final bool requestGranted;
+  final VoidCallback? onRequestPermission;
   final VoidCallback? onOpenSettings;
 
   @override
@@ -36,10 +52,26 @@ class _FakeNotifications implements NotificationService {
   Future<bool> areNotificationsEnabled() async => enabled;
 
   @override
+  Future<NotificationPermissionStatus> notificationPermissionStatus() async =>
+      status ??
+      (enabled
+          ? NotificationPermissionStatus.authorized
+          : NotificationPermissionStatus.denied);
+
+  @override
+  Future<bool> requestNotificationPermission() async {
+    onRequestPermission?.call();
+    return requestGranted;
+  }
+
+  @override
   Future<void> openNotificationSettings() async => onOpenSettings?.call();
 
   @override
-  Future<void> sync(Map<String, List<CalendarEvent>> events) async {}
+  Future<void> sync(
+    Map<String, List<CalendarEvent>> events, {
+    RecurrenceExpander? expander,
+  }) async {}
 }
 
 /// A backup store that never touches platform channels; reports cloud backup
@@ -108,9 +140,113 @@ void main() {
     await tester.pumpAndSettle(); // resolve async month service
 
     expect(find.text('2026년 7월'), findsOneWidget); // colored header
-    // Sundays are "notable" and show their name in the wide grid.
-    expect(find.text('연중 제15주일'), findsWidgets); // 2026-07-12
+    // Sundays are "notable" and show their (abbreviated) name in the wide grid.
+    // 기본 필터(주일에 대축일만)에서 주일 표기는 "주일"을 뗀 축약형으로 표시된다.
+    expect(find.text('연중 제15'), findsWidgets); // 2026-07-12
   });
+
+  testWidgets('compact month grid hides liturgical color dots', (tester) async {
+    final service = CalendarService(engine: LiturgicalCalendar());
+
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(
+          body: SizedBox(
+            width: 390,
+            height: 360,
+            child: MonthGrid(
+              calendar: service,
+              month: const YearMonth(2026, 7),
+              today: DateTime(2026, 7, 1),
+              selectedDate: null,
+              onSelectDay: (_) {},
+              compact: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final liturgicalDots = tester
+        .widgetList<Container>(find.byType(Container))
+        .where(
+          (widget) =>
+              widget.constraints?.minWidth == 6 &&
+              widget.constraints?.maxWidth == 6 &&
+              widget.constraints?.minHeight == 6 &&
+              widget.constraints?.maxHeight == 6,
+        );
+    expect(liturgicalDots, isEmpty);
+  });
+
+  testWidgets('compact month grid shows transferred solemnity short label', (
+    tester,
+  ) async {
+    final service = CalendarService(engine: LiturgicalCalendar());
+
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(
+          body: SizedBox(
+            width: 390,
+            height: 360,
+            child: MonthGrid(
+              calendar: service,
+              month: const YearMonth(2026, 5),
+              today: DateTime(2026, 5, 1),
+              selectedDate: null,
+              onSelectDay: (_) {},
+              compact: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('주님 승천'), findsOneWidget);
+    expect(service.day(DateTime(2026, 5, 17)).celebration.id, 'ascension');
+    expect(
+      service.day(DateTime(2026, 5, 14)).celebration.id,
+      isNot('ascension'),
+    );
+  });
+
+  testWidgets(
+    'compact month grid uses two title lines only when space allows',
+    (tester) async {
+      final service = CalendarService(engine: LiturgicalCalendar());
+
+      Future<void> pumpGrid(double height) async {
+        await tester.pumpWidget(
+          _wrap(
+            Scaffold(
+              body: SizedBox(
+                width: 390,
+                height: height,
+                child: MonthGrid(
+                  calendar: service,
+                  month: const YearMonth(2026, 5),
+                  today: DateTime(2026, 5, 1),
+                  selectedDate: null,
+                  onSelectDay: (_) {},
+                  compact: true,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      await pumpGrid(360);
+      expect(tester.widget<Text>(find.text('주님 승천')).maxLines, 2);
+
+      await pumpGrid(300);
+      expect(tester.widget<Text>(find.text('주님 승천')).maxLines, 1);
+    },
+  );
 
   testWidgets('day detail shows the 전례력 and 일정 sections', (tester) async {
     // 2026-12-25 — Christmas.
@@ -122,6 +258,62 @@ void main() {
     // The liturgical title appears in the 전례력 section.
     expect(find.text('주님 성탄 대축일'), findsOneWidget);
     expect(find.text('일정'), findsOneWidget);
+  });
+
+  testWidgets('liturgical feast detail shows saint feast add button', (
+    tester,
+  ) async {
+    final day = LiturgicalCalendar()
+        .day(DateTime(2026, 7, 25))
+        .copyWith(
+          title: '성 야고보 사도 축일',
+          celebration: const Celebration(
+            id: 'james_apostle',
+            name: '성 야고보 사도 축일',
+            rank: Rank.feast,
+            color: LiturgicalColor.red,
+            kind: CelebrationKind.sanctorale,
+            precedence: PrecedenceCode.generalFeast,
+          ),
+        );
+    expect(day.celebration.rank, Rank.feast);
+
+    await tester.pumpWidget(_wrap(Scaffold(body: DayDetailView(day: day))));
+    await tester.pumpAndSettle();
+
+    expect(find.text('성 야고보 사도 축일'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, '축일 추가'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(TextButton, '축일 추가'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('새 축일'), findsOneWidget);
+    expect(find.text('성인을 선택하세요'), findsOneWidget);
+  });
+
+  testWidgets('day detail shows saint information link when available', (
+    tester,
+  ) async {
+    final day = LiturgicalCalendar()
+        .day(DateTime(2026, 7, 25))
+        .copyWith(saintInfoUrl: 'https://example.com/saint/james');
+
+    await tester.pumpWidget(_wrap(Scaffold(body: DayDetailView(day: day))));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(TextButton, '성인 정보 보기'), findsOneWidget);
+  });
+
+  testWidgets('non-feast detail hides saint feast add button', (tester) async {
+    final day = LiturgicalCalendar().day(DateTime(2026, 7, 16));
+    expect(day.celebration.rank, isNot(Rank.feast));
+    expect(day.celebration.rank, isNot(Rank.feastOfTheLord));
+    expect(day.celebration.rank, isNot(Rank.solemnity));
+
+    await tester.pumpWidget(_wrap(Scaffold(body: DayDetailView(day: day))));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(TextButton, '축일 추가'), findsNothing);
   });
 
   testWidgets('the add-event speed dial opens the event editor', (
@@ -149,6 +341,43 @@ void main() {
     expect(find.text('새 일정'), findsOneWidget);
     // Title is now chosen on the category screen, not typed here.
     expect(find.text('카테고리를 선택하세요'), findsOneWidget);
+  });
+
+  testWidgets('event editor shows start/end times when all-day is off', (
+    tester,
+  ) async {
+    final day = LiturgicalCalendar().day(DateTime(2026, 7, 16));
+    await tester.pumpWidget(_wrap(Scaffold(body: DayDetailView(day: day))));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(TextButton, '추가'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('시작'), findsOneWidget);
+    expect(find.text('종료'), findsOneWidget);
+    final allDayButtonCount = find.byType(TextButton).evaluate().length;
+
+    await tester.tap(find.widgetWithText(SwitchListTile, '종일'));
+    await tester.pumpAndSettle();
+
+    final timedButtonCount = find.byType(TextButton).evaluate().length;
+    expect(timedButtonCount, allDayButtonCount + 2);
+  });
+
+  testWidgets('event memo wraps while return key stays done', (tester) async {
+    final day = LiturgicalCalendar().day(DateTime(2026, 7, 16));
+    await tester.pumpWidget(_wrap(Scaffold(body: DayDetailView(day: day))));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(TextButton, '추가'));
+    await tester.pumpAndSettle();
+
+    final memo = _memoTextField(tester);
+    expect(memo.minLines, 1);
+    expect(memo.maxLines, isNull);
+    expect(memo.keyboardType, TextInputType.text);
+    expect(memo.textInputAction, TextInputAction.done);
+    expect(memo.inputFormatters, contains(isA<FilteringTextInputFormatter>()));
   });
 
   testWidgets('open speed dial scrim blocks month navigation', (tester) async {
@@ -188,6 +417,7 @@ void main() {
         Scaffold(body: DayDetailView(day: day)),
         notificationService: _FakeNotifications(
           enabled: false,
+          status: NotificationPermissionStatus.denied,
           onOpenSettings: () => openedSettings = true,
         ),
       ),
@@ -213,6 +443,38 @@ void main() {
     expect(openedSettings, isTrue);
   });
 
+  testWidgets('notification toggle requests permission before settings', (
+    tester,
+  ) async {
+    var requestedPermission = false;
+    var openedSettings = false;
+    final day = LiturgicalCalendar().day(DateTime(2026, 7, 16));
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(body: DayDetailView(day: day)),
+        notificationService: _FakeNotifications(
+          enabled: false,
+          status: NotificationPermissionStatus.notDetermined,
+          requestGranted: true,
+          onRequestPermission: () => requestedPermission = true,
+          onOpenSettings: () => openedSettings = true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(TextButton, '추가'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(SwitchListTile, '알림'));
+    await tester.pumpAndSettle();
+
+    expect(requestedPermission, isTrue);
+    expect(openedSettings, isFalse);
+    expect(find.text('시스템 알림이 꺼져있어 알림을 보낼수 없습니다. 알림을 설정하시겠습니까?'), findsNothing);
+    expect(find.byType(ReminderEditor), findsOneWidget);
+  });
+
   testWidgets('day detail lists stored personal events', (tester) async {
     SharedPreferences.setMockInitialValues({
       'events_v1': jsonEncode({
@@ -236,6 +498,7 @@ void main() {
 
     expect(find.text('일정'), findsOneWidget);
     expect(find.text('성경 공부'), findsOneWidget);
+    expect(find.text('19:30'), findsOneWidget);
   });
 
   testWidgets('bottom info bar summarizes event time category and memo', (
@@ -268,9 +531,248 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final summary = tester.widget<Text>(find.text('19:30 · 성경 공부 · 루카복음 긴 메모'));
+    expect(find.text('성경 공부'), findsOneWidget);
+    final summary = tester.widget<Text>(find.text('19:30 루카복음 긴 메모'));
     expect(summary.maxLines, 1);
     expect(summary.overflow, TextOverflow.ellipsis);
+    expect(find.text('전례'), findsOneWidget);
+    expect(find.text(day.title), findsOneWidget);
+    expect(find.text('축일'), findsNothing);
+  });
+
+  testWidgets('bottom info bar labels liturgical feast as 축일', (tester) async {
+    final day = LiturgicalCalendar()
+        .day(DateTime(2026, 7, 25))
+        .copyWith(
+          title: '성 야고보 사도 축일',
+          celebration: const Celebration(
+            id: 'james_apostle',
+            name: '성 야고보 사도 축일',
+            rank: Rank.feast,
+            color: LiturgicalColor.red,
+            kind: CelebrationKind.sanctorale,
+            precedence: PrecedenceCode.generalFeast,
+          ),
+        );
+
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(
+          body: DayInfoBar(day: day, onTapDetail: () {}),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('축일'), findsOneWidget);
+    expect(find.text('성 야고보 사도 축일'), findsOneWidget);
+    expect(find.text('전례'), findsNothing);
+  });
+
+  testWidgets('bottom info bar labels fetched feast data as 축일', (
+    tester,
+  ) async {
+    final service = CalendarService(
+      engine: LiturgicalCalendar(),
+      cbck: CalendarService.parseDays(const [
+        {'date': '2026-07-25', 'color': 'red', 'title': '성 야고보 사도 축일'},
+      ]),
+    );
+
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(
+          body: DayInfoBar(
+            day: service.day(DateTime(2026, 7, 25)),
+            onTapDetail: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('축일'), findsOneWidget);
+    expect(find.text('성 야고보 사도 축일'), findsOneWidget);
+    expect(find.text('전례'), findsNothing);
+  });
+
+  testWidgets('bottom info bar labels saint alternatives as 축일', (
+    tester,
+  ) async {
+    final service = CalendarService(
+      engine: LiturgicalCalendar(),
+      cbck: CalendarService.parseDays(const [
+        {
+          'date': '2026-08-25',
+          'color': 'green',
+          'title': '연중 제21주간 화요일',
+          'alternatives': [
+            {'name': '성 루도비코', 'color': 'white'},
+            {'name': '성 요셉 데 갈라산즈 사제', 'color': 'white'},
+          ],
+        },
+      ]),
+    );
+
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(
+          body: DayInfoBar(
+            day: service.day(DateTime(2026, 8, 25)),
+            onTapDetail: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('전례'), findsOneWidget);
+    expect(find.text('축일'), findsNWidgets(2));
+    expect(find.text('연중 제21주간 화요일'), findsOneWidget);
+    expect(find.text('성 루도비코'), findsOneWidget);
+    expect(find.text('성 요셉 데 갈라산즈 사제'), findsOneWidget);
+  });
+
+  testWidgets('bottom info bar labels solemnity as 전례', (tester) async {
+    final day = LiturgicalCalendar().day(DateTime(2026, 12, 25));
+    expect(day.celebration.rank, Rank.solemnity);
+
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(
+          body: DayInfoBar(day: day, onTapDetail: () {}),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('전례'), findsOneWidget);
+    expect(find.text('주님 성탄 대축일'), findsOneWidget);
+    expect(find.text('축일'), findsNothing);
+  });
+
+  testWidgets('bottom info bar labels All Souls Day as 전례', (tester) async {
+    final day = LiturgicalCalendar()
+        .day(DateTime(2026, 11, 2))
+        .copyWith(title: '죽은 모든 이를 기억하는 위령의 날');
+    expect(day.celebration.id, 'all_souls');
+    expect(day.celebration.rank, Rank.feast);
+
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(
+          body: DayInfoBar(day: day, onTapDetail: () {}),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('전례'), findsOneWidget);
+    expect(find.text('죽은 모든 이를 기억하는 위령의 날'), findsOneWidget);
+    expect(find.text('축일'), findsNothing);
+  });
+
+  testWidgets('bottom info bar does not label non-saint rank feast as 축일', (
+    tester,
+  ) async {
+    final day = LiturgicalCalendar()
+        .day(DateTime(2026, 7, 16))
+        .copyWith(
+          title: '전례 전용 기념 축일',
+          celebration: const Celebration(
+            id: 'liturgical_only_feast',
+            name: '전례 전용 기념 축일',
+            rank: Rank.feast,
+            color: LiturgicalColor.white,
+            kind: CelebrationKind.sanctorale,
+            precedence: PrecedenceCode.generalFeast,
+          ),
+        );
+
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(
+          body: DayInfoBar(day: day, onTapDetail: () {}),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('전례'), findsOneWidget);
+    expect(find.text('전례 전용 기념 축일'), findsOneWidget);
+    expect(find.text('축일'), findsNothing);
+  });
+
+  testWidgets('bottom info bar uses displayType over rank/title heuristics', (
+    tester,
+  ) async {
+    final day = LiturgicalCalendar()
+        .day(DateTime(2026, 7, 25))
+        .copyWith(
+          title: '성 야고보 사도 축일',
+          celebration: const Celebration(
+            id: 'james_apostle',
+            name: '성 야고보 사도 축일',
+            rank: Rank.feast,
+            color: LiturgicalColor.red,
+            kind: CelebrationKind.sanctorale,
+            precedence: PrecedenceCode.generalFeast,
+            displayType: LiturgicalDisplayType.liturgy,
+          ),
+        );
+
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(
+          body: DayInfoBar(day: day, onTapDetail: () {}),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('전례'), findsOneWidget);
+    expect(find.text('성 야고보 사도 축일'), findsOneWidget);
+    expect(find.text('축일'), findsNothing);
+  });
+
+  testWidgets('day detail uses displayType for 축일 추가 visibility', (
+    tester,
+  ) async {
+    final liturgyRankFeast = LiturgicalCalendar()
+        .day(DateTime(2026, 7, 25))
+        .copyWith(
+          title: '성 야고보 사도 축일',
+          celebration: const Celebration(
+            id: 'james_apostle',
+            name: '성 야고보 사도 축일',
+            rank: Rank.feast,
+            color: LiturgicalColor.red,
+            kind: CelebrationKind.sanctorale,
+            precedence: PrecedenceCode.generalFeast,
+            displayType: LiturgicalDisplayType.liturgy,
+          ),
+        );
+
+    await tester.pumpWidget(
+      _wrap(Scaffold(body: DayDetailView(day: liturgyRankFeast))),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('전례'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, '축일 추가'), findsNothing);
+
+    final saintFeast = liturgyRankFeast.copyWith(
+      celebration: liturgyRankFeast.celebration.copyWith(
+        displayType: LiturgicalDisplayType.saintFeast,
+      ),
+    );
+    await tester.pumpWidget(
+      _wrap(Scaffold(body: DayDetailView(day: saintFeast))),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('축일'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, '축일 추가'), findsOneWidget);
   });
 
   testWidgets('adding an event by picking a category persists and shows it', (
@@ -292,14 +794,118 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('전례'));
     await tester.pumpAndSettle();
+    expect(find.text('전례'), findsOneWidget);
 
     // Save the event.
     await tester.tap(find.widgetWithText(FilledButton, '추가'));
     await tester.pumpAndSettle();
 
     // Back on the detail view, the new event is listed under its category name.
-    expect(find.text('전례'), findsAtLeastNWidgets(1));
+    expect(find.textContaining('전례'), findsAtLeastNWidgets(1));
     expect(find.text('등록된 일정이 없습니다.'), findsNothing);
+  });
+
+  testWidgets('deleting an edited event asks for confirmation', (tester) async {
+    final event = CalendarEvent(
+      id: '1',
+      date: '2026-07-16',
+      categoryId: 'c1',
+      categoryName: '성경 공부',
+      categoryColor: 0xFF2E7D32,
+      notify: true,
+    );
+
+    await tester.pumpWidget(
+      _wrap(
+        Builder(
+          builder: (context) => FilledButton(
+            onPressed: () => showEventEditor(
+              context,
+              date: DateTime(2026, 7, 16),
+              existing: event,
+            ),
+            child: const Text('열기'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('열기'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('삭제'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(of: find.byType(AlertDialog), matching: find.text('알림')),
+      findsOneWidget,
+    );
+    expect(find.text('정말로 삭제하시겠습니까?'), findsOneWidget);
+    expect(find.text('취소'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '삭제'), findsOneWidget);
+  });
+
+  testWidgets('deleting an edited saint feast asks for confirmation', (
+    tester,
+  ) async {
+    final feast = CalendarEvent(
+      id: '1',
+      date: '2026-07-16',
+      categoryId: 'saint_feast',
+      categoryName: '축일',
+      categoryColor: kSaintFeastEventColor,
+      notify: true,
+      type: CalendarEventType.saintFeast,
+      saintId: 1,
+      saintName: '성 마르코',
+      saintUrl: 'https://example.com',
+      recurrence: RecurrenceType.yearlyDate,
+    );
+
+    await tester.pumpWidget(
+      _wrap(SaintFeastEditorPage(date: DateTime(2026, 7, 16), existing: feast)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('삭제'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(of: find.byType(AlertDialog), matching: find.text('알림')),
+      findsOneWidget,
+    );
+    expect(find.text('정말로 삭제하시겠습니까?'), findsOneWidget);
+    expect(find.text('취소'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '삭제'), findsOneWidget);
+  });
+
+  testWidgets('saint feast memo wraps while return key stays done', (
+    tester,
+  ) async {
+    final feast = CalendarEvent(
+      id: '1',
+      date: '2026-07-16',
+      categoryId: 'saint_feast',
+      categoryName: '축일',
+      categoryColor: kSaintFeastEventColor,
+      notify: true,
+      type: CalendarEventType.saintFeast,
+      saintId: 1,
+      saintName: '성 마르코',
+      saintUrl: 'https://example.com',
+      recurrence: RecurrenceType.yearlyDate,
+    );
+
+    await tester.pumpWidget(
+      _wrap(SaintFeastEditorPage(date: DateTime(2026, 7, 16), existing: feast)),
+    );
+    await tester.pumpAndSettle();
+
+    final memo = _memoTextField(tester);
+    expect(memo.minLines, 1);
+    expect(memo.maxLines, isNull);
+    expect(memo.keyboardType, TextInputType.text);
+    expect(memo.textInputAction, TextInputAction.done);
+    expect(memo.inputFormatters, contains(isA<FilteringTextInputFormatter>()));
   });
 
   testWidgets('category screen lists seeded categories and adds a new one', (
@@ -422,4 +1028,13 @@ void main() {
     expect(find.text('기도'), findsNothing);
     expect(find.text('본당 행사'), findsOneWidget); // 나머지는 유지
   });
+}
+
+TextField _memoTextField(WidgetTester tester) {
+  return tester.widget<TextField>(
+    find.byWidgetPredicate(
+      (widget) =>
+          widget is TextField && widget.decoration?.labelText == '메모 (선택)',
+    ),
+  );
 }

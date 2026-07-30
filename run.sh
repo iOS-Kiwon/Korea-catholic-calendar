@@ -33,6 +33,43 @@ info() { printf "\033[1;34m[run]\033[0m %s\n" "$*"; }
 warn() { printf "\033[1;33m[run] ⚠ %s\033[0m\n" "$*"; }
 err()  { printf "\033[1;31m[run] ✗ %s\033[0m\n" "$*"; }
 
+ask_bool() { # $1 = env var name, $2 = prompt, $3 = default(true|false)
+  local name="$1" prompt="$2" default="$3" answer=""
+  local current="${!name:-}"
+  if [ -n "$current" ]; then
+    printf "%s\n" "$current"
+    return 0
+  fi
+  if [ ! -t 0 ]; then
+    printf "%s\n" "$default"
+    return 0
+  fi
+  while true; do
+    printf "%s" "$prompt (Y/N, 기본 N): " >&2
+    read -r answer
+    case "$answer" in
+      [Yy]*)
+        printf "true\n"
+        return 0
+        ;;
+      [Nn]*|"")
+        printf "false\n"
+        return 0
+        ;;
+      *)
+        warn "Y 또는 N으로 입력해 주세요." >&2
+        ;;
+    esac
+  done
+}
+
+ADS_ENABLED="$(ask_bool ADS_ENABLED "광고는 표시할까요?" false)"
+SHOW_REMOTE_STATUS_BADGE="$(ask_bool SHOW_REMOTE_STATUS_BADGE "서버 상태 UI를 표시할까요?" false)"
+RUN_DEFINES=(
+  --dart-define=ADS_ENABLED="$ADS_ENABLED"
+  --dart-define=SHOW_REMOTE_STATUS_BADGE="$SHOW_REMOTE_STATUS_BADGE"
+)
+
 command -v flutter >/dev/null 2>&1 || { err "flutter 명령을 찾을 수 없습니다 (PATH 확인)"; exit 1; }
 
 android_sdk_dir() {
@@ -193,7 +230,7 @@ launch() { # $1 = device id, $2 = label
     info "$label: 물리 iOS 기기 → flutter install (설치 전용)"
     warn "이 기기(구형 iOS + 최신 Xcode)는 flutter run 자동 실행이 실패하므로 install만 수행합니다."
     info "실기기 설치용 iOS 앱 빌드/서명 중..."
-    if ! flutter build ios --release; then
+    if ! flutter build ios --release "${RUN_DEFINES[@]}"; then
       err "iOS 앱 빌드/서명 실패 — Xcode의 Signing & Capabilities 설정을 확인하세요."
       return 1
     fi
@@ -207,15 +244,15 @@ launch() { # $1 = device id, $2 = label
       warn "iOS 시뮬레이터는 release 실행을 지원하지 않아 debug 모드로 전환합니다."
       MODE=debug
     fi
-    info "$label 실행 (mode=$MODE, device=$id)"
-    flutter run --"$MODE" -d "$id"
+    info "$label 실행 (mode=$MODE, ads=$ADS_ENABLED, serverBadge=$SHOW_REMOTE_STATUS_BADGE, device=$id)"
+    flutter run --"$MODE" -d "$id" "${RUN_DEFINES[@]}"
   fi
 }
 
 case "$TARGET" in
   auto)
-    info "연결된 첫 기기에서 실행 (mode=$MODE)"
-    flutter run --"$MODE"
+    info "연결된 첫 기기에서 실행 (mode=$MODE, ads=$ADS_ENABLED, serverBadge=$SHOW_REMOTE_STATUS_BADGE)"
+    flutter run --"$MODE" "${RUN_DEFINES[@]}"
     ;;
   ios|android)
     if [[ "$DEVICE_KIND" != "device" && "$DEVICE_KIND" != "simulator" ]]; then
@@ -250,11 +287,11 @@ case "$TARGET" in
     mkdir -p build/run-logs
     if [ -n "$ios_dev" ]; then
       info "iOS 백그라운드 실행 (device=$ios_dev) → build/run-logs/ios.log"
-      nohup flutter run --"$MODE" -d "$ios_dev" >build/run-logs/ios.log 2>&1 &
+      nohup flutter run --"$MODE" -d "$ios_dev" "${RUN_DEFINES[@]}" >build/run-logs/ios.log 2>&1 &
     else warn "iOS 기기 없음 → 건너뜀"; fi
     if [ -n "$and_dev" ]; then
       info "Android 백그라운드 실행 (device=$and_dev) → build/run-logs/android.log"
-      nohup flutter run --"$MODE" -d "$and_dev" >build/run-logs/android.log 2>&1 &
+      nohup flutter run --"$MODE" -d "$and_dev" "${RUN_DEFINES[@]}" >build/run-logs/android.log 2>&1 &
     else warn "Android 기기 없음 → 건너뜀"; fi
     info "백그라운드 실행 시작. 로그 확인: tail -f build/run-logs/*.log"
     info "중지: pkill -f 'flutter run'"

@@ -5,6 +5,7 @@ import 'package:liturgical_calendar/liturgical_calendar.dart';
 import '../../../../app/theme/liturgical_colors.dart';
 import '../../../events/application/event_providers.dart';
 import '../../../events/model/calendar_event.dart';
+import '../../../events/presentation/event_display.dart';
 
 const _weekdayFull = ['일', '월', '화', '수', '목', '금', '토'];
 const _maxMemorialRows = 3;
@@ -34,9 +35,21 @@ class DayInfoBar extends ConsumerWidget {
         (day.celebration.rank == Rank.solemnity ||
             day.celebration.rank == Rank.feastOfTheLord);
     final memorials = [
-      _MemorialLine(title: day.title, color: day.color),
+      _MemorialLine(
+        id: day.celebration.id,
+        title: day.title,
+        color: day.color,
+        rank: day.celebration.rank,
+        displayType: day.celebration.displayType,
+      ),
       for (final m in day.optionalMemorials)
-        _MemorialLine(title: m.name, color: m.color),
+        _MemorialLine(
+          id: m.id,
+          title: m.name,
+          color: m.color,
+          rank: m.rank,
+          displayType: m.displayType,
+        ),
     ].take(_maxMemorialRows).toList();
 
     return Container(
@@ -113,18 +126,14 @@ class _EventSummary extends StatelessWidget {
     final first = events.first;
     final extra = events.length - 1;
     final memo = first.memo?.trim();
-    final summary = first.isSaintFeast
+    final feastSummary = first.isSaintFeast
         ? [
             first.saintName?.trim().isNotEmpty == true
                 ? first.saintName!.trim()
                 : first.title,
             if (memo != null && memo.isNotEmpty) memo,
           ].join(' ')
-        : [
-            first.isAllDay ? '종일' : first.time!,
-            first.title,
-            if (memo != null && memo.isNotEmpty) memo,
-          ].join(' · ');
+        : null;
 
     return Padding(
       padding: const EdgeInsets.only(top: 6),
@@ -132,28 +141,25 @@ class _EventSummary extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Divider(height: 20, color: theme.dividerColor.withValues(alpha: 0.4)),
           Row(
             children: [
-              if (first.isSaintFeast)
-                const Text(kSaintFeastPrefix, style: TextStyle(fontSize: 13))
-              else
-                Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Color(first.categoryColor),
-                  ),
-                ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  summary,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+              if (first.isSaintFeast) ...[
+                EventLabelHighlight(
+                  label: kSaintFeastPrefix,
+                  color: const Color(kSaintFeastEventColor),
                   style: theme.textTheme.bodyLarge,
                 ),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: first.isSaintFeast
+                    ? Text(
+                        feastSummary!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyLarge,
+                      )
+                    : RegularEventDisplayLine(event: first),
               ),
             ],
           ),
@@ -216,10 +222,19 @@ class _SupportBanner extends StatelessWidget {
 }
 
 class _MemorialLine {
-  const _MemorialLine({required this.title, required this.color});
+  const _MemorialLine({
+    required this.id,
+    required this.title,
+    required this.color,
+    required this.rank,
+    this.displayType,
+  });
 
+  final String id;
   final String title;
   final LiturgicalColor color;
+  final Rank rank;
+  final LiturgicalDisplayType? displayType;
 }
 
 class _MemorialRow extends StatelessWidget {
@@ -234,13 +249,15 @@ class _MemorialRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         children: [
-          Container(
-            width: 11,
-            height: 11,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: context.liturgical.of(line.color),
+          EventLabelHighlight(
+            label: _memorialTypeLabel(
+              line.id,
+              line.title,
+              line.rank,
+              line.displayType,
             ),
+            color: context.liturgical.of(line.color),
+            style: theme.textTheme.bodyLarge,
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -255,4 +272,56 @@ class _MemorialRow extends StatelessWidget {
       ),
     );
   }
+}
+
+String _memorialTypeLabel(
+  String id,
+  String title,
+  Rank rank,
+  LiturgicalDisplayType? displayType,
+) {
+  switch (displayType) {
+    case LiturgicalDisplayType.saintFeast:
+      return '축일';
+    case LiturgicalDisplayType.liturgy:
+    case LiturgicalDisplayType.review:
+      return '전례';
+    case null:
+      break;
+  }
+  if (_isLiturgicalOnlyMemorial(id, title, rank)) {
+    return '전례';
+  }
+  if (_isSaintFeastMemorial(title)) {
+    return '축일';
+  }
+  return '전례';
+}
+
+bool _isLiturgicalOnlyMemorial(String id, String title, Rank rank) {
+  return id == 'all_souls' ||
+      title.contains('위령의 날') ||
+      rank == Rank.solemnity ||
+      rank == Rank.feastOfTheLord;
+}
+
+bool _isSaintFeastMemorial(String title) {
+  return _looksLikeSaintTitle(title) ||
+      title.contains('복되신 동정 마리아') ||
+      title.contains('성모') ||
+      title.contains('대천사') ||
+      title.contains('수호천사') ||
+      title.contains('죄 없는 아기 순교자');
+}
+
+bool _looksLikeSaintTitle(String title) {
+  return title.startsWith('성 ') ||
+      title.startsWith('성녀 ') ||
+      title.startsWith('성인 ') ||
+      title.startsWith('복자 ') ||
+      title.startsWith('복녀 ') ||
+      title.contains(' 성 ') ||
+      title.contains(' 성녀 ') ||
+      title.contains(' 복자 ') ||
+      title.contains(' 복녀 ');
 }

@@ -4,9 +4,11 @@ import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_10y.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../application/recurrence_expander.dart';
 import '../model/calendar_event.dart';
 import 'notification_service.dart';
 
@@ -18,14 +20,16 @@ NotificationService createNotificationService() => _LocalNotificationService();
 /// We never register more than this many, always the soonest ones.
 const _maxScheduled = 60;
 
-/// All-day reminders fire at 09:00 on the day, and 21:00 the evening before.
-const _dayOfHour = 9;
-const _dayBeforeHour = 21;
+/// 반복 일정은 무한이므로 이벤트당 "다음 몇 회차"만 예약한다(앱 실행 시 리필).
+/// 회차 x 리드 개수(최대 2)만큼 알림이 생기므로, 이벤트 하나가 슬롯을 독점하지
+/// 않게 회차 수를 낮게 유지한다.
+const _maxOccurrencesPerEvent = 4;
 
 const _channelId = 'personal_events';
 const _channelName = '일정 알림';
 const _channelDescription = '내가 추가한 개인 일정 알림';
 const _settingsChannel = MethodChannel('com.sidore.catholiccalendar/settings');
+const _permissionRequestedKey = 'notification_permission_requested';
 
 bool get _supported => Platform.isAndroid || Platform.isIOS;
 
@@ -38,7 +42,6 @@ class _LocalNotificationService implements NotificationService {
   @override
   Future<void> init() async {
     await _ensureReady();
-    await _requestPermissions();
   }
 
   Future<void> _ensureReady() async {
@@ -69,7 +72,8 @@ class _LocalNotificationService implements NotificationService {
     _ready = true;
   }
 
-  Future<void> _requestPermissions() async {
+  Future<bool> _requestPermissions() async {
+    if (!_supported) return false;
     if (Platform.isIOS) {
       await _plugin
           .resolvePlatformSpecificImplementation<
@@ -83,6 +87,9 @@ class _LocalNotificationService implements NotificationService {
           >()
           ?.requestNotificationsPermission();
     }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_permissionRequestedKey, true);
+    return areNotificationsEnabled();
   }
 
   @override
@@ -109,6 +116,26 @@ class _LocalNotificationService implements NotificationService {
   }
 
   @override
+  Future<NotificationPermissionStatus> notificationPermissionStatus() async {
+    if (!_supported) return NotificationPermissionStatus.denied;
+    if (await areNotificationsEnabled()) {
+      return NotificationPermissionStatus.authorized;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final requested = prefs.getBool(_permissionRequestedKey) ?? false;
+    return requested
+        ? NotificationPermissionStatus.denied
+        : NotificationPermissionStatus.notDetermined;
+  }
+
+  @override
+  Future<bool> requestNotificationPermission() async {
+    if (!_supported) return false;
+    if (!_ready) await _ensureReady();
+    return _requestPermissions();
+  }
+
+  @override
   Future<void> openNotificationSettings() async {
     if (!_supported) return;
     try {
@@ -119,24 +146,29 @@ class _LocalNotificationService implements NotificationService {
   }
 
   @override
-  Future<void> sync(Map<String, List<CalendarEvent>> events) async {
+  Future<void> sync(
+    Map<String, List<CalendarEvent>> events, {
+    RecurrenceExpander? expander,
+  }) async {
     if (!_supported) return;
     if (!_ready) await _ensureReady();
 
     await _plugin.cancelAll();
 
+    // expander가 없으면 캘린더 없는 전개(전례 축일 반복은 생략, 나머지는 정상).
+    final exp = expander ?? const RecurrenceExpander(null);
     final now = tz.TZDateTime.now(tz.local);
     final reminders = <_Reminder>[];
     for (final list in events.values) {
       for (final e in list) {
         if (!e.notify) continue;
-        reminders.addAll(_remindersFor(e, now));
+        reminders.addAll(_remindersFor(e, now, exp));
       }
     }
     reminders.sort((a, b) => a.when.compareTo(b.when));
     if (reminders.isEmpty) return;
 
-    await _requestPermissions();
+    await requestNotificationPermission();
     if (!await areNotificationsEnabled()) return;
 
     const details = NotificationDetails(
@@ -159,9 +191,11 @@ class _LocalNotificationService implements NotificationService {
           body: r.body,
           scheduledDate: r.when,
           notificationDetails: details,
-          // Inexact avoids requiring the Android 12+ SCHEDULE_EXACT_ALARM
-          // permission; day-before/day-of reminders don't need second precision.
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          // Exact so short leads (5분~2시간 전) fire on time; USE_EXACT_ALARM/
+          // SCHEDULE_EXACT_ALARM declared in the manifest. A calendar/reminder
+          // app qualifies under Play policy, so this is auto-granted with no
+          // runtime prompt.
+          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         );
       } catch (e) {
         if (kDebugMode) debugPrint('Failed to schedule reminder: $e');
@@ -169,50 +203,46 @@ class _LocalNotificationService implements NotificationService {
     }
   }
 
-  /// The future reminders for a single event: evening-before + day-of.
-  Iterable<_Reminder> _remindersFor(CalendarEvent e, tz.TZDateTime now) {
-    final date = parseEventDate(e.date);
-    final int hour;
-    final int minute;
-    if (e.isAllDay) {
-      hour = _dayOfHour;
-      minute = 0;
-    } else {
-      final parts = e.time!.split(':');
-      hour = int.tryParse(parts[0]) ?? _dayOfHour;
-      minute = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
-    }
-
+  /// 이벤트의 미래 알림들. 각 발생일(회차) x 선택된 리드마다 시각을 계산한다.
+  Iterable<_Reminder> _remindersFor(
+    CalendarEvent e,
+    tz.TZDateTime now,
+    RecurrenceExpander expander,
+  ) {
     final timeLabel = e.isAllDay ? '종일' : e.time!;
     final suffix = (e.memo != null && e.memo!.trim().isNotEmpty)
         ? ' · ${e.memo!.trim()}'
         : '';
-
-    final dayOf = tz.TZDateTime(
-      tz.local,
-      date.year,
-      date.month,
-      date.day,
-      hour,
-      minute,
-    );
-    final dayBefore = tz.TZDateTime(
-      tz.local,
-      date.year,
-      date.month,
-      date.day - 1,
-      _dayBeforeHour,
-      0,
-    );
-
     final typeLabel = e.isSaintFeast ? '축일' : '일정';
+    final title = '$typeLabel · ${e.title}';
+    final body = '$timeLabel$suffix';
 
-    return [
-      if (dayBefore.isAfter(now))
-        _Reminder(dayBefore, '내일 $typeLabel · ${e.title}', '$timeLabel$suffix'),
-      if (dayOf.isAfter(now))
-        _Reminder(dayOf, '오늘 $typeLabel · ${e.title}', '$timeLabel$suffix'),
-    ];
+    // 발생일: 비반복은 앵커 1개, 반복은 오늘 이후 다음 K회차.
+    final List<DateTime> occurrences = e.isRecurring
+        ? expander.nextOccurrences(
+            e,
+            DateTime(now.year, now.month, now.day),
+            _maxOccurrencesPerEvent,
+          )
+        : [parseEventDate(e.date)];
+
+    final reminders = <_Reminder>[];
+    for (final date in occurrences) {
+      for (final lead in e.reminders) {
+        final when = lead.reminderTime(date, e.time);
+        if (when == null) continue; // 종일 + 분/시간 리드
+        final tzWhen = tz.TZDateTime(
+          tz.local,
+          when.year,
+          when.month,
+          when.day,
+          when.hour,
+          when.minute,
+        );
+        if (tzWhen.isAfter(now)) reminders.add(_Reminder(tzWhen, title, body));
+      }
+    }
+    return reminders;
   }
 }
 

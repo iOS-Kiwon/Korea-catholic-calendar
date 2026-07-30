@@ -73,7 +73,7 @@ class CategoryStore extends AsyncNotifier<List<EventCategory>> {
   Future<void> _persist(List<EventCategory> list) async {
     await _repo.save(list);
     await _prefs.setBool(CategoryRepository.seededStorageKey, true);
-    state = AsyncData(list);
+    state = AsyncData(_repo.load());
     // 자동 백업은 하지 않는다. 사용자가 설정 > 백업에서 직접 백업한다.
   }
 }
