@@ -29,6 +29,7 @@ test('/e/<payload> 랜딩은 HTML + 앱 열기/설치 안내', async () => {
   assert.match(res.headers.get('content-type') || '', /text\/html/);
   const html = await res.text();
   assert.match(html, /가톨릭 달력/);
+  assert.match(html, /catholiccalendar:\/\/e\//);
 });
 
 test('알 수 없는 경로는 404', async () => {

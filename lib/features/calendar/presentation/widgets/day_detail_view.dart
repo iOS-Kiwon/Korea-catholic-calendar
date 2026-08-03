@@ -389,7 +389,8 @@ class _EventLine extends StatelessWidget {
                     )
                   : RegularEventDisplayLine(event: event),
             ),
-            if (!isSaintFeast) EventShareButton(event: event),
+            if (!isSaintFeast && !event.isRecurring)
+              EventShareButton(event: event),
           ],
         ),
       ),

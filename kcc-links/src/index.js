@@ -43,7 +43,7 @@ function landing() {
 <body style="font-family:system-ui;max-width:480px;margin:40px auto;padding:0 16px">
 <h1>가톨릭 달력</h1>
 <p>공유된 일정을 열려면 가톨릭 달력 앱이 필요합니다.</p>
-<p><a href="#" onclick="location.href=location.href.replace('https://kcc.sidore.org','catholiccalendar:/');return false;">앱에서 열기</a></p>
+<p><a href="#" onclick="location.href=location.href.replace('https://kcc.sidore.org/e/','catholiccalendar://e/');return false;">앱에서 열기</a></p>
 <p>앱이 없으면 설치 후 다시 링크를 눌러 주세요. (스토어 출시 전에는 테스트 배포 링크를 이용하세요.)</p>
 </body></html>`;
   return new Response(html, {
