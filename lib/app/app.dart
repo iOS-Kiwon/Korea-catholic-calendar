@@ -86,24 +86,25 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
     _handlingLink = true;
     // 라우터/네비게이터가 준비될 때까지 다음 프레임에서 처리.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final ctx = _rootNavigatorKey.currentContext;
-      if (ctx == null || !ctx.mounted) {
+      try {
+        final ctx = _rootNavigatorKey.currentContext;
+        if (ctx == null || !ctx.mounted) return;
+        if (outcome is ShareLinkNeedsUpdate) {
+          ScaffoldMessenger.of(ctx).showSnackBar(
+            const SnackBar(content: Text('이 링크를 열려면 앱을 업데이트해 주세요.')),
+          );
+          return;
+        }
+        final draft = (outcome as ShareLinkDraft).draft;
+        final date = parseEventDate(draft.date);
+        // 해당 날짜 화면으로 이동 후 편집기(추가 모드)를 연다.
+        _router.go('${monthPath(YearMonth.of(date))}/${date.day}');
+        await showEventEditor(ctx, date: date, draft: draft);
+      } finally {
+        // 콜백 안에서 어떤 경로로 끝나든(정상 리턴/예외) 가드를 반드시 해제해
+        // 이후 링크가 영구히 무시되지 않도록 한다.
         _handlingLink = false;
-        return;
       }
-      if (outcome is ShareLinkNeedsUpdate) {
-        ScaffoldMessenger.of(ctx).showSnackBar(
-          const SnackBar(content: Text('이 링크를 열려면 앱을 업데이트해 주세요.')),
-        );
-        _handlingLink = false;
-        return;
-      }
-      final draft = (outcome as ShareLinkDraft).draft;
-      final date = parseEventDate(draft.date);
-      // 해당 날짜 화면으로 이동 후 편집기(추가 모드)를 연다.
-      _router.go('${monthPath(YearMonth.of(date))}/${date.day}');
-      await showEventEditor(ctx, date: date, draft: draft);
-      _handlingLink = false;
     });
   }
 
