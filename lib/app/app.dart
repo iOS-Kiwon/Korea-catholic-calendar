@@ -1,15 +1,23 @@
+import 'dart:async';
+
+import 'package:app_links/app_links.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/date/year_month.dart';
 import '../features/app_update/app_update_service.dart';
 import '../features/ads/ads.dart';
 import '../features/app_metadata/app_metadata_service.dart';
+import '../features/calendar/presentation/pages/calendar_page.dart';
 import '../features/events/application/event_providers.dart';
+import '../features/events/model/calendar_event.dart';
 import '../features/events/presentation/backup_notice.dart';
 import '../features/events/presentation/backup_reminder.dart';
+import '../features/events/presentation/event_editor_sheet.dart';
+import '../features/sharing/share_link.dart';
 import '../features/widgets/widget_snapshot_service.dart';
 import '../features/calendar/application/calendar_providers.dart';
 import 'router.dart';
@@ -32,6 +40,9 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
     ],
   );
   final _widgetSnapshotService = const WidgetSnapshotService();
+  final _appLinks = AppLinks();
+  StreamSubscription<Uri>? _linkSub;
+  bool _handlingLink = false;
 
   @override
   void initState() {
@@ -53,6 +64,46 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkAppUpdate());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(appMetadataProvider.future);
+    });
+
+    // 공유 링크 수신: 콜드스타트 1회 + 실행 중 스트림.
+    _appLinks.getInitialLink().then((uri) {
+      if (uri != null) _onIncomingLink(uri);
+    });
+    _linkSub = _appLinks.uriLinkStream.listen(_onIncomingLink);
+  }
+
+  @override
+  void dispose() {
+    _linkSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _onIncomingLink(Uri uri) async {
+    if (_handlingLink) return;
+    final outcome = resolveIncomingLink(uri);
+    if (outcome is! ShareLinkDraft && outcome is! ShareLinkNeedsUpdate) return;
+    _handlingLink = true;
+    // 라우터/네비게이터가 준비될 때까지 다음 프레임에서 처리.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final ctx = _rootNavigatorKey.currentContext;
+      if (ctx == null || !ctx.mounted) {
+        _handlingLink = false;
+        return;
+      }
+      if (outcome is ShareLinkNeedsUpdate) {
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          const SnackBar(content: Text('이 링크를 열려면 앱을 업데이트해 주세요.')),
+        );
+        _handlingLink = false;
+        return;
+      }
+      final draft = (outcome as ShareLinkDraft).draft;
+      final date = parseEventDate(draft.date);
+      // 해당 날짜 화면으로 이동 후 편집기(추가 모드)를 연다.
+      _router.go('${monthPath(YearMonth.of(date))}/${date.day}');
+      await showEventEditor(ctx, date: date, draft: draft);
+      _handlingLink = false;
     });
   }
 
