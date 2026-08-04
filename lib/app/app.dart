@@ -41,36 +41,24 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
   );
   final _widgetSnapshotService = const WidgetSnapshotService();
   final _appLinks = AppLinks();
+  final _initialLinkChecked = Completer<void>();
   StreamSubscription<Uri>? _linkSub;
   bool _handlingLink = false;
+  bool _suppressStartupPromptsForShare = false;
 
   @override
   void initState() {
     super.initState();
-    if (adsEnabled) {
-      // Consent → ATT → Mobile Ads SDK, after the first frame (no-op off mobile).
-      WidgetsBinding.instance.addPostFrameCallback((_) => initAds());
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final context = _rootNavigatorKey.currentContext;
-      if (context == null || !context.mounted) return;
-      maybeShowBackupRestoreNotice(context, ref).then((_) async {
-        if (!mounted) return;
-        final reminderContext = _rootNavigatorKey.currentContext;
-        if (reminderContext == null || !reminderContext.mounted) return;
-        await maybeShowBackupReminder(reminderContext, ref);
-      });
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkAppUpdate());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(appMetadataProvider.future);
     });
 
     // 공유 링크 수신: 콜드스타트 1회 + 실행 중 스트림.
-    _appLinks.getInitialLink().then((uri) {
-      if (uri != null) _onIncomingLink(uri);
-    });
+    unawaited(_initIncomingLinks());
     _linkSub = _appLinks.uriLinkStream.listen(_onIncomingLink);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_runStartupPrompts());
+    });
   }
 
   @override
@@ -79,11 +67,52 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
     super.dispose();
   }
 
+  Future<void> _initIncomingLinks() async {
+    try {
+      final uri = await _appLinks.getInitialLink();
+      if (uri == null) return;
+      final outcome = resolveIncomingLink(uri);
+      if (outcome is ShareLinkDraft || outcome is ShareLinkNeedsUpdate) {
+        _suppressStartupPromptsForShare = true;
+        unawaited(_onIncomingLink(uri));
+      }
+    } catch (error, stackTrace) {
+      debugPrint('[KCC share] 초기 공유 링크 확인 실패: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    } finally {
+      if (!_initialLinkChecked.isCompleted) _initialLinkChecked.complete();
+    }
+  }
+
+  Future<void> _runStartupPrompts() async {
+    await _initialLinkChecked.future;
+    if (!mounted || _suppressStartupPromptsForShare) return;
+
+    if (adsEnabled) {
+      // Consent → ATT → Mobile Ads SDK, after the first frame (no-op off mobile).
+      await initAds();
+      if (!mounted) return;
+    }
+
+    final context = _rootNavigatorKey.currentContext;
+    if (context == null || !context.mounted) return;
+    await maybeShowBackupRestoreNotice(context, ref);
+    if (!mounted || _suppressStartupPromptsForShare) return;
+
+    final reminderContext = _rootNavigatorKey.currentContext;
+    if (reminderContext == null || !reminderContext.mounted) return;
+    await maybeShowBackupReminder(reminderContext, ref);
+    if (!mounted || _suppressStartupPromptsForShare) return;
+
+    await _checkAppUpdate();
+  }
+
   Future<void> _onIncomingLink(Uri uri) async {
     if (_handlingLink) return;
     final outcome = resolveIncomingLink(uri);
     if (outcome is! ShareLinkDraft && outcome is! ShareLinkNeedsUpdate) return;
     _handlingLink = true;
+    _suppressStartupPromptsForShare = true;
     // 라우터/네비게이터가 준비될 때까지 다음 프레임에서 처리.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
@@ -97,11 +126,10 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
         }
         final draft = (outcome as ShareLinkDraft).draft;
         final date = parseEventDate(draft.date);
-        // 해당 날짜 화면으로 이동. go()는 라우터가 다음 프레임에 화면을 다시
-        // 빌드하도록 예약만 하므로, 같은 프레임에서 곧바로 편집기를 push하면
-        // 라우터가 화면을 교체하는 도중이라 조용히 실패할 수 있다. 한 프레임
-        // 더 기다려 리빌드가 끝난 뒤 새로 얻은 컨텍스트로 편집기를 연다.
-        _router.go('${monthPath(YearMonth.of(date))}/${date.day}');
+        // 해당 날짜 화면으로 이동하되, 콜드스타트 때 먼저 생긴 기본 달력
+        // 화면을 히스토리에 남기지 않는다. 그래야 에디터에서 뒤로 간 뒤
+        // Android 뒤로가기 소프트키가 같은 달력 화면을 한 번 더 보여주지 않는다.
+        _router.pushReplacement('${monthPath(YearMonth.of(date))}/${date.day}');
         final freshCtx = await _nextFrameContext();
         if (freshCtx == null || !freshCtx.mounted) return;
         await showEventEditor(freshCtx, date: date, draft: draft);
