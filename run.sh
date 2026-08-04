@@ -69,8 +69,61 @@ RUN_DEFINES=(
   --dart-define=ADS_ENABLED="$ADS_ENABLED"
   --dart-define=SHOW_REMOTE_STATUS_BADGE="$SHOW_REMOTE_STATUS_BADGE"
 )
+ANDROID_APP_ID="com.sidore.catholiccalendar"
+IOS_APP_ID="com.sidore.catholiccalendar"
+ANDROID_VERSION_FILE="android/release_version.properties"
+IOS_VERSION_FILE="ios/release_version.properties"
 
 command -v flutter >/dev/null 2>&1 || { err "flutter 명령을 찾을 수 없습니다 (PATH 확인)"; exit 1; }
+
+current_pubspec_version() {
+  sed -n 's/^version:[[:space:]]*//p' pubspec.yaml | head -n 1
+}
+
+read_release_version() {
+  local file="$1"
+  local fallback app_version build_number
+
+  if [ -f "$file" ]; then
+    app_version="$(sed -n 's/^appVersion=//p' "$file" | head -n 1)"
+    build_number="$(sed -n 's/^buildNumber=//p' "$file" | head -n 1)"
+  fi
+
+  if [ -z "${app_version:-}" ] || [ -z "${build_number:-}" ]; then
+    fallback="$(current_pubspec_version)"
+    app_version="${fallback%%+*}"
+    build_number="${fallback#*+}"
+  fi
+
+  if [[ -z "$app_version" || -z "$build_number" || ! "$app_version" =~ ^[0-9]+(\.[0-9]+){2}$ || ! "$build_number" =~ ^[0-9]+$ ]]; then
+    err "버전 형식을 읽을 수 없습니다: $file"
+    exit 1
+  fi
+
+  printf "%s+%s\n" "$app_version" "$build_number"
+}
+
+version_args_for_platform() {
+  local plat="$1" file version app_version build_number
+  case "$plat" in
+    android*) file="$ANDROID_VERSION_FILE" ;;
+    ios*) file="$IOS_VERSION_FILE" ;;
+    *) return 0 ;;
+  esac
+
+  version="$(read_release_version "$file")"
+  app_version="${version%%+*}"
+  build_number="${version#*+}"
+  printf -- "--build-name=%s\n--build-number=%s\n" "$app_version" "$build_number"
+}
+
+android_apk_for_mode() {
+  case "$1" in
+    debug) printf "build/app/outputs/flutter-apk/app-debug.apk\n" ;;
+    profile) printf "build/app/outputs/flutter-apk/app-profile.apk\n" ;;
+    release) printf "build/app/outputs/flutter-apk/app-release.apk\n" ;;
+  esac
+}
 
 android_sdk_dir() {
   if [ -n "${ANDROID_HOME:-}" ]; then
@@ -153,6 +206,37 @@ for d in devs:
 ' "$1"
 }
 
+android_data_free_kb() {
+  local id="$1" adb_bin
+  adb_bin="$(adb_cmd)" || return 1
+  "$adb_bin" -s "$id" shell df -k /data 2>/dev/null \
+    | awk 'NR == 2 { gsub(/\r/, "", $4); print $4 }'
+}
+
+trim_android_emulator_caches() {
+  local id="$1" adb_bin before after
+  adb_bin="$(adb_cmd)" || return 0
+
+  before="$(android_data_free_kb "$id" || true)"
+  if [ -n "$before" ]; then
+    info "Android 에뮬레이터 저장공간 확인: /data 여유 $((before / 1024))MB"
+  fi
+
+  # Safe cleanup: ask Android to trim app caches. This does not uninstall apps or
+  # wipe user data, but often frees enough space for a release APK install.
+  "$adb_bin" -s "$id" shell pm trim-caches 2G >/dev/null 2>&1 || true
+
+  after="$(android_data_free_kb "$id" || true)"
+  if [ -n "$after" ] && [ "$after" != "$before" ]; then
+    info "Android 에뮬레이터 캐시 정리 후 /data 여유 $((after / 1024))MB"
+  fi
+}
+
+is_android_install_no_space() {
+  local log_file="$1"
+  grep -qiE 'not enough space|INSTALL_FAILED_INSUFFICIENT_STORAGE|Requested internal only' "$log_file"
+}
+
 first_android_avd() {
   local emulator_bin="$1"
   if [ -n "${ANDROID_AVD:-}" ]; then
@@ -222,15 +306,23 @@ ensure_android_simulator() {
 
 # 물리 iOS 기기는 install(설치 전용), 그 외는 flutter run.
 launch() { # $1 = device id, $2 = label
-  local id="$1" label="$2" meta plat emu
+  local id="$1" label="$2" meta plat emu run_log status version_label apk_path
+  local -a version_args
   meta="$(device_meta "$id")"
   plat="${meta%% *}"
   emu="${meta##* }"
+  while IFS= read -r arg; do
+    version_args+=("$arg")
+  done < <(version_args_for_platform "$plat")
+  if [ "${#version_args[@]}" -gt 0 ]; then
+    version_label="${version_args[0]#--build-name=}+${version_args[1]#--build-number=}"
+    info "$label 버전: $version_label"
+  fi
   if [[ "$plat" == ios* && "$emu" == "false" ]]; then
     info "$label: 물리 iOS 기기 → flutter install (설치 전용)"
     warn "이 기기(구형 iOS + 최신 Xcode)는 flutter run 자동 실행이 실패하므로 install만 수행합니다."
     info "실기기 설치용 iOS 앱 빌드/서명 중..."
-    if ! flutter build ios --release "${RUN_DEFINES[@]}"; then
+    if ! flutter build ios --release "${RUN_DEFINES[@]}" "${version_args[@]}"; then
       err "iOS 앱 빌드/서명 실패 — Xcode의 Signing & Capabilities 설정을 확인하세요."
       return 1
     fi
@@ -245,6 +337,49 @@ launch() { # $1 = device id, $2 = label
       MODE=debug
     fi
     info "$label 실행 (mode=$MODE, ads=$ADS_ENABLED, serverBadge=$SHOW_REMOTE_STATUS_BADGE, device=$id)"
+    if [[ "$plat" == ios* && "$emu" == "true" ]]; then
+      info "iOS 시뮬레이터 앱 빌드 (배포 버전 주입): build/ios/iphonesimulator/Runner.app"
+      if ! flutter build ios --simulator --"$MODE" "${RUN_DEFINES[@]}" "${version_args[@]}"; then
+        err "iOS 시뮬레이터 앱 빌드 실패"
+        return 1
+      fi
+      if ! xcrun simctl install "$id" build/ios/iphonesimulator/Runner.app; then
+        err "iOS 시뮬레이터 설치 실패"
+        return 1
+      fi
+      if xcrun simctl launch "$id" "$IOS_APP_ID"; then
+        info "iOS 시뮬레이터 실행 완료"
+        return 0
+      fi
+      err "iOS 시뮬레이터 실행 실패"
+      return 1
+    fi
+    if [[ "$plat" == android* ]]; then
+      mkdir -p build/run-logs
+      run_log="build/run-logs/android-flutter-run.log"
+      apk_path="$(android_apk_for_mode "$MODE")"
+      info "Android APK 빌드 (배포 버전 주입): $apk_path"
+      if ! flutter build apk --"$MODE" "${RUN_DEFINES[@]}" "${version_args[@]}"; then
+        err "Android APK 빌드 실패"
+        return 1
+      fi
+      if [[ "$emu" == "true" ]]; then
+        trim_android_emulator_caches "$id"
+      fi
+      flutter run --"$MODE" -d "$id" --use-application-binary="$apk_path" 2>&1 | tee "$run_log"
+      status=${PIPESTATUS[0]}
+      if [[ "$emu" == "true" && "$status" -ne 0 ]] && is_android_install_no_space "$run_log"; then
+        warn "에뮬레이터 저장공간 부족으로 설치가 실패했습니다. 캐시를 한 번 더 정리한 뒤 재시도합니다."
+        trim_android_emulator_caches "$id"
+        flutter run --"$MODE" -d "$id" --use-application-binary="$apk_path"
+        status=$?
+        if [ "$status" -ne 0 ]; then
+          warn "계속 실패하면 에뮬레이터에서 불필요한 앱을 삭제하거나 Android Studio Device Manager에서 해당 AVD를 Wipe Data 하세요."
+          warn "현재 앱만 지워도 되는 경우: $(adb_cmd 2>/dev/null || printf adb) -s $id uninstall $ANDROID_APP_ID"
+        fi
+      fi
+      return "$status"
+    fi
     flutter run --"$MODE" -d "$id" "${RUN_DEFINES[@]}"
   fi
 }
@@ -252,7 +387,16 @@ launch() { # $1 = device id, $2 = label
 case "$TARGET" in
   auto)
     info "연결된 첫 기기에서 실행 (mode=$MODE, ads=$ADS_ENABLED, serverBadge=$SHOW_REMOTE_STATUS_BADGE)"
-    flutter run --"$MODE" "${RUN_DEFINES[@]}"
+    dev="$(pick_device android device)"
+    [ -n "$dev" ] || dev="$(pick_device ios device)"
+    [ -n "$dev" ] || dev="$(pick_device android simulator)"
+    [ -n "$dev" ] || dev="$(pick_device ios simulator)"
+    if [ -n "$dev" ]; then
+      launch "$dev" "auto"
+    else
+      warn "모바일 기기를 찾지 못해 Flutter 기본 선택으로 실행합니다. 이 경우 배포 버전을 강제할 수 없습니다."
+      flutter run --"$MODE" "${RUN_DEFINES[@]}"
+    fi
     ;;
   ios|android)
     if [[ "$DEVICE_KIND" != "device" && "$DEVICE_KIND" != "simulator" ]]; then
@@ -287,11 +431,11 @@ case "$TARGET" in
     mkdir -p build/run-logs
     if [ -n "$ios_dev" ]; then
       info "iOS 백그라운드 실행 (device=$ios_dev) → build/run-logs/ios.log"
-      nohup flutter run --"$MODE" -d "$ios_dev" "${RUN_DEFINES[@]}" >build/run-logs/ios.log 2>&1 &
+      nohup env ADS_ENABLED="$ADS_ENABLED" SHOW_REMOTE_STATUS_BADGE="$SHOW_REMOTE_STATUS_BADGE" MODE="$MODE" ./run.sh ios >build/run-logs/ios.log 2>&1 &
     else warn "iOS 기기 없음 → 건너뜀"; fi
     if [ -n "$and_dev" ]; then
       info "Android 백그라운드 실행 (device=$and_dev) → build/run-logs/android.log"
-      nohup flutter run --"$MODE" -d "$and_dev" "${RUN_DEFINES[@]}" >build/run-logs/android.log 2>&1 &
+      nohup env ADS_ENABLED="$ADS_ENABLED" SHOW_REMOTE_STATUS_BADGE="$SHOW_REMOTE_STATUS_BADGE" MODE="$MODE" ./run.sh android >build/run-logs/android.log 2>&1 &
     else warn "Android 기기 없음 → 건너뜀"; fi
     info "백그라운드 실행 시작. 로그 확인: tail -f build/run-logs/*.log"
     info "중지: pkill -f 'flutter run'"
