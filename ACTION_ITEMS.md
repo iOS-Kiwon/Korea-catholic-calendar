@@ -1,7 +1,7 @@
 # 사용자 확인·작업 목록 (ACTION ITEMS)
 
 당신이 **직접 전달/결정/검토**해야 할 항목. (⚠️ = 반드시 확인)
-_최종 갱신: 2026-08-04 - 일정 공유(딥링크) 코드 완료, `kcc.sidore.org` 배포/연결 필요 항목 반영._
+_최종 갱신: 2026-08-04 - 일정 공유(딥링크) 배포 완료 + 실기기 버그 2건 수정 + 랜딩 페이지 리디자인 + 보안 방식(base64 유지) 확정._
 
 ---
 
@@ -74,25 +74,25 @@ _최종 갱신: 2026-08-04 - 일정 공유(딥링크) 코드 완료, `kcc.sidore
 - **Android 정시(exact) 알람 전환**: 짧은 리드(5분~2시간 전)가 도즈/배터리 최적화에서도 정시에 울리도록 매니페스트에 `USE_EXACT_ALARM` + `SCHEDULE_EXACT_ALARM(maxSdkVersion=32)` 선언 + `exactAllowWhileIdle` 사용. 캘린더/리마인더 앱이라 Play 정책상 자동 승인(런타임 팝업 없음). (이전 "inexact 사용, 특별 권한 불필요" 방침에서 변경)
 - 브랜치: `feature/일정-반복`. 검증: `flutter analyze` 무경고, `flutter test` 164개 통과.
 
-## ✅ 최근 추가 (일정 공유 - https 딥링크, 코드는 완료 / 배포는 남음)
+## ✅ 최근 추가 (일정 공유 - https 딥링크)
 
-- 상세화면 개인 일정에 **공유 버튼** 추가 → `https://kcc.sidore.org/e/<암호화 안 된 base64url payload>` 링크 생성(날짜/시간/메모/카테고리 담김, 서버 저장 없음). 반복 일정은 앵커 날짜 오류 방지를 위해 공유 버튼 숨김.
+- 상세화면 개인 일정에 **공유 버튼** 추가 → `https://kcc.sidore.org/e/<base64url payload>` 링크 생성(날짜/시간/메모/카테고리 담김, 서버 저장 없음). 반복 일정은 앵커 날짜 오류 방지를 위해 공유 버튼 숨김.
 - 앱이 이 링크를 받으면(콜드스타트/실행 중 둘 다) 해당 날짜로 이동 후 편집기를 **추가 모드**로 열어 내용 자동 입력(`resolveIncomingLink` → `ShareLinkDraft`/`ShareLinkInvalid`/`ShareLinkNeedsUpdate` 3분기). `lib/app/app.dart`에서 `app_links` 패키지로 수신, 재진입 가드 + `try/finally`로 예외 시에도 가드 해제.
 - iOS 유니버설 링크(Associated Domains) / Android 앱 링크(autoVerify intent-filter) 매니페스트·entitlements 설정 완료. 서버 연동파일 미배포 상황을 위한 `catholiccalendar://` 커스텀 스킴 폴백도 등록.
-- `kcc-links/`(Cloudflare Worker) 코드 작성 완료: `/.well-known/apple-app-site-association`, `/.well-known/assetlinks.json`, `/e/*` 브라우저 폴백 랜딩.
+- 실기기 검증 중 발견해 고친 버그 2건: (1) 딥링크로 앱이 열릴 때 go_router 기본 "Page Not Found" 화면이 잠깐 뜨던 문제(`errorBuilder` 추가로 현재 달 화면으로 대체), (2) 라우터 이동 직후 곧바로 편집기를 열면 조용히 실패해 편집기가 안 뜨던 문제(라우터 리빌드가 끝나는 한 프레임 더 기다린 뒤 열도록 수정 + 실패 시 진단 로그 추가).
+- **`kcc-links`(Cloudflare Worker) 배포 완료**: `kcc.sidore.org` 커스텀 도메인 연결 및 SSL 발급 확인됨(`/health` 응답 정상). `/.well-known/apple-app-site-association`(iOS, 실제 Team ID 반영됨) / `/.well-known/assetlinks.json`(Android, SHA256은 아직 placeholder) / `/e/*` 브라우저 폴백 랜딩 모두 서빙 중.
+- **공유 랜딩 페이지 디자인 개선**: 시스템 폰트 텍스트만 있던 페이지를 앱 브랜드 톤(크림 배경, 세리프 제목, 전례색 4도트, 필 버튼)으로 리디자인(B안 채택, A안은 `kcc-links/mockups/`에 보존). 설계 문서: `docs/superpowers/specs/2026-08-04-공유링크-랜딩페이지-design.md`.
+- **보안 방식 결정(확정)**: URL에 담긴 payload는 암호화가 아니라 base64 인코딩 그대로 유지하기로 결정. 이유: (a) 앱에 내장해야 하는 복호화 키는 결국 누구나 추출 가능해 "진짜" 보안이 아님, (b) 암호화 시 URL이 더 길어짐(방향 반대), (c) 개인 일정 공유 용도로는 현재 방식(서버 미저장, 링크를 아는 사람만 열람 가능)이 충분. 링크 취소가 안 되고 메모에 민감 정보는 넣지 말아야 한다는 한계는 인지하고 유지.
 - 검증: `flutter analyze` 무경고, `flutter test` 181개 통과(신규 케이스 포함). 링크 처리 핵심 분기(`resolveIncomingLink`)는 단위 테스트로 커버.
-- ⚠️ **아직 실제로 열리지 않음** — 아래 "남은 당신의 몫"의 kcc-links 배포 항목을 완료해야 공유 링크를 카카오톡 등에서 눌렀을 때 정상 동작합니다(현재는 `kcc.sidore.org`가 DNS에 없어 "페이지 없음"으로 뜸).
 
 ## ⏳ 남은 당신의 몫
 
-- [ ] ⚠️ **`kcc-links` Cloudflare Worker 배포 + `kcc.sidore.org` 커스텀 도메인 연결** — 공유 링크(`https://kcc.sidore.org/e/...`)를 카카오톡 등에서 열면 현재 "페이지 없음"이 뜹니다. 원인 확인됨: `kcc.sidore.org`가 DNS에 아예 존재하지 않음(`dig`로 확인, A/CNAME 레코드 없음). `sidore.org` 자체는 이미 Cloudflare 네임서버를 쓰고 있어 아래만 하면 됩니다(AI가 대신 로그인/배포할 수 없어 직접 해주셔야 함):
-  1. `cd kcc-links && npm install && npx wrangler login` (브라우저에서 Cloudflare 계정 로그인)
-  2. `npx wrangler deploy`
-  3. Cloudflare 대시보드 → Workers & Pages → **kcc-links** → Settings → Domains & Routes → **Add Custom Domain** → `kcc.sidore.org` 입력(사이트가 이미 CF 네임서버를 쓰므로 DNS/SSL은 자동 생성됨).
-  4. 배포 전에 `kcc-links/src/index.js`의 `ANDROID_SHA256` 두 값(`<SHA256_DEBUG>`, `<SHA256_RELEASE>`)을 실제 값으로 교체해야 안드로이드 앱 링크(자동 앱 열기) 검증이 통과합니다. (`APPLE_TEAM_ID`는 `ios/Runner.xcodeproj`의 값(`W6B6ZQQ57S`)으로 이미 채워 넣었습니다.)
-     - 디버그: `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android` 출력의 `SHA256:` 값
-     - 릴리스: `keytool -list -v -keystore android/app/upload-keystore.jks -alias upload` 실행(비밀번호는 `android/key.properties` 참고) 후 `SHA256:` 값. (서명 키스토어 비밀번호가 관련된 명령이라 제가 대신 실행하지 않았습니다.)
-  5. 배포 후 실기기에서 카카오톡 등으로 링크를 열어 앱이 뜨는지, 미설치 시 랜딩 페이지가 뜨는지 확인.
+- [ ] **공유 랜딩 페이지 재배포** - `kcc-links/src/index.js`를 리디자인했지만 Cloudflare 대시보드에 다시 배포해야 실제 `kcc.sidore.org`에 반영됩니다. Worker 편집 화면(Edit code)에서 `kcc-links/src/index.js` 전체 내용을 다시 붙여넣고 배포해 주세요.
+- [ ] **Android 앱 링크용 SHA256 지문 채우기** - `kcc-links/src/index.js`의 `ANDROID_SHA256` 두 값(`<SHA256_DEBUG>`, `<SHA256_RELEASE>`)이 아직 placeholder라 안드로이드에서 "자동으로 앱 열기"(앱링크 검증)까지는 안 됩니다(랜딩 페이지는 정상 동작). 서명 키스토어 비밀번호가 필요한 명령이라 대신 실행하지 않았습니다:
+  - 디버그: `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android` 출력의 `SHA256:` 값
+  - 릴리스: `keytool -list -v -keystore android/app/upload-keystore.jks -alias upload` 실행(비밀번호는 `android/key.properties` 참고) 후 `SHA256:` 값
+  - 값을 채운 뒤 위 재배포 절차와 함께 반영.
+- [ ] **실기기 최종 확인** - iOS는 카카오톡이 아닌 iMessage/메모 앱에 링크를 붙여넣어 눌러보는 것이 유니버설 링크 동작을 가장 깨끗하게 확인하는 방법입니다(카카오톡 인앱 브라우저는 OS의 자동 앱 전환을 막는 경우가 있어 랜딩 페이지가 먼저 뜨는 게 정상일 수 있음). Android도 SHA256 반영 후 링크로 앱이 바로 열리는지 확인.
 - [ ] **AdMob 콘솔에서 동의/개인정보 메시지 생성** — AdMob → 개인정보 보호 및 메시지(Privacy & messaging)에서 **GDPR(유럽) 동의 메시지**(및 원하면 IDFA/ATT 사전 설명 메시지)를 만들어 게시해야 UMP 동의 폼이 실제로 표시됩니다. (코드는 준비됨)
 - [ ] **`app-ads.txt` 호스팅** — App Store/Play 개발자 프로필에 등록한 **웹사이트 도메인 루트**(`https://<도메인>/app-ads.txt`)에 올려야 인증됩니다. 웹 배포 도메인이 정해지면 `web/app-ads.txt`가 자동 서빙되거나, 해당 도메인 루트에 파일을 두세요.
 - [ ] **AdMob 실기기 검증** — 배너 노출 + (EEA 시뮬레이션 시) 동의 폼 + iOS ATT 프롬프트 확인. (iOS는 CocoaPods 필요: `sudo gem install cocoapods`)
