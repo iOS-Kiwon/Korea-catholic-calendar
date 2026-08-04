@@ -2,7 +2,7 @@
 // 앱 설치 시 OS가 /e/* 링크를 앱으로 가로채므로, 이 랜딩은 미설치/브라우저 폴백용.
 
 // 선행조건: 아래 값을 실제 값으로 교체.
-const APPLE_TEAM_ID = '<TEAMID>'; // 예: ABCDE12345
+const APPLE_TEAM_ID = 'W6B6ZQQ57S'; // ios/Runner.xcodeproj DEVELOPMENT_TEAM 값
 const IOS_BUNDLE_ID = 'com.sidore.catholiccalendar';
 const ANDROID_PACKAGE = 'com.sidore.catholiccalendar';
 const ANDROID_SHA256 = [
