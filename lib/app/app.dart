@@ -97,15 +97,36 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
         }
         final draft = (outcome as ShareLinkDraft).draft;
         final date = parseEventDate(draft.date);
-        // 해당 날짜 화면으로 이동 후 편집기(추가 모드)를 연다.
+        // 해당 날짜 화면으로 이동. go()는 라우터가 다음 프레임에 화면을 다시
+        // 빌드하도록 예약만 하므로, 같은 프레임에서 곧바로 편집기를 push하면
+        // 라우터가 화면을 교체하는 도중이라 조용히 실패할 수 있다. 한 프레임
+        // 더 기다려 리빌드가 끝난 뒤 새로 얻은 컨텍스트로 편집기를 연다.
         _router.go('${monthPath(YearMonth.of(date))}/${date.day}');
-        await showEventEditor(ctx, date: date, draft: draft);
+        final freshCtx = await _nextFrameContext();
+        if (freshCtx == null || !freshCtx.mounted) return;
+        await showEventEditor(freshCtx, date: date, draft: draft);
+      } catch (error, stackTrace) {
+        // 이 경로는 플랫폼 딥링크 수신이라 자동 테스트가 없어, 실기기에서
+        // 조용히 실패하면 원인을 알 수 없다. 콘솔에 최소한의 진단 로그를 남긴다.
+        debugPrint('[KCC share] 공유 링크 처리 실패: $error');
+        debugPrintStack(stackTrace: stackTrace);
       } finally {
         // 콜백 안에서 어떤 경로로 끝나든(정상 리턴/예외) 가드를 반드시 해제해
         // 이후 링크가 영구히 무시되지 않도록 한다.
         _handlingLink = false;
       }
     });
+  }
+
+  /// `_router.go()` 직후 예약된 리빌드가 끝나는 다음 프레임까지 기다린 뒤,
+  /// 그 시점의 루트 네비게이터 컨텍스트를 반환한다(마운트 해제됐으면 null).
+  Future<BuildContext?> _nextFrameContext() {
+    final completer = Completer<BuildContext?>();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _rootNavigatorKey.currentContext;
+      completer.complete(ctx != null && ctx.mounted ? ctx : null);
+    });
+    return completer.future;
   }
 
   Future<void> _checkAppUpdate() async {
