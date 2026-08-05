@@ -1,0 +1,9 @@
+{
+  "name": "kcc-links",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "kcc.sidore.org 유니버설/앱링크 연동파일 + 공유 랜딩",
+  "scripts": { "dev": "wrangler dev", "deploy": "wrangler deploy", "test": "node --test" },
+  "devDependencies": { "wrangler": "^3.90.0" }
+}

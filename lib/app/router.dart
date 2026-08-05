@@ -21,6 +21,13 @@ GoRouter buildRouter({
     navigatorKey: navigatorKey,
     observers: observers,
     initialLocation: monthPath(YearMonth.of(DateTime.now())),
+    // 공유 딥링크(예: https://kcc.sidore.org/e/...)로 앱이 열리면 iOS/Android가
+    // 그 원본 URL을 go_router의 초기 위치로 그대로 넘기는데, 이는 우리 라우트
+    // 패턴과 맞지 않아 기본 "Page Not Found" 화면이 뜬다. 이 초기 진입 시점의
+    // 불일치는 앱 내부(app.dart의 app_links 처리)가 곧 올바른 날짜로 다시
+    // 이동시켜 주므로, 여기서는 에러 화면 대신 현재 달 화면으로 조용히 대체한다.
+    errorBuilder: (context, state) =>
+        CalendarPage(month: YearMonth.of(DateTime.now())),
     routes: [
       GoRoute(
         name: 'home',

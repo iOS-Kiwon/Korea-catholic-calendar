@@ -501,6 +501,76 @@ void main() {
     expect(find.text('19:30'), findsOneWidget);
   });
 
+  testWidgets('day detail hides all-day label text for personal events', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'events_v1': jsonEncode({
+        '2026-07-16': [
+          {
+            'id': '1',
+            'date': '2026-07-16',
+            'categoryId': 'c1',
+            'categoryName': '성경 공부',
+            'categoryColor': 0xFF2E7D32,
+            'memo': '루카복음',
+            'notify': true,
+          },
+        ],
+      }),
+    });
+
+    final day = LiturgicalCalendar().day(DateTime(2026, 7, 16));
+    await tester.pumpWidget(_wrap(Scaffold(body: DayDetailView(day: day))));
+    await tester.pumpAndSettle();
+
+    expect(find.text('성경 공부'), findsOneWidget);
+    expect(find.text('루카복음'), findsOneWidget);
+    expect(find.text('종일'), findsNothing);
+  });
+
+  testWidgets('share button hides for recurring personal events', (
+    tester,
+  ) async {
+    // 반복 일정은 RecurrenceExpander가 앵커 날짜를 그대로 담아 전개하므로,
+    // 미래 발생일 상세에서 공유하면 잘못된(최초) 날짜가 공유된다 - 공유 버튼을 숨긴다.
+    // 단건(비반복) 일정은 공유 버튼이 그대로 보인다.
+    SharedPreferences.setMockInitialValues({
+      'events_v1': jsonEncode({
+        '2026-07-16': [
+          {
+            'id': '1',
+            'date': '2026-07-16',
+            'categoryId': 'c1',
+            'categoryName': '성경 공부',
+            'categoryColor': 0xFF2E7D32,
+            'time': '19:30',
+            'notify': true,
+            'recurrence': 'weekly',
+          },
+          {
+            'id': '2',
+            'date': '2026-07-16',
+            'categoryId': 'c2',
+            'categoryName': '단건 모임',
+            'categoryColor': 0xFF2E7D32,
+            'time': '20:00',
+            'notify': true,
+          },
+        ],
+      }),
+    });
+
+    final day = LiturgicalCalendar().day(DateTime(2026, 7, 16));
+    await tester.pumpWidget(_wrap(Scaffold(body: DayDetailView(day: day))));
+    await tester.pumpAndSettle();
+
+    expect(find.text('성경 공부'), findsOneWidget);
+    expect(find.text('단건 모임'), findsOneWidget);
+    // 두 일정 중 반복인 것은 공유 버튼이 없고, 단건 일정만 공유 버튼이 보인다.
+    expect(find.byIcon(Icons.ios_share), findsOneWidget);
+  });
+
   testWidgets('bottom info bar summarizes event time category and memo', (
     tester,
   ) async {
@@ -538,6 +608,38 @@ void main() {
     expect(find.text('전례'), findsOneWidget);
     expect(find.text(day.title), findsOneWidget);
     expect(find.text('축일'), findsNothing);
+  });
+
+  testWidgets('bottom info bar hides all-day event label text', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'events_v1': jsonEncode({
+        '2026-07-16': [
+          {
+            'id': '1',
+            'date': '2026-07-16',
+            'categoryId': 'c1',
+            'categoryName': '성경 공부',
+            'categoryColor': 0xFF2E7D32,
+            'memo': '루카복음',
+            'notify': true,
+          },
+        ],
+      }),
+    });
+
+    final day = LiturgicalCalendar().day(DateTime(2026, 7, 16));
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(
+          body: DayInfoBar(day: day, onTapDetail: () {}),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('성경 공부'), findsOneWidget);
+    expect(find.text('루카복음'), findsOneWidget);
+    expect(find.text('종일'), findsNothing);
   });
 
   testWidgets('bottom info bar labels liturgical feast as 축일', (tester) async {

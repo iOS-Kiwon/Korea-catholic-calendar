@@ -1,15 +1,23 @@
+import 'dart:async';
+
+import 'package:app_links/app_links.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/date/year_month.dart';
 import '../features/app_update/app_update_service.dart';
 import '../features/ads/ads.dart';
 import '../features/app_metadata/app_metadata_service.dart';
+import '../features/calendar/presentation/pages/calendar_page.dart';
 import '../features/events/application/event_providers.dart';
+import '../features/events/model/calendar_event.dart';
 import '../features/events/presentation/backup_notice.dart';
 import '../features/events/presentation/backup_reminder.dart';
+import '../features/events/presentation/event_editor_sheet.dart';
+import '../features/sharing/share_link.dart';
 import '../features/widgets/widget_snapshot_service.dart';
 import '../features/calendar/application/calendar_providers.dart';
 import 'router.dart';
@@ -32,28 +40,121 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
     ],
   );
   final _widgetSnapshotService = const WidgetSnapshotService();
+  final _appLinks = AppLinks();
+  final _initialLinkChecked = Completer<void>();
+  StreamSubscription<Uri>? _linkSub;
+  bool _handlingLink = false;
+  bool _suppressStartupPromptsForShare = false;
 
   @override
   void initState() {
     super.initState();
-    if (adsEnabled) {
-      // Consent → ATT → Mobile Ads SDK, after the first frame (no-op off mobile).
-      WidgetsBinding.instance.addPostFrameCallback((_) => initAds());
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final context = _rootNavigatorKey.currentContext;
-      if (context == null || !context.mounted) return;
-      maybeShowBackupRestoreNotice(context, ref).then((_) async {
-        if (!mounted) return;
-        final reminderContext = _rootNavigatorKey.currentContext;
-        if (reminderContext == null || !reminderContext.mounted) return;
-        await maybeShowBackupReminder(reminderContext, ref);
-      });
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkAppUpdate());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(appMetadataProvider.future);
     });
+
+    // 공유 링크 수신: 콜드스타트 1회 + 실행 중 스트림.
+    unawaited(_initIncomingLinks());
+    _linkSub = _appLinks.uriLinkStream.listen(_onIncomingLink);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_runStartupPrompts());
+    });
+  }
+
+  @override
+  void dispose() {
+    _linkSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _initIncomingLinks() async {
+    try {
+      final uri = await _appLinks.getInitialLink();
+      if (uri == null) return;
+      final outcome = resolveIncomingLink(uri);
+      if (outcome is ShareLinkDraft || outcome is ShareLinkNeedsUpdate) {
+        _suppressStartupPromptsForShare = true;
+        unawaited(_onIncomingLink(uri));
+      }
+    } catch (error, stackTrace) {
+      debugPrint('[KCC share] 초기 공유 링크 확인 실패: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    } finally {
+      if (!_initialLinkChecked.isCompleted) _initialLinkChecked.complete();
+    }
+  }
+
+  Future<void> _runStartupPrompts() async {
+    await _initialLinkChecked.future;
+    if (!mounted || _suppressStartupPromptsForShare) return;
+
+    if (adsEnabled) {
+      // Consent → ATT → Mobile Ads SDK, after the first frame (no-op off mobile).
+      await initAds();
+      if (!mounted) return;
+    }
+
+    final context = _rootNavigatorKey.currentContext;
+    if (context == null || !context.mounted) return;
+    await maybeShowBackupRestoreNotice(context, ref);
+    if (!mounted || _suppressStartupPromptsForShare) return;
+
+    final reminderContext = _rootNavigatorKey.currentContext;
+    if (reminderContext == null || !reminderContext.mounted) return;
+    await maybeShowBackupReminder(reminderContext, ref);
+    if (!mounted || _suppressStartupPromptsForShare) return;
+
+    await _checkAppUpdate();
+  }
+
+  Future<void> _onIncomingLink(Uri uri) async {
+    if (_handlingLink) return;
+    final outcome = resolveIncomingLink(uri);
+    if (outcome is! ShareLinkDraft && outcome is! ShareLinkNeedsUpdate) return;
+    _handlingLink = true;
+    _suppressStartupPromptsForShare = true;
+    // 라우터/네비게이터가 준비될 때까지 다음 프레임에서 처리.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final ctx = _rootNavigatorKey.currentContext;
+        if (ctx == null || !ctx.mounted) return;
+        if (outcome is ShareLinkNeedsUpdate) {
+          ScaffoldMessenger.of(ctx).showSnackBar(
+            const SnackBar(content: Text('이 링크를 열려면 앱을 업데이트해 주세요.')),
+          );
+          return;
+        }
+        final draft = (outcome as ShareLinkDraft).draft;
+        final date = parseEventDate(draft.date);
+        // 해당 날짜 화면으로 이동하되, 콜드스타트 때 먼저 생긴 기본 달력
+        // 화면을 히스토리에 남기지 않는다. 그래야 에디터에서 뒤로 간 뒤
+        // Android 뒤로가기 소프트키가 같은 달력 화면을 한 번 더 보여주지 않는다.
+        _router.pushReplacement('${monthPath(YearMonth.of(date))}/${date.day}');
+        final freshCtx = await _nextFrameContext();
+        if (freshCtx == null || !freshCtx.mounted) return;
+        await showEventEditor(freshCtx, date: date, draft: draft);
+      } catch (error, stackTrace) {
+        // 이 경로는 플랫폼 딥링크 수신이라 자동 테스트가 없어, 실기기에서
+        // 조용히 실패하면 원인을 알 수 없다. 콘솔에 최소한의 진단 로그를 남긴다.
+        debugPrint('[KCC share] 공유 링크 처리 실패: $error');
+        debugPrintStack(stackTrace: stackTrace);
+      } finally {
+        // 콜백 안에서 어떤 경로로 끝나든(정상 리턴/예외) 가드를 반드시 해제해
+        // 이후 링크가 영구히 무시되지 않도록 한다.
+        _handlingLink = false;
+      }
+    });
+  }
+
+  /// `_router.go()` 직후 예약된 리빌드가 끝나는 다음 프레임까지 기다린 뒤,
+  /// 그 시점의 루트 네비게이터 컨텍스트를 반환한다(마운트 해제됐으면 null).
+  Future<BuildContext?> _nextFrameContext() {
+    final completer = Completer<BuildContext?>();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _rootNavigatorKey.currentContext;
+      completer.complete(ctx != null && ctx.mounted ? ctx : null);
+    });
+    return completer.future;
   }
 
   Future<void> _checkAppUpdate() async {

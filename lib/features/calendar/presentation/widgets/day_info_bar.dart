@@ -159,7 +159,10 @@ class _EventSummary extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodyLarge,
                       )
-                    : RegularEventDisplayLine(event: first),
+                    : RegularEventDisplayLine(
+                        event: first,
+                        showAllDayLabel: false,
+                      ),
               ),
             ],
           ),

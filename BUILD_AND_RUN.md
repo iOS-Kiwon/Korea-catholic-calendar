@@ -27,6 +27,10 @@ MODE=debug ./run.sh ios simulator # 모드 변경 (release[기본] | debug | pro
 ANDROID_AVD=Medium_Phone_API_36.1 ./run.sh android simulator # 특정 Android AVD 지정
 ```
 
+`run.sh`는 실행 모드에서도 배포용 버전 파일을 항상 사용합니다. Android는
+`android/release_version.properties`, iOS는 `ios/release_version.properties`를 읽어
+`--build-name`/`--build-number`로 주입하므로, 앱 안에 표시되는 버전도 배포 빌드와 맞습니다.
+
 모든 모바일 빌드는 광고 ON(`ADS_ENABLED=true`)입니다. debug/profile 실행은 AdMob 정책에
 맞춰 Google 테스트 광고 단위를 사용하고, release 빌드만 실 광고 단위를 사용합니다.
 
@@ -213,6 +217,11 @@ ADB 연결이 완료될 때까지 기다린 뒤 앱을 실행합니다.
 ```bash
 ANDROID_AVD=Medium_Phone_API_36.1 ./run.sh android simulator
 ```
+
+설치 중 `Requested internal only, but not enough space`가 나오면 Android 에뮬레이터의
+내부 저장공간(`/data`)이 부족한 상태입니다. `run.sh`는 에뮬레이터 캐시를 자동 정리하고
+한 번 재시도합니다. 그래도 실패하면 Android Studio ▸ Device Manager에서 해당 AVD의
+**Wipe Data**를 실행하거나, AVD 안의 불필요한 앱을 삭제한 뒤 다시 실행하세요.
 
 사용 가능한 AVD가 없으면 Android Studio ▸ Device Manager에서 생성하세요.
 

@@ -11,6 +11,7 @@ import '../model/event_category.dart';
 import '../model/recurrence.dart';
 import '../model/reminder_lead.dart';
 import '../notifications/notification_service.dart';
+import '../../sharing/share_link.dart';
 import 'backup_notice.dart';
 import 'category_manager_page.dart';
 import 'event_display.dart';
@@ -28,19 +29,21 @@ Future<void> showEventEditor(
   BuildContext context, {
   required DateTime date,
   CalendarEvent? existing,
+  SharedEventDraft? draft,
 }) {
   return Navigator.of(context).push<void>(
     MaterialPageRoute<void>(
-      builder: (_) => _EventEditorPage(date: date, existing: existing),
+      builder: (_) => _EventEditorPage(date: date, existing: existing, draft: draft),
     ),
   );
 }
 
 class _EventEditorPage extends ConsumerStatefulWidget {
-  const _EventEditorPage({required this.date, this.existing});
+  const _EventEditorPage({required this.date, this.existing, this.draft});
 
   final DateTime date;
   final CalendarEvent? existing;
+  final SharedEventDraft? draft;
 
   @override
   ConsumerState<_EventEditorPage> createState() => _EventEditorPageState();
@@ -69,7 +72,7 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     final e = widget.existing;
-    _memo = TextEditingController(text: e?.memo ?? '');
+    _memo = TextEditingController(text: e?.memo ?? widget.draft?.memo ?? '');
     _date = e != null ? parseEventDate(e.date) : _dateOnly(widget.date);
     _endDate = e != null
         ? parseEventDate(e.effectiveEndDate)
@@ -84,6 +87,15 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
     _selectedCategoryId = e?.categoryId;
     _recurrence = e?.recurrence ?? RecurrenceType.none;
     _feastId = e?.feastId;
+    final dr = widget.draft;
+    if (e == null && dr != null) {
+      _date = _dateOnly(parseEventDate(dr.date));
+      _endDate = dr.endDate != null ? _dateOnly(parseEventDate(dr.endDate!)) : _date;
+      _time = _parseTime(dr.time);
+      _endTime = _parseTime(dr.endTime) ?? _defaultEndTime(_time);
+      _reminders = sanitizeReminders(const [ReminderLead.day1], allDay: _time == null);
+      // 카테고리는 비워둔다(_selectedCategoryId = null 유지). n/c는 사용하지 않음.
+    }
     _refreshNotificationPermission();
   }
 

@@ -10,6 +10,7 @@ import '../../../events/model/calendar_event.dart';
 import '../../../events/presentation/event_display.dart';
 import '../../../events/presentation/event_editor_sheet.dart';
 import '../../../saints/presentation/saint_feast_editor_page.dart';
+import '../../../sharing/event_share_button.dart';
 import '../../../support/presentation/support_sheet.dart';
 
 /// 독서 마커(①/②/㉥ …) → 사람이 읽는 라벨.
@@ -365,7 +366,7 @@ class _EventLine extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             if (isSaintFeast) ...[
               Padding(
@@ -386,8 +387,13 @@ class _EventLine extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodyLarge,
                     )
-                  : RegularEventDisplayLine(event: event),
+                  : RegularEventDisplayLine(
+                      event: event,
+                      showAllDayLabel: false,
+                    ),
             ),
+            if (!isSaintFeast && !event.isRecurring)
+              EventShareButton(event: event),
           ],
         ),
       ),
