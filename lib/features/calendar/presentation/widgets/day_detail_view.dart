@@ -387,7 +387,10 @@ class _EventLine extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodyLarge,
                     )
-                  : RegularEventDisplayLine(event: event),
+                  : RegularEventDisplayLine(
+                      event: event,
+                      showAllDayLabel: false,
+                    ),
             ),
             if (!isSaintFeast && !event.isRecurring)
               EventShareButton(event: event),

@@ -501,6 +501,34 @@ void main() {
     expect(find.text('19:30'), findsOneWidget);
   });
 
+  testWidgets('day detail hides all-day label text for personal events', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'events_v1': jsonEncode({
+        '2026-07-16': [
+          {
+            'id': '1',
+            'date': '2026-07-16',
+            'categoryId': 'c1',
+            'categoryName': '성경 공부',
+            'categoryColor': 0xFF2E7D32,
+            'memo': '루카복음',
+            'notify': true,
+          },
+        ],
+      }),
+    });
+
+    final day = LiturgicalCalendar().day(DateTime(2026, 7, 16));
+    await tester.pumpWidget(_wrap(Scaffold(body: DayDetailView(day: day))));
+    await tester.pumpAndSettle();
+
+    expect(find.text('성경 공부'), findsOneWidget);
+    expect(find.text('루카복음'), findsOneWidget);
+    expect(find.text('종일'), findsNothing);
+  });
+
   testWidgets('share button hides for recurring personal events', (
     tester,
   ) async {
