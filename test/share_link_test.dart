@@ -103,4 +103,10 @@ void main() {
     expect(text, isNot(contains('(메모:')));
     expect(text, isNot(contains('메모A')));
   });
+
+  test('buildShareText는 종일 일정에서 종일 문구를 숨김', () {
+    final text = buildShareText(_ev(memo: '메모A'));
+    expect(text, contains('[가톨릭 달력]\n8월 10일 일정을 공유합니다.'));
+    expect(text, isNot(contains('종일')));
+  });
 }

@@ -97,7 +97,7 @@ String _humanDateLabel(String ymd, String? time) {
   final m = int.tryParse(parts.length > 1 ? parts[1] : '') ?? 0;
   final d = int.tryParse(parts.length > 2 ? parts[2] : '') ?? 0;
   final base = '$m월 $d일';
-  if (time == null) return '$base 종일';
+  if (time == null) return base;
   return '$base $time';
 }
 
