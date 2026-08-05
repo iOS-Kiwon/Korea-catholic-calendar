@@ -30,7 +30,8 @@ test('/e/<payload> 랜딩은 HTML + 앱 열기/설치 안내', async () => {
   const html = await res.text();
   assert.match(html, /가톨릭 달력/);
   assert.match(html, /catholiccalendar:\/\/e\//);
-  assert.match(html, /if \(isIOS\) return/);
+  assert.doesNotMatch(html, /if \(isIOS\) return/);
+  assert.match(html, /window\.location\.href = deepLink/);
   assert.match(html, /https:\/\/apps\.apple\.com\/app\/id6791044471/);
   assert.match(html, /https:\/\/play\.google\.com\/store\/apps\/details\?id=com\.sidore\.catholiccalendar/);
 });

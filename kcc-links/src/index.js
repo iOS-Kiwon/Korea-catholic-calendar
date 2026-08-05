@@ -43,6 +43,10 @@ function landing(req) {
   // 목업(kcc-links/mockups/a-minimal-card.html)은 실제 앱 아이콘 PNG를 쓰지만, 이 워커는
   // 빌드 단계 없는 단일 JS 파일이라 무거운 PNG를 내장하지 않고 같은 느낌을 인라인 SVG로 재현.
   const url = new URL(req.url);
+  const userAgent = req.headers.get('user-agent') || '';
+  const initialStoreUrl = /iPad|iPhone|iPod/.test(userAgent)
+    ? IOS_APP_STORE_URL
+    : ANDROID_PLAY_STORE_URL;
   const deepLink = `catholiccalendar://${url.pathname.replace(/^\//, '')}${url.search}`;
   const html = `<!doctype html><html lang="ko"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -142,7 +146,7 @@ p.body-text {
     </div>
     <h1>가톨릭 달력</h1>
     <p class="body-text">공유된 일정을 확인하려면<br>가톨릭 달력 앱이 필요합니다.</p>
-    <a class="cta" id="open-app" href="${ANDROID_PLAY_STORE_URL}">앱에서 열기</a>
+    <a class="cta" id="open-app" href="${initialStoreUrl}">앱에서 열기</a>
     <p class="hint">앱이 없으면 사용 중인 기기에 맞는<br>스토어 페이지로 이동합니다.</p>
   </div>
 </div>
@@ -159,7 +163,6 @@ p.body-text {
   if (!button) return;
 
   button.href = storeUrl;
-  if (isIOS) return;
 
   button.addEventListener('click', (event) => {
     event.preventDefault();
@@ -168,7 +171,6 @@ p.body-text {
     const cleanup = () => {
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('pagehide', markHidden);
-      window.removeEventListener('blur', markHidden);
     };
     const onVisibilityChange = () => {
       if (document.hidden) markHidden();
@@ -176,7 +178,6 @@ p.body-text {
 
     document.addEventListener('visibilitychange', onVisibilityChange);
     window.addEventListener('pagehide', markHidden);
-    window.addEventListener('blur', markHidden);
 
     window.location.href = deepLink;
     window.setTimeout(() => {

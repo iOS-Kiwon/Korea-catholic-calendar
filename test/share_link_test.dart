@@ -11,8 +11,15 @@ CalendarEvent _ev({
   String name = '본당 미사',
   int color = 0xFFEF6C00,
 }) => CalendarEvent(
-  id: 'e1', date: date, endDate: endDate, categoryId: 'c1',
-  categoryName: name, categoryColor: color, memo: memo, time: time, endTime: endTime,
+  id: 'e1',
+  date: date,
+  endDate: endDate,
+  categoryId: 'c1',
+  categoryName: name,
+  categoryColor: color,
+  memo: memo,
+  time: time,
+  endTime: endTime,
 );
 
 SharedEventDraft _draftOf(Uri uri) {
@@ -22,7 +29,9 @@ SharedEventDraft _draftOf(Uri uri) {
 
 void main() {
   test('시간 일정 왕복(한글 카테고리/메모 포함)', () {
-    final uri = buildShareUri(_ev(time: '09:00', endTime: '10:00', memo: '9시 미사 후 성가대 연습'));
+    final uri = buildShareUri(
+      _ev(time: '09:00', endTime: '10:00', memo: '9시 미사 후 성가대 연습'),
+    );
     expect(uri.host, 'kcc.sidore.org');
     expect(uri.pathSegments.first, 'e');
     final d = _draftOf(uri);
@@ -42,7 +51,10 @@ void main() {
   });
 
   test('다일 일정: ed 포함, 단일일이면 ed 생략', () {
-    expect(_draftOf(buildShareUri(_ev(endDate: '2026-08-12'))).endDate, '2026-08-12');
+    expect(
+      _draftOf(buildShareUri(_ev(endDate: '2026-08-12'))).endDate,
+      '2026-08-12',
+    );
     expect(_draftOf(buildShareUri(_ev(endDate: '2026-08-10'))).endDate, isNull);
   });
 
@@ -58,14 +70,27 @@ void main() {
   });
 
   test('손상 입력은 Invalid', () {
-    expect(resolveIncomingLink(Uri.parse('https://kcc.sidore.org/e/@@notbase64@@')), isA<ShareLinkInvalid>());
-    expect(resolveIncomingLink(Uri.parse('https://kcc.sidore.org/e/')), isA<ShareLinkInvalid>());
-    expect(resolveIncomingLink(Uri.parse('https://example.com/e/abc')), isA<ShareLinkInvalid>());
+    expect(
+      resolveIncomingLink(Uri.parse('https://kcc.sidore.org/e/@@notbase64@@')),
+      isA<ShareLinkInvalid>(),
+    );
+    expect(
+      resolveIncomingLink(Uri.parse('https://kcc.sidore.org/e/')),
+      isA<ShareLinkInvalid>(),
+    );
+    expect(
+      resolveIncomingLink(Uri.parse('https://example.com/e/abc')),
+      isA<ShareLinkInvalid>(),
+    );
   });
 
   test('지원보다 높은 버전은 NeedsUpdate', () {
     // v=9 payload를 직접 구성
-    final o = resolveIncomingLink(Uri.parse('https://kcc.sidore.org/e/${encodeTestPayload({'v': 9, 'd': '2026-08-10'})}'));
+    final o = resolveIncomingLink(
+      Uri.parse(
+        'https://kcc.sidore.org/e/${encodeTestPayload({'v': 9, 'd': '2026-08-10'})}',
+      ),
+    );
     expect(o, isA<ShareLinkNeedsUpdate>());
   });
 
@@ -73,6 +98,9 @@ void main() {
     final text = buildShareText(_ev(time: '09:00', memo: '메모A'));
     expect(text, contains('https://kcc.sidore.org/e/'));
     expect(text, contains('8월 10일'));
-    expect(text, contains('메모A'));
+    expect(text, contains('[가톨릭 달력]\n8월 10일 09:00 일정을 공유합니다.'));
+    expect(text, contains('내 달력에 추가하려면 아래의 링크를 눌러주세요.'));
+    expect(text, isNot(contains('(메모:')));
+    expect(text, isNot(contains('메모A')));
   });
 }

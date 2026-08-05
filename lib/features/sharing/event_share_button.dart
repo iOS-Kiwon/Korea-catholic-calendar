@@ -15,8 +15,11 @@ class EventShareButton extends ConsumerWidget {
     return IconButton(
       icon: const Icon(Icons.ios_share, size: 20),
       tooltip: '공유',
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints.tightFor(width: 32, height: 32),
       visualDensity: VisualDensity.compact,
-      onPressed: () => ref.read(eventSharerProvider).share(buildShareText(event)),
+      onPressed: () =>
+          ref.read(eventSharerProvider).share(buildShareText(event)),
     );
   }
 }

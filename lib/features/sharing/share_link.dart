@@ -82,11 +82,14 @@ Uri buildShareUri(CalendarEvent e) {
 
 String buildShareText(CalendarEvent e) {
   final label = _humanDateLabel(e.date, e.time);
-  final memo = e.memo?.trim();
-  final b = StringBuffer('[가톨릭 달력] $label 일정을 공유했어요');
-  if (memo != null && memo.isNotEmpty) b.write('\n(메모: $memo)');
-  b.write('\n내 달력에 추가: ${buildShareUri(e)}');
-  return b.toString();
+  return [
+    '[가톨릭 달력]',
+    '$label 일정을 공유합니다.',
+    '',
+    '내 달력에 추가하려면 아래의 링크를 눌러주세요.',
+    '',
+    buildShareUri(e).toString(),
+  ].join('\n');
 }
 
 String _humanDateLabel(String ymd, String? time) {
@@ -127,22 +130,30 @@ ShareLinkOutcome resolveIncomingLink(Uri uri) {
   if (d is! String || !_ymd.hasMatch(d)) return const ShareLinkInvalid();
   final t = json['t'];
   final et = json['et'];
-  if (t != null && (t is! String || !_hm.hasMatch(t))) return const ShareLinkInvalid();
-  if (et != null && (et is! String || !_hm.hasMatch(et))) return const ShareLinkInvalid();
+  if (t != null && (t is! String || !_hm.hasMatch(t))) {
+    return const ShareLinkInvalid();
+  }
+  if (et != null && (et is! String || !_hm.hasMatch(et))) {
+    return const ShareLinkInvalid();
+  }
 
   final ed = json['ed'];
   final m = json['m'];
-  final memo = m is String ? (m.length > _memoMax ? m.substring(0, _memoMax) : m) : null;
+  final memo = m is String
+      ? (m.length > _memoMax ? m.substring(0, _memoMax) : m)
+      : null;
 
-  return ShareLinkDraft(SharedEventDraft(
-    date: d,
-    endDate: (ed is String && _ymd.hasMatch(ed)) ? ed : null,
-    time: t as String?,
-    endTime: et as String?,
-    memo: memo,
-    categoryName: json['n'] is String ? json['n'] as String : null,
-    categoryColor: json['c'] is int ? json['c'] as int : null,
-  ));
+  return ShareLinkDraft(
+    SharedEventDraft(
+      date: d,
+      endDate: (ed is String && _ymd.hasMatch(ed)) ? ed : null,
+      time: t as String?,
+      endTime: et as String?,
+      memo: memo,
+      categoryName: json['n'] is String ? json['n'] as String : null,
+      categoryColor: json['c'] is int ? json['c'] as int : null,
+    ),
+  );
 }
 
 @visibleForTesting

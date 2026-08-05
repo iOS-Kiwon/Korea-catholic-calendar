@@ -63,22 +63,25 @@ class RegularEventDisplayLine extends StatelessWidget {
     required this.event,
     this.style,
     this.maxLines = 1,
+    this.showAllDayLabel = true,
   });
 
   final CalendarEvent event;
   final TextStyle? style;
   final int maxLines;
+  final bool showAllDayLabel;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final effectiveStyle = style ?? theme.textTheme.bodyLarge;
     final memo = event.memo?.trim();
-    final time = event.isAllDay ? '종일' : event.time!;
+    final time = event.isAllDay ? (showAllDayLabel ? '종일' : null) : event.time!;
     final detailText = [
-      time,
+      ?time,
       if (memo != null && memo.isNotEmpty) memo,
     ].join(' ');
+    final hasDetail = detailText.isNotEmpty;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -97,15 +100,17 @@ class RegularEventDisplayLine extends StatelessWidget {
                 maxLines: maxLines,
               ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                detailText,
-                maxLines: maxLines,
-                overflow: TextOverflow.ellipsis,
-                style: effectiveStyle,
+            if (hasDetail) ...[
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  detailText,
+                  maxLines: maxLines,
+                  overflow: TextOverflow.ellipsis,
+                  style: effectiveStyle,
+                ),
               ),
-            ),
+            ],
           ],
         );
       },

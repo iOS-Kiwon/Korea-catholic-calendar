@@ -582,6 +582,38 @@ void main() {
     expect(find.text('축일'), findsNothing);
   });
 
+  testWidgets('bottom info bar hides all-day event label text', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'events_v1': jsonEncode({
+        '2026-07-16': [
+          {
+            'id': '1',
+            'date': '2026-07-16',
+            'categoryId': 'c1',
+            'categoryName': '성경 공부',
+            'categoryColor': 0xFF2E7D32,
+            'memo': '루카복음',
+            'notify': true,
+          },
+        ],
+      }),
+    });
+
+    final day = LiturgicalCalendar().day(DateTime(2026, 7, 16));
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(
+          body: DayInfoBar(day: day, onTapDetail: () {}),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('성경 공부'), findsOneWidget);
+    expect(find.text('루카복음'), findsOneWidget);
+    expect(find.text('종일'), findsNothing);
+  });
+
   testWidgets('bottom info bar labels liturgical feast as 축일', (tester) async {
     final day = LiturgicalCalendar()
         .day(DateTime(2026, 7, 25))
