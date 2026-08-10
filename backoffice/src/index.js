@@ -106,6 +106,12 @@ async function ensureSchema() {
   );
 
   await db.query(`
+    INSERT INTO app_metadata (key, value_json, updated_at)
+    VALUES ('review', '{"enabled": true}'::jsonb, now())
+    ON CONFLICT (key) DO NOTHING
+  `);
+
+  await db.query(`
     ALTER TABLE app_update_policy
     ADD COLUMN IF NOT EXISTS ios_update_mode text NOT NULL DEFAULT 'none'
   `);
@@ -734,15 +740,22 @@ async function getAppMetadata() {
   const result = await db.query(`
     SELECT key, value_json, updated_at
     FROM app_metadata
-    WHERE key = 'gift_shop'
+    WHERE key IN ('gift_shop', 'review')
   `);
-  const row = result.rows[0];
-  const giftShop = row?.value_json || {};
+  const rowsByKey = Object.fromEntries(result.rows.map((row) => [row.key, row]));
+  const giftShop = rowsByKey.gift_shop?.value_json || {};
+  const review = rowsByKey.review?.value_json || {};
   return {
     giftShop: {
       url: safeHttpUrl(giftShop.url) || defaultFeastGiftShopUrl,
     },
-    updatedAt: row?.updated_at || null,
+    review: {
+      enabled: typeof review.enabled === 'boolean' ? review.enabled : true,
+    },
+    updatedAt:
+      rowsByKey.review?.updated_at ||
+      rowsByKey.gift_shop?.updated_at ||
+      null,
   };
 }
 
@@ -757,6 +770,18 @@ async function upsertAppMetadata(metadata) {
         updated_at = now()
     `,
     [JSON.stringify({ url: metadata.giftShopUrl })],
+  );
+
+  await db.query(
+    `
+      INSERT INTO app_metadata (key, value_json, updated_at)
+      VALUES ('review', $1::jsonb, now())
+      ON CONFLICT (key)
+      DO UPDATE SET
+        value_json = EXCLUDED.value_json,
+        updated_at = now()
+    `,
+    [JSON.stringify({ enabled: metadata.reviewEnabled })],
   );
 }
 
@@ -1763,8 +1788,12 @@ function appMetadataForm(metadata) {
         축일 선물 링크
         <input name="giftShopUrl" class="wide" value="${escapeHtml(metadata.giftShop.url)}" placeholder="${defaultFeastGiftShopUrl}">
       </label>
+      <label class="check-row">
+        <input type="checkbox" name="reviewEnabled" value="1" ${metadata.review.enabled ? 'checked' : ''}>
+        앱스토어 리뷰 요청 켜기
+      </label>
       <div class="editor-actions">
-        <div class="sub">통신 실패 또는 잘못된 URL이면 앱은 기본값 ${escapeHtml(defaultFeastGiftShopUrl)}을 사용합니다.</div>
+        <div class="sub">통신 실패 또는 잘못된 값이면 앱은 선물 링크 기본값과 리뷰 요청 켜짐 상태를 사용합니다.</div>
         <button type="submit">저장</button>
       </div>
     </form>`;
@@ -1799,9 +1828,11 @@ async function handleAppMetadataSave(req, res) {
     return;
   }
 
-  await upsertAppMetadata({ giftShopUrl });
+  const reviewEnabled = form.get('reviewEnabled') === '1';
+  await upsertAppMetadata({ giftShopUrl, reviewEnabled });
   await logAdminAction(req, 'app_metadata_update', 'app_metadata', 'gift_shop', {
     gift_shop_url: giftShopUrl,
+    review_enabled: reviewEnabled,
   });
   redirect(
     res,
