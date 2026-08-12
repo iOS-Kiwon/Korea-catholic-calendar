@@ -35,6 +35,7 @@ class DayNumber extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final baseStyle = theme.textTheme.bodyLarge;
     final bg = isToday
         ? _todayFill
         : (isSelected ? _selectedFill : Colors.transparent);
@@ -48,8 +49,11 @@ class DayNumber extends StatelessWidget {
       decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
       child: Text(
         '${date.day}',
-        style: theme.textTheme.bodyLarge?.copyWith(
+        style: baseStyle?.copyWith(
           color: fg,
+          // Keep the circle's size unchanged while making the date easier to
+          // scan on both iOS and Android.
+          fontSize: (baseStyle.fontSize ?? 16) + 2,
           fontWeight: isToday ? FontWeight.bold : FontWeight.w500,
         ),
       ),
@@ -103,6 +107,7 @@ class DayCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final titleStyle = theme.textTheme.labelMedium ?? const TextStyle();
     final notable = inCurrentMonth && isNotableDay(day);
     final accent = context.liturgical.of(day.color);
 
@@ -141,15 +146,19 @@ class DayCell extends StatelessWidget {
                       ],
                     ),
                     if (shortTitle case final title?) ...[
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 0),
                       Expanded(
-                        child: Text(
-                          title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            height: 1.2,
+                        child: Transform.translate(
+                          offset: const Offset(0, -2),
+                          child: Text(
+                            title,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: titleStyle.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontSize: (titleStyle.fontSize ?? 12) + 2,
+                              height: 1.2,
+                            ),
                           ),
                         ),
                       ),
@@ -173,17 +182,17 @@ class CompactDayCell extends StatelessWidget {
     required this.inCurrentMonth,
     required this.isToday,
     required this.isSelected,
-    required this.onTap,
+    this.onTap,
     this.hasEvent = false,
     this.shortTitle,
-    this.titleMaxLines = 1,
+    this.titleMaxLines = 3,
   });
 
   final LiturgicalDay day;
   final bool inCurrentMonth;
   final bool isToday;
   final bool isSelected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final bool hasEvent;
   final String? shortTitle;
   final int titleMaxLines;
@@ -213,19 +222,24 @@ class CompactDayCell extends StatelessWidget {
             ],
           ),
           if (shortTitle case final title?) ...[
-            const SizedBox(height: 1),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 1),
-              child: Text(
-                title,
-                maxLines: titleMaxLines,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: context.liturgical.of(day.color),
-                  fontSize: 9,
-                  height: 1.05,
-                  fontWeight: FontWeight.w600,
+            const SizedBox(height: 0),
+            Expanded(
+              child: Transform.translate(
+                offset: const Offset(0, -2),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 1),
+                  child: Text(
+                    title,
+                    maxLines: titleMaxLines,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: context.liturgical.of(day.color),
+                      fontSize: 10,
+                      height: 1.0,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ),
             ),

@@ -214,7 +214,7 @@ void main() {
   });
 
   testWidgets(
-    'compact month grid uses two title lines only when space allows',
+    'compact month grid uses up to three title lines when space allows',
     (tester) async {
       final service = CalendarService(engine: LiturgicalCalendar());
 
@@ -239,6 +239,9 @@ void main() {
         );
         await tester.pumpAndSettle();
       }
+
+      await pumpGrid(450);
+      expect(tester.widget<Text>(find.text('주님 승천')).maxLines, 3);
 
       await pumpGrid(360);
       expect(tester.widget<Text>(find.text('주님 승천')).maxLines, 2);

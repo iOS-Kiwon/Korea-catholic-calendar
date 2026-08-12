@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../app/theme/liturgical_colors.dart';
 import '../../calendar/application/calendar_providers.dart';
 import '../../calendar/application/liturgical_display_filter.dart';
 import '../../calendar/data/calendar_service.dart';
+import '../../calendar/presentation/widgets/day_cell.dart';
 
 /// 전례일 표시 방식 선택 + 미리보기.
 class LiturgicalDisplaySettingsPage extends ConsumerWidget {
@@ -78,7 +78,9 @@ class _PreviewRow extends StatelessWidget {
     return Row(
       children: [
         for (final date in LiturgicalDisplaySettingsPage._sampleDates)
-          Expanded(child: _PreviewCell(calendar: calendar, filter: filter, date: date)),
+          Expanded(
+            child: _PreviewCell(calendar: calendar, filter: filter, date: date),
+          ),
       ],
     );
   }
@@ -96,38 +98,19 @@ class _PreviewCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final day = calendar.day(date);
     final label = gridLiturgicalLabel(filter, calendar.shortTitleFor(day), day);
-    final isSunday = date.weekday == DateTime.sunday;
-    return Column(
-      children: [
-        Text(
-          '${date.day}',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: isSunday ? const Color(0xFFC62828) : theme.colorScheme.onSurface,
-          ),
-        ),
-        const SizedBox(height: 2),
-        SizedBox(
-          height: 26,
-          child: label == null
-              ? const SizedBox.shrink()
-              : Text(
-                  label,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    fontSize: 9,
-                    height: 1.05,
-                    fontWeight: FontWeight.w600,
-                    color: context.liturgical.of(day.color),
-                  ),
-                ),
-        ),
-      ],
+    return SizedBox(
+      height: 72,
+      child: CompactDayCell(
+        day: day,
+        inCurrentMonth: true,
+        isToday: false,
+        isSelected: false,
+        shortTitle: label,
+        hasEvent: false,
+        titleMaxLines: 3,
+      ),
     );
   }
 }

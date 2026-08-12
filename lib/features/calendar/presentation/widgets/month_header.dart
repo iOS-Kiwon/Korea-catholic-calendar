@@ -180,8 +180,11 @@ class WeekdayRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final baseStyle = theme.textTheme.titleSmall;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      // Keep the weekday labels' top position while giving the first date row
+      // 4px more room below the header.
+      padding: const EdgeInsets.only(top: 8, bottom: 4),
       child: Row(
         children: [
           for (var i = 0; i < 7; i++)
@@ -189,8 +192,9 @@ class WeekdayRow extends StatelessWidget {
               child: Text(
                 weekdayLabels[i],
                 textAlign: TextAlign.center,
-                style: theme.textTheme.titleSmall?.copyWith(
+                style: baseStyle?.copyWith(
                   fontWeight: FontWeight.bold,
+                  fontSize: (baseStyle.fontSize ?? 14) + 2,
                   color: i == 0
                       ? const Color(0xFFC62828)
                       : i == 6

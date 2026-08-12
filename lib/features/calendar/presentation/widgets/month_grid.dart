@@ -9,7 +9,8 @@ import '../../application/liturgical_display_filter.dart';
 import '../../data/calendar_service.dart';
 import 'day_cell.dart';
 
-const _compactTwoLineTitleMinRowHeight = 56.0;
+const _compactThreeLineTitleMinRowHeight = 70.0;
+const _compactTwoLineTitleMinRowHeight = 59.0;
 
 /// A monthly grid. Weeks start on Sunday; adjacent-month days are shown muted.
 /// [compact] switches between the phone cells and the wide (named) cells.
@@ -85,14 +86,22 @@ class MonthGrid extends ConsumerWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final defaultRowHeight = compact ? 58.0 : 92.0;
+        // A 3-line title needs a little more room below the unchanged date
+        // circle. The grid is already inside an Expanded area on phones, so
+        // this does not change the overall calendar screen height.
+        final defaultRowHeight = compact ? 72.0 : 92.0;
         final rowHeight = constraints.maxHeight.isFinite
             ? compact
                   ? math.min(defaultRowHeight, constraints.maxHeight / rows)
                   : constraints.maxHeight / rows
             : defaultRowHeight;
-        final compactTitleMaxLines =
-            compact && rowHeight >= _compactTwoLineTitleMinRowHeight ? 2 : 1;
+        final compactTitleMaxLines = !compact
+            ? 1
+            : rowHeight >= _compactThreeLineTitleMinRowHeight
+            ? 3
+            : rowHeight >= _compactTwoLineTitleMinRowHeight
+            ? 2
+            : 1;
 
         return Column(
           mainAxisAlignment: MainAxisAlignment.start,

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:app_links/app_links.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
@@ -22,6 +23,13 @@ import '../features/widgets/widget_snapshot_service.dart';
 import '../features/calendar/application/calendar_providers.dart';
 import 'router.dart';
 import 'theme/app_theme.dart';
+
+// Optional layout-only viewport override for narrow-device QA. This is off by
+// default and is enabled with --dart-define=KCC_FORCE_LAYOUT_WIDTH=320.
+const _forcedLayoutWidth = int.fromEnvironment(
+  'KCC_FORCE_LAYOUT_WIDTH',
+  defaultValue: 0,
+);
 
 class CatholicCalendarApp extends ConsumerStatefulWidget {
   const CatholicCalendarApp({super.key});
@@ -195,6 +203,26 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
     _widgetSnapshotService.sync(calendar: calendar, events: events);
   }
 
+  /// Lays out the app in a narrower logical viewport without scaling it. This
+  /// lets a wider simulator exercise the same breakpoints as a 320px device.
+  Widget _withForcedLayoutWidth(BuildContext context, Widget child) {
+    if (_forcedLayoutWidth <= 0) return child;
+
+    final media = MediaQuery.of(context);
+    final width = math.min(_forcedLayoutWidth.toDouble(), media.size.width);
+    return Align(
+      alignment: Alignment.topCenter,
+      child: SizedBox(
+        width: width,
+        height: media.size.height,
+        child: MediaQuery(
+          data: media.copyWith(size: Size(width, media.size.height)),
+          child: child,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen(calendarControllerProvider, (_, _) => _syncWidgetSnapshot());
@@ -212,7 +240,7 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
       // 하단 인셋을 광고 높이만큼 줄여 공백을 없앤다(광고는 그대로 하단 고정).
       builder: (context, child) {
         final content = child ?? const SizedBox.shrink();
-        if (!adsEnabled) return content;
+        if (!adsEnabled) return _withForcedLayoutWidth(context, content);
         return Column(
           children: [
             Expanded(
@@ -228,16 +256,19 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
                     0.0,
                     double.infinity,
                   );
-                  return MediaQuery(
-                    data: media.copyWith(
-                      viewInsets: EdgeInsets.fromLTRB(
-                        media.viewInsets.left,
-                        media.viewInsets.top,
-                        media.viewInsets.right,
-                        reduced,
+                  return _withForcedLayoutWidth(
+                    context,
+                    MediaQuery(
+                      data: media.copyWith(
+                        viewInsets: EdgeInsets.fromLTRB(
+                          media.viewInsets.left,
+                          media.viewInsets.top,
+                          media.viewInsets.right,
+                          reduced,
+                        ),
                       ),
+                      child: content,
                     ),
-                    child: content,
                   );
                 },
               ),
