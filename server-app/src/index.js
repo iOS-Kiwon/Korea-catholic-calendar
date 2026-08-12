@@ -192,6 +192,12 @@ async function ensureSchema() {
   );
 
   await db.query(`
+    INSERT INTO app_metadata (key, value_json, updated_at)
+    VALUES ('review', '{"enabled": true}'::jsonb, now())
+    ON CONFLICT (key) DO NOTHING
+  `);
+
+  await db.query(`
     ALTER TABLE app_update_policy
     ADD COLUMN IF NOT EXISTS ios_update_mode text NOT NULL DEFAULT 'none'
   `);
@@ -576,20 +582,29 @@ async function findAppMetadata() {
   const result = await db.query(`
     SELECT key, value_json, updated_at
     FROM app_metadata
-    WHERE key = 'gift_shop'
+    WHERE key IN ('gift_shop', 'review')
   `);
-  const giftShop = result.rows[0]?.value_json || {};
+  const rowsByKey = Object.fromEntries(result.rows.map((row) => [row.key, row]));
+  const giftShop = rowsByKey.gift_shop?.value_json || {};
+  const review = rowsByKey.review?.value_json || {};
   return {
     giftShop: {
       url: safeHttpUrl(giftShop.url) || defaultFeastGiftShopUrl,
     },
-    updatedAt: result.rows[0]?.updated_at || null,
+    review: {
+      enabled: typeof review.enabled === 'boolean' ? review.enabled : true,
+    },
+    updatedAt:
+      rowsByKey.review?.updated_at ||
+      rowsByKey.gift_shop?.updated_at ||
+      null,
   };
 }
 
 function defaultAppMetadata() {
   return {
     giftShop: { url: defaultFeastGiftShopUrl },
+    review: { enabled: true },
     updatedAt: null,
   };
 }

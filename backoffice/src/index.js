@@ -106,6 +106,12 @@ async function ensureSchema() {
   );
 
   await db.query(`
+    INSERT INTO app_metadata (key, value_json, updated_at)
+    VALUES ('review', '{"enabled": true}'::jsonb, now())
+    ON CONFLICT (key) DO NOTHING
+  `);
+
+  await db.query(`
     ALTER TABLE app_update_policy
     ADD COLUMN IF NOT EXISTS ios_update_mode text NOT NULL DEFAULT 'none'
   `);
@@ -734,15 +740,22 @@ async function getAppMetadata() {
   const result = await db.query(`
     SELECT key, value_json, updated_at
     FROM app_metadata
-    WHERE key = 'gift_shop'
+    WHERE key IN ('gift_shop', 'review')
   `);
-  const row = result.rows[0];
-  const giftShop = row?.value_json || {};
+  const rowsByKey = Object.fromEntries(result.rows.map((row) => [row.key, row]));
+  const giftShop = rowsByKey.gift_shop?.value_json || {};
+  const review = rowsByKey.review?.value_json || {};
   return {
     giftShop: {
       url: safeHttpUrl(giftShop.url) || defaultFeastGiftShopUrl,
     },
-    updatedAt: row?.updated_at || null,
+    review: {
+      enabled: typeof review.enabled === 'boolean' ? review.enabled : true,
+    },
+    updatedAt:
+      rowsByKey.review?.updated_at ||
+      rowsByKey.gift_shop?.updated_at ||
+      null,
   };
 }
 
@@ -757,6 +770,18 @@ async function upsertAppMetadata(metadata) {
         updated_at = now()
     `,
     [JSON.stringify({ url: metadata.giftShopUrl })],
+  );
+
+  await db.query(
+    `
+      INSERT INTO app_metadata (key, value_json, updated_at)
+      VALUES ('review', $1::jsonb, now())
+      ON CONFLICT (key)
+      DO UPDATE SET
+        value_json = EXCLUDED.value_json,
+        updated_at = now()
+    `,
+    [JSON.stringify({ enabled: metadata.reviewEnabled })],
   );
 }
 
@@ -1189,6 +1214,28 @@ function layout(title, content, activeNav = 'calendar') {
       margin: 0;
       font-size: 16px;
     }
+    .settings-section {
+      display: grid;
+      gap: 12px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfbfc;
+    }
+    .settings-section h2 {
+      margin: 0;
+      font-size: 16px;
+    }
+    .settings-row {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .settings-row-label {
+      display: grid;
+      gap: 4px;
+    }
     .form-row {
       display: grid;
       gap: 6px;
@@ -1199,6 +1246,52 @@ function layout(title, content, activeNav = 'calendar') {
       gap: 8px;
       color: var(--text);
       font-size: 14px;
+    }
+    .switch {
+      position: relative;
+      display: inline-flex;
+      width: 52px;
+      height: 30px;
+      flex: 0 0 auto;
+      align-items: center;
+      cursor: pointer;
+    }
+    .switch input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+    }
+    .switch-track {
+      position: absolute;
+      inset: 0;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #d8dde3;
+      transition: background 120ms ease, border-color 120ms ease;
+    }
+    .switch-track::after {
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 3px rgba(23, 32, 42, 0.22);
+      transition: transform 120ms ease;
+    }
+    .switch input:checked + .switch-track {
+      border-color: var(--primary);
+      background: var(--primary);
+    }
+    .switch input:checked + .switch-track::after {
+      transform: translateX(22px);
+    }
+    .switch input:focus-visible + .switch-track {
+      outline: 2px solid rgba(10, 107, 88, 0.35);
+      outline-offset: 2px;
     }
     .editor-actions {
       display: flex;
@@ -1754,20 +1847,56 @@ async function handleAppUpdatePolicy(req, res, url) {
 
 function appMetadataForm(metadata) {
   return `
-    <form class="editor" method="post" action="${basePath}/app-metadata/save">
+    <form class="editor" method="post" action="${basePath}/app-metadata/save" onsubmit="return validateAppMetadataForm(this)">
       <div>
         <h2>앱 메타데이터</h2>
         <div class="sub">앱 실행 시 내려가는 운영 설정입니다. 앞으로 링크, 문구, 노출 정책 같은 값을 이 화면에 추가할 수 있습니다.</div>
       </div>
-      <label class="form-row">
-        축일 선물 링크
-        <input name="giftShopUrl" class="wide" value="${escapeHtml(metadata.giftShop.url)}" placeholder="${defaultFeastGiftShopUrl}">
-      </label>
+      <section class="settings-section">
+        <div>
+          <h2>축일 선물 링크</h2>
+          <div class="sub">축일 상세 화면에서 연결할 외부 링크입니다.</div>
+        </div>
+        <label class="form-row">
+          URL
+          <input name="giftShopUrl" class="wide" value="${escapeHtml(metadata.giftShop.url)}" placeholder="${defaultFeastGiftShopUrl}">
+        </label>
+      </section>
+      <section class="settings-section">
+        <div class="settings-row">
+          <div class="settings-row-label">
+            <h2>앱 리뷰</h2>
+            <div class="sub">저장된 일정 5개 조건을 만족했을 때 OS 리뷰창 요청을 허용합니다.</div>
+          </div>
+          <label class="switch" aria-label="앱스토어 리뷰 요청 켜기">
+            <input type="checkbox" name="reviewEnabled" value="1" role="switch" ${metadata.review.enabled ? 'checked' : ''}>
+            <span class="switch-track"></span>
+          </label>
+        </div>
+      </section>
       <div class="editor-actions">
-        <div class="sub">통신 실패 또는 잘못된 URL이면 앱은 기본값 ${escapeHtml(defaultFeastGiftShopUrl)}을 사용합니다.</div>
+        <div class="sub">통신 실패 또는 잘못된 값이면 앱은 선물 링크 기본값과 리뷰 요청 켜짐 상태를 사용합니다.</div>
         <button type="submit">저장</button>
       </div>
-    </form>`;
+    </form>
+    <script>
+      function validateAppMetadataForm(form) {
+        const input = form.elements.giftShopUrl;
+        const value = String(input.value || '').trim();
+        try {
+          const url = new URL(value);
+          if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+            throw new Error('invalid_protocol');
+          }
+        } catch {
+          alert('축일 선물 링크는 http 또는 https로 시작하는 올바른 URL이어야 합니다.');
+          input.focus();
+          return false;
+        }
+        input.value = value;
+        return true;
+      }
+    </script>`;
 }
 
 async function handleAppMetadata(req, res, url) {
@@ -1799,9 +1928,11 @@ async function handleAppMetadataSave(req, res) {
     return;
   }
 
-  await upsertAppMetadata({ giftShopUrl });
+  const reviewEnabled = form.get('reviewEnabled') === '1';
+  await upsertAppMetadata({ giftShopUrl, reviewEnabled });
   await logAdminAction(req, 'app_metadata_update', 'app_metadata', 'gift_shop', {
     gift_shop_url: giftShopUrl,
+    review_enabled: reviewEnabled,
   });
   redirect(
     res,

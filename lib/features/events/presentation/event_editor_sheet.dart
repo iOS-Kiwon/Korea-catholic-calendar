@@ -11,6 +11,7 @@ import '../model/event_category.dart';
 import '../model/recurrence.dart';
 import '../model/reminder_lead.dart';
 import '../notifications/notification_service.dart';
+import '../../app_review/app_review_service.dart';
 import '../../sharing/share_link.dart';
 import 'backup_notice.dart';
 import 'category_manager_page.dart';
@@ -25,17 +26,29 @@ String _dateButtonLabel(DateTime d) => '${d.year}. ${d.month}. ${d.day}.';
 
 /// Opens the add/edit event screen. Pass [existing] to edit; otherwise a new
 /// event is created on [date].
+///
+/// 신규 저장이 끝나면 앱스토어 리뷰 요청 조건을 확인한다(조건 미달이면 아무
+/// 일도 일어나지 않는다). 호출부는 이를 신경 쓰지 않아도 된다.
 Future<void> showEventEditor(
   BuildContext context, {
   required DateTime date,
   CalendarEvent? existing,
   SharedEventDraft? draft,
-}) {
-  return Navigator.of(context).push<void>(
-    MaterialPageRoute<void>(
-      builder: (_) => _EventEditorPage(date: date, existing: existing, draft: draft),
+}) async {
+  // pop 이후에도 유효해야 하므로 에디터가 아니라 호출부 context에서 얻는다.
+  final container = ProviderScope.containerOf(context, listen: false);
+
+  final saved = await Navigator.of(context).push<bool>(
+    MaterialPageRoute<bool>(
+      builder: (_) =>
+          _EventEditorPage(date: date, existing: existing, draft: draft),
     ),
   );
+  if (saved != true) return;
+
+  // 페이지 전환이 완전히 끝난 뒤 띄운다.
+  await Future<void>.delayed(const Duration(milliseconds: 400));
+  await container.read(appReviewServiceProvider).maybeRequest();
 }
 
 class _EventEditorPage extends ConsumerStatefulWidget {
@@ -424,7 +437,9 @@ class _EventEditorPageState extends ConsumerState<_EventEditorPage>
       // 최초 1회: 일정 추가 완료 시점에 백업 안내(앱 실행/복원 시엔 뜨지 않음).
       if (mounted) await maybeShowBackupNotice(context, ref);
     }
-    if (mounted) Navigator.of(context).pop();
+    // 신규 저장일 때만 true를 돌려준다. showEventEditor가 이 값을 보고
+    // 리뷰 요청 여부를 판단한다(수정/삭제/취소는 발동시키지 않는다).
+    if (mounted) Navigator.of(context).pop(!_isEditing);
   }
 
   Future<void> _delete() async {
