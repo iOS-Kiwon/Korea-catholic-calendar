@@ -96,12 +96,13 @@ open class TodayWidgetProvider : AppWidgetProvider() {
             scheduleMidnightUpdate(context)
         }
 
-        // 두 크기 provider의 모든 위젯을 다시 그린다. 남은 위젯이 없으면 알람을 취소.
+        // 세 크기 provider의 모든 위젯을 다시 그린다. 남은 위젯이 없으면 알람을 취소.
         private fun refreshAllWidgets(context: Context) {
             val manager = AppWidgetManager.getInstance(context)
             val components = listOf(
                 ComponentName(context, TodayWidgetTwoByTwoProvider::class.java),
-                ComponentName(context, TodayWidgetFourByFourProvider::class.java)
+                ComponentName(context, TodayWidgetFourByFourProvider::class.java),
+                ComponentName(context, TodayWidgetFourByOneProvider::class.java)
             )
             var hasAny = false
             for (component in components) {
@@ -174,12 +175,21 @@ open class TodayWidgetProvider : AppWidgetProvider() {
             val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
             val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
             val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT)
-            val mode = widgetMode(minWidth, minHeight)
+            // 1x4는 크기로 구분되지 않는다(minWidth>=110, minHeight<110이라 2x2를
+            // 가로로 늘린 것과 같은 조건 = WideShort). 프로바이더 클래스로 판정한다.
+            val providerName =
+                appWidgetManager.getAppWidgetInfo(appWidgetId)?.provider?.className
+            val mode = if (providerName == TodayWidgetFourByOneProvider::class.java.name) {
+                WidgetMode.Week
+            } else {
+                widgetMode(minWidth, minHeight)
+            }
 
             val views = when (mode) {
                 WidgetMode.Tiny -> buildSmallViews(context, snapshot, mode, todayKey)
                 WidgetMode.WideShort -> buildSmallViews(context, snapshot, mode, todayKey)
                 WidgetMode.Compact -> buildSmallViews(context, snapshot, mode, todayKey)
+                WidgetMode.Week -> buildWeekViews(context, snapshot, todayKey)
                 WidgetMode.Calendar -> buildLargeViews(context, snapshot, todayKey, appWidgetId)
             }
 
@@ -357,7 +367,8 @@ open class TodayWidgetProvider : AppWidgetProvider() {
                         dp(context, 6)
                     )
                 }
-                WidgetMode.Calendar -> Unit
+                // 둘 다 small 레이아웃을 쓰지 않으므로 조정할 것이 없다.
+                WidgetMode.Week, WidgetMode.Calendar -> Unit
             }
         }
 
@@ -405,6 +416,24 @@ open class TodayWidgetProvider : AppWidgetProvider() {
             return views
         }
 
+        private fun buildWeekViews(
+            context: Context,
+            snapshot: JSONObject,
+            todayKey: String
+        ): RemoteViews {
+            val views = RemoteViews(context.packageName, R.layout.today_widget_week)
+            views.removeAllViews(R.id.today_widget_week_row)
+            val row = RemoteViews(context.packageName, R.layout.today_widget_month_row)
+            for (day in findWeekDays(snapshot, todayKey)) {
+                row.addView(
+                    R.id.today_widget_month_row,
+                    buildDayCell(context, day, todayKey, forceInMonth = true)
+                )
+            }
+            views.addView(R.id.today_widget_week_row, row)
+            return views
+        }
+
         fun handleWidgetAction(context: Context, intent: Intent): Boolean {
             val action = intent.action ?: return false
             if (action != ACTION_PREV_MONTH &&
@@ -439,10 +468,12 @@ open class TodayWidgetProvider : AppWidgetProvider() {
         private fun buildDayCell(
             context: Context,
             day: JSONObject,
-            todayKey: String
+            todayKey: String,
+            forceInMonth: Boolean = false
         ): RemoteViews {
             val cell = RemoteViews(context.packageName, R.layout.today_widget_day_cell)
-            val inMonth = day.optBoolean("inMonth")
+            // 주간 위젯은 7일 모두 '이번 주'라 다음/이전 달 날짜도 진하게 그린다.
+            val inMonth = forceInMonth || day.optBoolean("inMonth")
             // baked된 isToday 대신 현재 날짜 기준으로 판정.
             val isToday = day.optString("dateKey") == todayKey
             val eventTitle = day.optString("eventTitle")
@@ -472,6 +503,63 @@ open class TodayWidgetProvider : AppWidgetProvider() {
                 else liturgicalColor(day.optString("liturgicalColor"))
             )
             return cell
+        }
+
+        /// 오늘이 속한 주(일~토)의 7칸을 돌려준다. 찾지 못하면 빈 칸 7개.
+        ///
+        /// snapshot.month(앱이 스냅샷을 저장한 시점의 달)가 아니라 오늘 날짜로
+        /// 달을 계산해 months(±12개월)에서 찾는다. 그래야 앱을 열지 않은 채 달이
+        /// 바뀌어도 올바른 주를 그린다.
+        private fun findWeekDays(snapshot: JSONObject, todayKey: String): List<JSONObject> {
+            val days = monthGridForDate(snapshot, todayKey)
+                ?: snapshot.optJSONObject("month")?.optJSONArray("days")
+                ?: return List(7) { JSONObject() }
+
+            var index = -1
+            for (i in 0 until days.length()) {
+                if (days.optJSONObject(i)?.optString("dateKey") == todayKey) {
+                    index = i
+                    break
+                }
+            }
+            if (index < 0) return List(7) { JSONObject() }
+
+            val rowStart = (index / 7) * 7
+            return (0 until 7).map { col ->
+                val raw = days.optJSONObject(rowStart + col) ?: JSONObject()
+                resolveWeekDayCell(snapshot, raw)
+            }
+        }
+
+        /// dateKey("yyyy-MM-dd")가 속한 달의 42칸 격자. months에서 찾는다.
+        private fun monthGridForDate(snapshot: JSONObject, dateKey: String): JSONArray? {
+            if (dateKey.length < 7) return null
+            val year = dateKey.substring(0, 4).toIntOrNull() ?: return null
+            val month = dateKey.substring(5, 7).toIntOrNull() ?: return null
+            return findMonthBySerial(snapshot, monthSerial(year, month))
+                ?.optJSONArray("days")
+        }
+
+        /// 달 경계 주 보정.
+        ///
+        /// 주가 두 달에 걸치면 다음(이전) 달 날짜가 inMonth=false로 들어온다.
+        /// 그런 칸은 Dart 쪽에서 liturgicalTitle을 비워 보내고(notable = inMonth &&
+        /// isNotableDay) 날짜도 회색으로 그려진다. 그 날이 속한 달의 격자에서 같은
+        /// 날을 다시 찾아 온전한 칸으로 바꾼다.
+        private fun resolveWeekDayCell(
+            snapshot: JSONObject,
+            fallback: JSONObject
+        ): JSONObject {
+            if (fallback.optBoolean("inMonth")) return fallback
+            val dateKey = fallback.optString("dateKey")
+            val days = monthGridForDate(snapshot, dateKey) ?: return fallback
+            for (i in 0 until days.length()) {
+                val day = days.optJSONObject(i) ?: continue
+                if (day.optString("dateKey") == dateKey && day.optBoolean("inMonth")) {
+                    return day
+                }
+            }
+            return fallback
         }
 
         private fun eventLines(day: JSONObject, fallback: String): List<String> {
@@ -715,6 +803,7 @@ open class TodayWidgetProvider : AppWidgetProvider() {
             Tiny,
             WideShort,
             Compact,
+            Week,
             Calendar
         }
     }
