@@ -421,7 +421,9 @@ open class TodayWidgetProvider : AppWidgetProvider() {
             snapshot: JSONObject,
             todayKey: String
         ): RemoteViews {
+            val month = snapshot.optJSONObject("month") ?: JSONObject()
             val views = RemoteViews(context.packageName, R.layout.today_widget_week)
+            views.setTextViewText(R.id.today_widget_month_title, month.optString("title", ""))
             views.removeAllViews(R.id.today_widget_week_row)
             val row = RemoteViews(context.packageName, R.layout.today_widget_month_row)
             for (day in findWeekDays(snapshot, todayKey)) {
@@ -456,7 +458,11 @@ open class TodayWidgetProvider : AppWidgetProvider() {
                 ACTION_NEXT_MONTH -> current + 1
                 else -> currentMonthSerial()
             }
-            saveDisplayedMonthSerial(context, appWidgetId, next)
+            if (action == ACTION_TODAY_MONTH) {
+                clearDisplayedMonthSerial(context, appWidgetId)
+            } else {
+                saveDisplayedMonthSerial(context, appWidgetId, next)
+            }
             val manager = AppWidgetManager.getInstance(context)
             manager.updateAppWidget(
                 appWidgetId,
@@ -614,6 +620,13 @@ open class TodayWidgetProvider : AppWidgetProvider() {
             context.getSharedPreferences(PREF_WIDGET_STATE, Context.MODE_PRIVATE)
                 .edit()
                 .putInt(monthStateKey(appWidgetId), serial)
+                .apply()
+        }
+
+        private fun clearDisplayedMonthSerial(context: Context, appWidgetId: Int) {
+            context.getSharedPreferences(PREF_WIDGET_STATE, Context.MODE_PRIVATE)
+                .edit()
+                .remove(monthStateKey(appWidgetId))
                 .apply()
         }
 
