@@ -305,15 +305,30 @@ ensure_android_simulator() {
 }
 
 # 물리 iOS 기기는 install(설치 전용), 그 외는 flutter run.
-launch() { # $1 = device id, $2 = label
-  local id="$1" label="$2" meta plat emu run_log status version_label apk_path
+launch() { # $1 = device id, $2 = label, $3 = requested platform(optional)
+  local id="$1" label="$2" requested_platform="${3:-}"
+  local meta plat emu run_log status version_label apk_path
   local -a version_args
   meta="$(device_meta "$id")"
   plat="${meta%% *}"
   emu="${meta##* }"
+  version_label="unknown"
+
+  # flutter devices 메타데이터가 일시적으로 비어도 명시적으로 요청한
+  # 플랫폼을 사용해 release_version.properties의 버전 주입이 빠지지 않도록 한다.
+  if [ -z "$requested_platform" ]; then
+    case "$label" in
+      android*) requested_platform="android" ;;
+      ios*) requested_platform="ios" ;;
+    esac
+  fi
+  if [ -z "$plat" ]; then
+    plat="$requested_platform"
+  fi
+
   while IFS= read -r arg; do
     version_args+=("$arg")
-  done < <(version_args_for_platform "$plat")
+  done < <(version_args_for_platform "${requested_platform:-$plat}")
   if [ "${#version_args[@]}" -gt 0 ]; then
     version_label="${version_args[0]#--build-name=}+${version_args[1]#--build-number=}"
     info "$label 버전: $version_label"
@@ -336,7 +351,7 @@ launch() { # $1 = device id, $2 = label
       warn "iOS 시뮬레이터는 release 실행을 지원하지 않아 debug 모드로 전환합니다."
       MODE=debug
     fi
-    info "$label 실행 (mode=$MODE, ads=$ADS_ENABLED, serverBadge=$SHOW_REMOTE_STATUS_BADGE, device=$id)"
+    info "$label 실행 (version=$version_label, mode=$MODE, ads=$ADS_ENABLED, serverBadge=$SHOW_REMOTE_STATUS_BADGE, device=$id)"
     if [[ "$plat" == ios* && "$emu" == "true" ]]; then
       info "iOS 시뮬레이터 앱 빌드 (배포 버전 주입): build/ios/iphonesimulator/Runner.app"
       if ! flutter build ios --simulator --"$MODE" "${RUN_DEFINES[@]}" "${version_args[@]}"; then
@@ -358,7 +373,7 @@ launch() { # $1 = device id, $2 = label
       mkdir -p build/run-logs
       run_log="build/run-logs/android-flutter-run.log"
       apk_path="$(android_apk_for_mode "$MODE")"
-      info "Android APK 빌드 (배포 버전 주입): $apk_path"
+      info "Android APK 빌드 (version=$version_label, 배포 버전 주입): $apk_path"
       if ! flutter build apk --"$MODE" "${RUN_DEFINES[@]}" "${version_args[@]}"; then
         err "Android APK 빌드 실패"
         return 1
@@ -366,6 +381,7 @@ launch() { # $1 = device id, $2 = label
       if [[ "$emu" == "true" ]]; then
         trim_android_emulator_caches "$id"
       fi
+      info "Android APK 실행 (version=$version_label): $apk_path"
       flutter run --"$MODE" -d "$id" --use-application-binary="$apk_path" 2>&1 | tee "$run_log"
       status=${PIPESTATUS[0]}
       if [[ "$emu" == "true" && "$status" -ne 0 ]] && is_android_install_no_space "$run_log"; then
@@ -419,9 +435,9 @@ case "$TARGET" in
     fi
 
     if [[ "$DEVICE_KIND" == "simulator" ]]; then
-      launch "$dev" "$TARGET simulator"
+      launch "$dev" "$TARGET simulator" "$TARGET"
     else
-      launch "$dev" "$TARGET device"
+      launch "$dev" "$TARGET device" "$TARGET"
     fi
     ;;
   all)
