@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../app_update/app_update_providers.dart';
 import '../../calendar/application/liturgical_display_filter.dart';
+import '../../calendar/application/liturgical_year_cycle_display.dart';
 import '../../events/application/event_providers.dart';
 import '../../events/data/personal_cloud_backup_store.dart';
 import 'backup_settings_page.dart';
@@ -70,16 +71,36 @@ class SettingsPage extends ConsumerWidget {
                   child: Consumer(
                     builder: (context, ref, _) {
                       final filter = ref.watch(liturgicalDisplayFilterProvider);
-                      return ListTile(
-                        leading: const Icon(Icons.event_note_outlined),
-                        title: const Text('전례일 표시'),
-                        subtitle: Text(filter.displayName),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const LiturgicalDisplaySettingsPage(),
+                      final showCycle = ref.watch(
+                        showLiturgicalYearCycleProvider,
+                      );
+                      return Column(
+                        children: [
+                          ListTile(
+                            leading: const Icon(Icons.event_note_outlined),
+                            title: const Text('전례일 표시'),
+                            subtitle: Text(filter.displayName),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) =>
+                                    const LiturgicalDisplaySettingsPage(),
+                              ),
+                            ),
                           ),
-                        ),
+                          const Divider(height: 1, indent: 72),
+                          SwitchListTile(
+                            secondary: const Icon(Icons.menu_book_outlined),
+                            title: const Text('가해/나해/다해 표시'),
+                            subtitle: Text(
+                              showCycle ? '메인 화면 월 제목에 표시' : '표시하지 않음',
+                            ),
+                            value: showCycle,
+                            onChanged: (value) => ref
+                                .read(showLiturgicalYearCycleProvider.notifier)
+                                .set(value),
+                          ),
+                        ],
                       );
                     },
                   ),

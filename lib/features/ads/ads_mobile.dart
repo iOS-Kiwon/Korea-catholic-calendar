@@ -9,7 +9,14 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 bool get _adsSupported => Platform.isAndroid || Platform.isIOS;
 
-const bool adsEnabled = bool.fromEnvironment('ADS_ENABLED', defaultValue: true);
+/// Ads are only mounted on platforms supported by the mobile ads SDK.
+///
+/// `ads_mobile.dart` is selected for every `dart:io` target, including
+/// desktop and host-side widget tests. Keeping the platform check here avoids
+/// reserving an empty banner slot on those targets while preserving the
+/// `ADS_ENABLED=false` release override for iOS/Android.
+final bool adsEnabled =
+    bool.fromEnvironment('ADS_ENABLED', defaultValue: true) && _adsSupported;
 
 /// Height reserved for the anchored bottom banner (standard 320x50 banner).
 /// Used to offset the keyboard inset so no gap appears above the keyboard while

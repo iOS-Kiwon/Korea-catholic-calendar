@@ -13,6 +13,7 @@ import '../../../saints/presentation/saint_feast_editor_page.dart';
 import '../../../settings/presentation/settings_page.dart';
 import '../../../support/presentation/support_sheet.dart';
 import '../../application/calendar_providers.dart';
+import '../../application/liturgical_year_cycle_display.dart';
 import '../../data/calendar_service.dart';
 import '../season_style.dart';
 import '../widgets/day_info_bar.dart';
@@ -213,6 +214,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     final color = seasonColor(mid.season);
     return MonthHeader(
       month: widget.month,
+      sundayCycle: mid.sundayCycle,
+      showSundayCycle: ref.watch(showLiturgicalYearCycleProvider),
       color: context.liturgical.of(color),
       compact: compact,
       // 오늘이 아닌 날짜(다른 달 포함)를 보고 있을 때만 `오늘` 버튼 노출.

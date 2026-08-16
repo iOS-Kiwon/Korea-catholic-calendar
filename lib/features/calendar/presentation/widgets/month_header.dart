@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:liturgical_calendar/liturgical_calendar.dart';
 
 import '../../../../core/date/year_month.dart';
 
@@ -13,6 +14,8 @@ class MonthHeader extends StatelessWidget {
   const MonthHeader({
     super.key,
     required this.month,
+    required this.sundayCycle,
+    this.showSundayCycle = false,
     required this.color,
     required this.compact,
     required this.onPrevMonth,
@@ -23,6 +26,8 @@ class MonthHeader extends StatelessWidget {
   });
 
   final YearMonth month;
+  final SundayCycle sundayCycle;
+  final bool showSundayCycle;
   final Color color;
   final bool compact;
   final VoidCallback onPrevMonth;
@@ -36,6 +41,10 @@ class MonthHeader extends StatelessWidget {
     final onColor = _readableOn(color);
     final t = Theme.of(context).textTheme;
     final titleStyle = compact ? t.titleLarge : t.headlineSmall;
+    final titleFontSize = (titleStyle?.fontSize ?? 24) + 1;
+    final monthTitle = showSundayCycle
+        ? '${_sundayCycleLabel(sundayCycle)} ${month.year}년 ${month.month}월'
+        : '${month.year}년 ${month.month}월';
 
     final header = Container(
       color: color,
@@ -64,11 +73,13 @@ class MonthHeader extends StatelessWidget {
                         vertical: 4,
                       ),
                       child: Text(
-                        '${month.year}년 ${month.month}월',
+                        monthTitle,
                         textAlign: TextAlign.center,
                         style: titleStyle?.copyWith(
                           color: onColor,
-                          fontSize: (titleStyle.fontSize ?? 24) + 1,
+                          fontSize: showSundayCycle
+                              ? titleFontSize - 4
+                              : titleFontSize,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -172,6 +183,12 @@ class MonthHeader extends StatelessWidget {
     );
   }
 }
+
+String _sundayCycleLabel(SundayCycle cycle) => switch (cycle) {
+  SundayCycle.a => '가해',
+  SundayCycle.b => '나해',
+  SundayCycle.c => '다해',
+};
 
 /// The weekday header row (주일 … 토), Sunday red and Saturday blue.
 class WeekdayRow extends StatelessWidget {

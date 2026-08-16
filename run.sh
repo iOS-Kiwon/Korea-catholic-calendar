@@ -34,7 +34,8 @@ warn() { printf "\033[1;33m[run] ⚠ %s\033[0m\n" "$*"; }
 err()  { printf "\033[1;31m[run] ✗ %s\033[0m\n" "$*"; }
 
 ask_bool() { # $1 = env var name, $2 = prompt, $3 = default(true|false)
-  local name="$1" prompt="$2" default="$3" answer=""
+  local name="$1" prompt="$2" default="$3" answer="" default_label="N"
+  [ "$default" = "true" ] && default_label="Y"
   local current="${!name:-}"
   if [ -n "$current" ]; then
     printf "%s\n" "$current"
@@ -45,7 +46,7 @@ ask_bool() { # $1 = env var name, $2 = prompt, $3 = default(true|false)
     return 0
   fi
   while true; do
-    printf "%s" "$prompt (Y/N, 기본 N): " >&2
+    printf "%s" "$prompt (Y/N, 기본 $default_label): " >&2
     read -r answer
     case "$answer" in
       [Yy]*)
@@ -63,7 +64,7 @@ ask_bool() { # $1 = env var name, $2 = prompt, $3 = default(true|false)
   done
 }
 
-ADS_ENABLED="$(ask_bool ADS_ENABLED "광고는 표시할까요?" false)"
+ADS_ENABLED="$(ask_bool ADS_ENABLED "광고는 표시할까요?" true)"
 SHOW_REMOTE_STATUS_BADGE="$(ask_bool SHOW_REMOTE_STATUS_BADGE "서버 상태 UI를 표시할까요?" false)"
 RUN_DEFINES=(
   --dart-define=ADS_ENABLED="$ADS_ENABLED"
