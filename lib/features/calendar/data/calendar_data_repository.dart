@@ -2,6 +2,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:liturgical_calendar/liturgical_calendar.dart';
 
 import 'calendar_service.dart';
+import 'korean_holidays.dart';
 import 'liturgical_short_titles.dart';
 
 /// Loads the calendar data from bundled assets and builds a [CalendarService].
@@ -22,10 +23,12 @@ class CalendarDataRepository {
     final engine = await _loadEngine();
     final cbck = await _loadCbck();
     final shortTitles = await _loadShortTitles();
+    final koreanHolidays = await _loadKoreanHolidays();
     return CalendarService(
       engine: engine,
       cbck: cbck,
       shortTitles: shortTitles,
+      koreanHolidays: koreanHolidays,
     );
   }
 
@@ -77,6 +80,17 @@ class CalendarDataRepository {
       return parseLiturgicalShortTitles(json);
     } catch (_) {
       return kDefaultLiturgicalShortTitles;
+    }
+  }
+
+  Future<Map<String, List<KoreanHoliday>>> _loadKoreanHolidays() async {
+    try {
+      final json = await rootBundle.loadString(
+        'assets/calendar/korean_holidays.snapshot.1900-2100.json',
+      );
+      return parseKoreanHolidays(json);
+    } catch (_) {
+      return const {};
     }
   }
 }

@@ -7,9 +7,15 @@ import '../season_style.dart';
 const _todayFill = Color(0xFF121212); // 오늘: 검정 원
 const _selectedFill = Color(0xFFD6D6D6); // 선택: 회색 원
 
-Color _numberColor(BuildContext c, DateTime d, bool inMonth) {
+Color _numberColor(
+  BuildContext c,
+  DateTime d,
+  bool inMonth,
+  bool isKoreanHoliday,
+) {
   final theme = Theme.of(c);
   if (!inMonth) return theme.disabledColor;
+  if (isKoreanHoliday) return const Color(0xFFC62828);
   if (d.weekday == DateTime.sunday) return const Color(0xFFC62828);
   if (d.weekday == DateTime.saturday) return const Color(0xFF1565C0);
   return theme.colorScheme.onSurface;
@@ -23,6 +29,7 @@ class DayNumber extends StatelessWidget {
     required this.inCurrentMonth,
     required this.isToday,
     required this.isSelected,
+    this.isKoreanHoliday = false,
     this.size = 34,
   });
 
@@ -30,6 +37,7 @@ class DayNumber extends StatelessWidget {
   final bool inCurrentMonth;
   final bool isToday;
   final bool isSelected;
+  final bool isKoreanHoliday;
   final double size;
 
   @override
@@ -41,7 +49,7 @@ class DayNumber extends StatelessWidget {
         : (isSelected ? _selectedFill : Colors.transparent);
     final fg = isToday
         ? Colors.white
-        : _numberColor(context, date, inCurrentMonth);
+        : _numberColor(context, date, inCurrentMonth, isKoreanHoliday);
     return Container(
       width: size,
       height: size,
@@ -91,6 +99,7 @@ class DayCell extends StatelessWidget {
     required this.inCurrentMonth,
     required this.isToday,
     required this.isSelected,
+    this.isKoreanHoliday = false,
     required this.onTap,
     this.hasEvent = false,
     this.shortTitle,
@@ -100,6 +109,7 @@ class DayCell extends StatelessWidget {
   final bool inCurrentMonth;
   final bool isToday;
   final bool isSelected;
+  final bool isKoreanHoliday;
   final VoidCallback onTap;
   final bool hasEvent;
   final String? shortTitle;
@@ -139,6 +149,7 @@ class DayCell extends StatelessWidget {
                           inCurrentMonth: inCurrentMonth,
                           isToday: isToday,
                           isSelected: isSelected,
+                          isKoreanHoliday: isKoreanHoliday,
                           size: 28,
                         ),
                         if (hasEvent)
@@ -182,6 +193,7 @@ class CompactDayCell extends StatelessWidget {
     required this.inCurrentMonth,
     required this.isToday,
     required this.isSelected,
+    this.isKoreanHoliday = false,
     this.onTap,
     this.hasEvent = false,
     this.shortTitle,
@@ -192,6 +204,7 @@ class CompactDayCell extends StatelessWidget {
   final bool inCurrentMonth;
   final bool isToday;
   final bool isSelected;
+  final bool isKoreanHoliday;
   final VoidCallback? onTap;
   final bool hasEvent;
   final String? shortTitle;
@@ -216,6 +229,7 @@ class CompactDayCell extends StatelessWidget {
                 inCurrentMonth: inCurrentMonth,
                 isToday: isToday,
                 isSelected: isSelected,
+                isKoreanHoliday: isKoreanHoliday,
               ),
               if (hasEvent)
                 const Positioned(right: 0, top: 0, child: EventDot()),

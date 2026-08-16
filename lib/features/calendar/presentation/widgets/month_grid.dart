@@ -49,6 +49,7 @@ class MonthGrid extends ConsumerWidget {
       final inMonth = date.month == month.month;
       final isToday = _sameDay(date, today);
       final isSelected = selectedDate != null && _sameDay(date, selectedDate!);
+      final isKoreanHoliday = calendar.isKoreanHoliday(date);
       final hasEvent = ref.watch(dayHasEventProvider(date));
       final shortTitle = inMonth
           ? gridLiturgicalLabel(filter, calendar.shortTitleFor(day), day)
@@ -60,6 +61,7 @@ class MonthGrid extends ConsumerWidget {
               inCurrentMonth: inMonth,
               isToday: isToday,
               isSelected: isSelected,
+              isKoreanHoliday: isKoreanHoliday,
               hasEvent: hasEvent,
               titleMaxLines: compactTitleMaxLines,
               onTap: () => onSelectDay(date),
@@ -70,6 +72,7 @@ class MonthGrid extends ConsumerWidget {
               inCurrentMonth: inMonth,
               isToday: isToday,
               isSelected: isSelected,
+              isKoreanHoliday: isKoreanHoliday,
               hasEvent: hasEvent,
               onTap: () => onSelectDay(date),
             );

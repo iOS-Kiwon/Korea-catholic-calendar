@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:liturgical_calendar/liturgical_calendar.dart';
 
 import 'liturgical_short_titles.dart';
+import 'korean_holidays.dart';
 
 /// A parsed authoritative day from the CBCK snapshot / gateway.
 class CbckDay {
@@ -100,14 +101,17 @@ class CalendarService {
     required this.engine,
     Map<String, CbckDay>? cbck,
     Map<String, String>? shortTitles,
+    Map<String, List<KoreanHoliday>>? koreanHolidays,
   }) : _cbck = {...?cbck},
-       _shortTitles = {...kDefaultLiturgicalShortTitles, ...?shortTitles} {
+       _shortTitles = {...kDefaultLiturgicalShortTitles, ...?shortTitles},
+       _koreanHolidays = {...?koreanHolidays} {
     _recomputeMonths();
   }
 
   final LiturgicalCalendar engine;
   final Map<String, CbckDay> _cbck;
   final Map<String, String> _shortTitles;
+  final Map<String, List<KoreanHoliday>> _koreanHolidays;
   final Set<String> _months = {}; // 'YYYY-MM' loaded
   final Map<String, DateTime?> _feastDateCache = {}; // 'id@year' -> date
 
@@ -147,6 +151,10 @@ class CalendarService {
   /// Whether authoritative data for [year]/[month] is already loaded.
   bool hasMonth(int year, int month) =>
       _months.contains('$year-${_pad2(month)}');
+
+  /// 해당 날짜가 대한민국 국가 공휴일 또는 대체공휴일인지 여부.
+  bool isKoreanHoliday(DateTime date) =>
+      _koreanHolidays.containsKey(_key(date));
 
   /// Merges additional authoritative days (e.g. fetched from the gateway).
   void merge(Map<String, CbckDay> more) {
