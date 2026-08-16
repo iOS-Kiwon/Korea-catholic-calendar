@@ -54,25 +54,35 @@ class MonthGrid extends ConsumerWidget {
       final shortTitle = inMonth
           ? gridLiturgicalLabel(filter, calendar.shortTitleFor(day), day)
           : null;
+      final holidayTitle = inMonth
+          ? calendar.koreanHolidayTitleFor(date)
+          : null;
+      final isKoreanHolidayTitle =
+          shortTitle?.trim().isNotEmpty != true && holidayTitle != null;
+      final title = shortTitle?.trim().isNotEmpty == true
+          ? shortTitle
+          : holidayTitle;
       return compact
           ? CompactDayCell(
               day: day,
-              shortTitle: shortTitle,
+              shortTitle: title,
               inCurrentMonth: inMonth,
               isToday: isToday,
               isSelected: isSelected,
               isKoreanHoliday: isKoreanHoliday,
+              isKoreanHolidayTitle: isKoreanHolidayTitle,
               hasEvent: hasEvent,
               titleMaxLines: compactTitleMaxLines,
               onTap: () => onSelectDay(date),
             )
           : DayCell(
               day: day,
-              shortTitle: shortTitle,
+              shortTitle: title,
               inCurrentMonth: inMonth,
               isToday: isToday,
               isSelected: isSelected,
               isKoreanHoliday: isKoreanHoliday,
+              isKoreanHolidayTitle: isKoreanHolidayTitle,
               hasEvent: hasEvent,
               onTap: () => onSelectDay(date),
             );

@@ -156,6 +156,15 @@ class CalendarService {
   bool isKoreanHoliday(DateTime date) =>
       _koreanHolidays.containsKey(_key(date));
 
+  /// 해당 국가 공휴일의 대표 제목. 공휴일이 없거나 제목이 비어 있으면 null.
+  String? koreanHolidayTitleFor(DateTime date) {
+    final holidays = _koreanHolidays[_key(date)];
+    for (final holiday in holidays ?? const <KoreanHoliday>[]) {
+      if (holiday.title.trim().isNotEmpty) return holiday.title;
+    }
+    return null;
+  }
+
   /// Merges additional authoritative days (e.g. fetched from the gateway).
   void merge(Map<String, CbckDay> more) {
     if (more.isEmpty) return;

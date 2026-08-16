@@ -30,6 +30,7 @@ class DayNumber extends StatelessWidget {
     required this.isToday,
     required this.isSelected,
     this.isKoreanHoliday = false,
+    this.isKoreanHolidayTitle = false,
     this.size = 34,
   });
 
@@ -38,6 +39,7 @@ class DayNumber extends StatelessWidget {
   final bool isToday;
   final bool isSelected;
   final bool isKoreanHoliday;
+  final bool isKoreanHolidayTitle;
   final double size;
 
   @override
@@ -50,19 +52,26 @@ class DayNumber extends StatelessWidget {
     final fg = isToday
         ? Colors.white
         : _numberColor(context, date, inCurrentMonth, isKoreanHoliday);
-    return Container(
+    final circleSize = isToday || isSelected ? size - 4 : size;
+    return SizedBox(
       width: size,
       height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
-      child: Text(
-        '${date.day}',
-        style: baseStyle?.copyWith(
-          color: fg,
-          // Keep the circle's size unchanged while making the date easier to
-          // scan on both iOS and Android.
-          fontSize: (baseStyle.fontSize ?? 16) + 2,
-          fontWeight: isToday ? FontWeight.bold : FontWeight.w500,
+      child: Center(
+        child: Container(
+          width: circleSize,
+          height: circleSize,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+          child: Text(
+            '${date.day}',
+            style: baseStyle?.copyWith(
+              color: fg,
+              // Keep the date cell footprint unchanged while making the
+              // highlighted circle easier to separate from the title below.
+              fontSize: (baseStyle.fontSize ?? 16) + 2,
+              fontWeight: isToday ? FontWeight.bold : FontWeight.w500,
+            ),
+          ),
         ),
       ),
     );
@@ -100,6 +109,7 @@ class DayCell extends StatelessWidget {
     required this.isToday,
     required this.isSelected,
     this.isKoreanHoliday = false,
+    this.isKoreanHolidayTitle = false,
     required this.onTap,
     this.hasEvent = false,
     this.shortTitle,
@@ -110,6 +120,7 @@ class DayCell extends StatelessWidget {
   final bool isToday;
   final bool isSelected;
   final bool isKoreanHoliday;
+  final bool isKoreanHolidayTitle;
   final VoidCallback onTap;
   final bool hasEvent;
   final String? shortTitle;
@@ -166,7 +177,9 @@ class DayCell extends StatelessWidget {
                             maxLines: 3,
                             overflow: TextOverflow.ellipsis,
                             style: titleStyle.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                              color: isKoreanHolidayTitle
+                                  ? const Color(0xFFC62828)
+                                  : theme.colorScheme.onSurfaceVariant,
                               fontSize: (titleStyle.fontSize ?? 12) + 2,
                               height: 1.2,
                             ),
@@ -194,6 +207,7 @@ class CompactDayCell extends StatelessWidget {
     required this.isToday,
     required this.isSelected,
     this.isKoreanHoliday = false,
+    this.isKoreanHolidayTitle = false,
     this.onTap,
     this.hasEvent = false,
     this.shortTitle,
@@ -205,6 +219,7 @@ class CompactDayCell extends StatelessWidget {
   final bool isToday;
   final bool isSelected;
   final bool isKoreanHoliday;
+  final bool isKoreanHolidayTitle;
   final VoidCallback? onTap;
   final bool hasEvent;
   final String? shortTitle;
@@ -248,7 +263,9 @@ class CompactDayCell extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                     style: theme.textTheme.labelSmall?.copyWith(
-                      color: context.liturgical.of(day.color),
+                      color: isKoreanHolidayTitle
+                          ? const Color(0xFFC62828)
+                          : context.liturgical.of(day.color),
                       fontSize: 10,
                       height: 1.0,
                       fontWeight: FontWeight.w600,
