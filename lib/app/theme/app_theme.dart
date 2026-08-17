@@ -7,12 +7,15 @@ import 'liturgical_colors.dart';
 /// white rounded calendar card. Dark mode is intentionally not supported.
 class AppTheme {
   static const _pageLight = Color(0xFFEDEBE4); // warm beige page background
+  static const _surfaceLight = Color(
+    0xFFF8F6F0,
+  ); // warm white that stays close to the calendar grid
 
   static ThemeData light() {
     final scheme = ColorScheme.fromSeed(
       seedColor: const Color(0xFF2E7D32),
       brightness: Brightness.light,
-    );
+    ).copyWith(surface: _surfaceLight);
     return ThemeData(
       colorScheme: scheme,
       useMaterial3: true,

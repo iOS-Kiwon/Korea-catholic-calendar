@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:liturgical_calendar/liturgical_calendar.dart';
 
+import '../../../app/theme/liturgical_colors.dart';
 import '../model/calendar_event.dart';
 import '../model/event_category.dart';
 
@@ -16,6 +18,8 @@ class EventLabelHighlight extends StatelessWidget {
     required this.label,
     required this.color,
     this.style,
+    this.backgroundColor,
+    this.backgroundOpacity = 0.24,
     this.maxLines = 1,
     this.overflow = TextOverflow.ellipsis,
   });
@@ -26,12 +30,16 @@ class EventLabelHighlight extends StatelessWidget {
     this.style,
   }) : label = category.name,
        color = Color(category.color),
+       backgroundColor = null,
+       backgroundOpacity = 0.24,
        maxLines = 1,
        overflow = TextOverflow.ellipsis;
 
   final String label;
   final Color color;
   final TextStyle? style;
+  final Color? backgroundColor;
+  final double backgroundOpacity;
   final int maxLines;
   final TextOverflow overflow;
 
@@ -41,7 +49,7 @@ class EventLabelHighlight extends StatelessWidget {
     final effectiveStyle = style ?? theme.textTheme.bodyLarge;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.24),
+        color: (backgroundColor ?? color).withValues(alpha: backgroundOpacity),
         borderRadius: BorderRadius.circular(3),
       ),
       child: Padding(
@@ -54,6 +62,48 @@ class EventLabelHighlight extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// A liturgical-color label used consistently in the calendar footer and the
+/// day detail screen.
+class LiturgicalColorLabel extends StatelessWidget {
+  const LiturgicalColorLabel({super.key, required this.color, this.style});
+
+  final LiturgicalColor color;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final liturgicalColor = context.liturgical.of(color);
+    final isWhite = color == LiturgicalColor.white;
+    return EventLabelHighlight(
+      label: liturgicalColorShortLabel(color),
+      color: liturgicalColor,
+      backgroundColor: isWhite ? const Color(0xFF666666) : null,
+      backgroundOpacity: isWhite ? 0.92 : 0.24,
+      style: (style ?? theme.textTheme.bodyLarge)?.copyWith(
+        color: isWhite ? Colors.white : liturgicalColor,
+      ),
+    );
+  }
+}
+
+String liturgicalColorShortLabel(LiturgicalColor color) {
+  switch (color) {
+    case LiturgicalColor.green:
+      return '[녹]';
+    case LiturgicalColor.red:
+      return '[홍]';
+    case LiturgicalColor.white:
+      return '[백]';
+    case LiturgicalColor.violet:
+      return '[자]';
+    case LiturgicalColor.rose:
+      return '[장]';
+    case LiturgicalColor.black:
+      return '[흑]';
   }
 }
 

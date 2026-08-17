@@ -77,7 +77,7 @@ class DayDetailView extends ConsumerWidget {
                 _SectionHeader('전례력'),
                 const SizedBox(height: 12),
                 _LiturgicalLine(
-                  color: context.liturgical.of(day.color),
+                  color: day.color,
                   text: day.title,
                   displayType: day.celebration.displayType,
                   fallbackLabel: _fallbackLiturgicalLabel(
@@ -108,7 +108,7 @@ class DayDetailView extends ConsumerWidget {
                 for (final m in day.optionalMemorials) ...[
                   const SizedBox(height: 10),
                   _LiturgicalLine(
-                    color: context.liturgical.of(m.color),
+                    color: m.color,
                     text: m.name,
                     displayType: m.displayType,
                     fallbackLabel: _fallbackLiturgicalLabel(
@@ -309,7 +309,7 @@ class _LiturgicalLine extends StatelessWidget {
     required this.fallbackLabel,
   });
 
-  final Color color;
+  final LiturgicalColor color;
   final String text;
   final LiturgicalDisplayType? displayType;
   final String fallbackLabel;
@@ -322,11 +322,16 @@ class _LiturgicalLine extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.only(top: 1),
-          child: EventLabelHighlight(
-            label: _displayTypeLabel(displayType, fallbackLabel),
-            color: color,
-            style: theme.textTheme.bodyLarge,
-          ),
+          child: _displayTypeLabel(displayType, fallbackLabel) == '전례'
+              ? LiturgicalColorLabel(
+                  color: color,
+                  style: theme.textTheme.bodyLarge,
+                )
+              : EventLabelHighlight(
+                  label: _displayTypeLabel(displayType, fallbackLabel),
+                  color: context.liturgical.of(color),
+                  style: theme.textTheme.bodyLarge,
+                ),
         ),
         const SizedBox(width: 12),
         Expanded(child: Text(text, style: theme.textTheme.bodyLarge)),

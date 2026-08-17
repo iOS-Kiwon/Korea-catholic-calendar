@@ -9,6 +9,14 @@ import '../../../events/presentation/event_display.dart';
 
 const _weekdayFull = ['일', '월', '화', '수', '목', '금', '토'];
 const _maxMemorialRows = 3;
+const _footerBodyLineHeight = 24.0;
+const _footerSmallLineHeight = 20.0;
+
+TextStyle _fixedLineHeight(TextStyle? style, double lineHeight) {
+  final base = style ?? const TextStyle(fontSize: 16);
+  final fontSize = base.fontSize ?? 16;
+  return base.copyWith(height: lineHeight / fontSize);
+}
 
 /// 달력 하단 정보 카드: 날짜(+상세 이동 셰브런) · 기념/전례명 · 그날의 내 일정 요약,
 /// 그리고 (해당하는 날) 나눔 배너. 카드 영역을 누르면 상세 화면으로 이동한다.
@@ -29,6 +37,14 @@ class DayInfoBar extends ConsumerWidget {
     final theme = Theme.of(context);
     final d = day.date;
     final weekday = _weekdayFull[d.weekday % 7];
+    final titleStyle = _fixedLineHeight(
+      theme.textTheme.titleMedium,
+      _footerBodyLineHeight,
+    ).copyWith(color: const Color(0xFF121212), fontWeight: FontWeight.w700);
+    final bodyStyle = _fixedLineHeight(
+      theme.textTheme.bodyLarge,
+      _footerBodyLineHeight,
+    );
     final events = ref.watch(eventsForDateProvider(d));
     final showSupportInvite =
         onSupportTap != null &&
@@ -83,10 +99,7 @@ class DayInfoBar extends ConsumerWidget {
                       Expanded(
                         child: Text(
                           '${d.month}월 ${d.day}일 $weekday요일',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            color: const Color(0xFF121212),
-                            fontWeight: FontWeight.w700,
-                          ),
+                          style: titleStyle,
                         ),
                       ),
                       Icon(
@@ -96,8 +109,10 @@ class DayInfoBar extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  for (final line in memorials) _MemorialRow(line: line),
-                  if (events.isNotEmpty) _EventSummary(events: events),
+                  for (final line in memorials)
+                    _MemorialRow(line: line, style: bodyStyle),
+                  if (events.isNotEmpty)
+                    _EventSummary(events: events, style: bodyStyle),
                 ],
               ),
             ),
@@ -116,9 +131,10 @@ class DayInfoBar extends ConsumerWidget {
 /// Shows the first event as time/category/memo in one line, then a count when
 /// there are more.
 class _EventSummary extends StatelessWidget {
-  const _EventSummary({required this.events});
+  const _EventSummary({required this.events, required this.style});
 
   final List<CalendarEvent> events;
+  final TextStyle style;
 
   @override
   Widget build(BuildContext context) {
@@ -147,7 +163,7 @@ class _EventSummary extends StatelessWidget {
                 EventLabelHighlight(
                   label: kSaintFeastPrefix,
                   color: const Color(kSaintFeastEventColor),
-                  style: theme.textTheme.bodyLarge,
+                  style: style,
                 ),
                 const SizedBox(width: 8),
               ],
@@ -157,10 +173,11 @@ class _EventSummary extends StatelessWidget {
                         feastSummary!,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodyLarge,
+                        style: style,
                       )
                     : RegularEventDisplayLine(
                         event: first,
+                        style: style,
                         showAllDayLabel: false,
                       ),
               ),
@@ -171,9 +188,10 @@ class _EventSummary extends StatelessWidget {
               padding: const EdgeInsets.only(top: 4, left: 18),
               child: Text(
                 '외 $extra개 일정이 있어요.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+                style: _fixedLineHeight(
+                  theme.textTheme.bodySmall,
+                  _footerSmallLineHeight,
+                ).copyWith(color: theme.colorScheme.onSurfaceVariant),
               ),
             ),
         ],
@@ -209,10 +227,10 @@ class _SupportBanner extends StatelessWidget {
                   '오늘의 기쁨을 나눠요',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: accent,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: _fixedLineHeight(
+                    theme.textTheme.titleSmall,
+                    _footerSmallLineHeight,
+                  ).copyWith(color: accent, fontWeight: FontWeight.w700),
                 ),
               ),
               Icon(Icons.chevron_right, color: accent),
@@ -241,34 +259,38 @@ class _MemorialLine {
 }
 
 class _MemorialRow extends StatelessWidget {
-  const _MemorialRow({required this.line});
+  const _MemorialRow({required this.line, required this.style});
 
   final _MemorialLine line;
+  final TextStyle style;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final typeLabel = _memorialTypeLabel(
+      line.id,
+      line.title,
+      line.rank,
+      line.displayType,
+    );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         children: [
-          EventLabelHighlight(
-            label: _memorialTypeLabel(
-              line.id,
-              line.title,
-              line.rank,
-              line.displayType,
+          if (typeLabel == '전례')
+            LiturgicalColorLabel(color: line.color, style: style)
+          else
+            EventLabelHighlight(
+              label: typeLabel,
+              color: context.liturgical.of(line.color),
+              style: style,
             ),
-            color: context.liturgical.of(line.color),
-            style: theme.textTheme.bodyLarge,
-          ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               line.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodyLarge,
+              style: style,
             ),
           ),
         ],

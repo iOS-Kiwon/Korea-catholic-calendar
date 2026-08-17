@@ -608,7 +608,7 @@ void main() {
     final summary = tester.widget<Text>(find.text('19:30 루카복음 긴 메모'));
     expect(summary.maxLines, 1);
     expect(summary.overflow, TextOverflow.ellipsis);
-    expect(find.text('전례'), findsOneWidget);
+    expect(find.text('[녹]'), findsOneWidget);
     expect(find.text(day.title), findsOneWidget);
     expect(find.text('축일'), findsNothing);
   });
@@ -731,7 +731,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('전례'), findsOneWidget);
+    expect(find.text('[녹]'), findsOneWidget);
     expect(find.text('축일'), findsNWidgets(2));
     expect(find.text('연중 제21주간 화요일'), findsOneWidget);
     expect(find.text('성 루도비코'), findsOneWidget);
@@ -751,7 +751,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('전례'), findsOneWidget);
+    expect(find.text('[백]'), findsOneWidget);
     expect(find.text('주님 성탄 대축일'), findsOneWidget);
     expect(find.text('축일'), findsNothing);
   });
@@ -772,7 +772,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('전례'), findsOneWidget);
+    expect(find.text('[자]'), findsOneWidget);
     expect(find.text('죽은 모든 이를 기억하는 위령의 날'), findsOneWidget);
     expect(find.text('축일'), findsNothing);
   });
@@ -803,7 +803,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('전례'), findsOneWidget);
+    expect(find.text('[녹]'), findsOneWidget);
     expect(find.text('전례 전용 기념 축일'), findsOneWidget);
     expect(find.text('축일'), findsNothing);
   });
@@ -835,7 +835,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('전례'), findsOneWidget);
+    expect(find.text('[녹]'), findsOneWidget);
     expect(find.text('성 야고보 사도 축일'), findsOneWidget);
     expect(find.text('축일'), findsNothing);
   });
@@ -863,7 +863,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('전례'), findsOneWidget);
+    expect(find.text('[녹]'), findsOneWidget);
     expect(find.widgetWithText(TextButton, '축일 추가'), findsNothing);
 
     final saintFeast = liturgyRankFeast.copyWith(
