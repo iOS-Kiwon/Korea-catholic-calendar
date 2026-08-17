@@ -30,6 +30,12 @@ String monthPath(YearMonth ym) =>
 /// Width at/above which the "wide" (web/desktop) layout is used.
 const _wideBreakpoint = 720.0;
 const _tabletMaxLogicalSide = 1400.0;
+const _weekdayRowHeight = 36.0;
+const _maxCalendarRows = 6;
+const _compactGridRowHeight = 70.0;
+const _wideGridRowHeight = 93.0;
+const _compactGridHeight = _maxCalendarRows * _compactGridRowHeight;
+const _wideGridHeight = _maxCalendarRows * _wideGridRowHeight;
 const _showRemoteStatusBadge = bool.fromEnvironment(
   'SHOW_REMOTE_STATUS_BADGE',
   defaultValue: false,
@@ -227,12 +233,17 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     );
   }
 
-  MonthGrid _grid(CalendarService s, {required bool compact}) => MonthGrid(
+  MonthGrid _grid(
+    CalendarService s, {
+    required bool compact,
+    required double fixedRowHeight,
+  }) => MonthGrid(
     calendar: s,
     month: widget.month,
     today: DateTime.now(),
     selectedDate: _focusDate, // 오늘=검정 원, 선택=연회색 원
     compact: compact,
+    fixedRowHeight: fixedRowHeight,
     onSelectDay: (date) => setState(() => _selected = date),
   );
 
@@ -327,8 +338,24 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                                 alignment: Alignment.centerLeft,
                                 child: Legend(),
                               ),
-                              const WeekdayRow(),
-                              Expanded(child: _grid(s, compact: false)),
+                              const SizedBox(
+                                height: _weekdayRowHeight,
+                                child: WeekdayRow(),
+                              ),
+                              Expanded(
+                                child: Align(
+                                  alignment: Alignment.topCenter,
+                                  child: SizedBox(
+                                    width: double.infinity,
+                                    height: _wideGridHeight,
+                                    child: _grid(
+                                      s,
+                                      compact: false,
+                                      fixedRowHeight: _wideGridRowHeight,
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -350,18 +377,28 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     return Column(
       children: [
         _header(s, compact: true),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 8),
-          child: WeekdayRow(),
+        const SizedBox(
+          height: _weekdayRowHeight,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8),
+            child: WeekdayRow(),
+          ),
         ),
         Expanded(
-          child: Stack(
-            children: [
-              Padding(
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: double.infinity,
+              height: _compactGridHeight,
+              child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: _grid(s, compact: true),
+                child: _grid(
+                  s,
+                  compact: true,
+                  fixedRowHeight: _compactGridRowHeight,
+                ),
               ),
-            ],
+            ),
           ),
         ),
         _infoBar(s, compact: true),

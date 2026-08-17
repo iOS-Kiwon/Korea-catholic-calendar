@@ -41,12 +41,8 @@ class MonthHeader extends StatelessWidget {
     final theme = Theme.of(context);
     final onColor = _readableOn(color);
     final controlBackground = color.computeLuminance() > 0.9
-        // 백색 헤더에서도 버튼이 보이되, 회색 면 대신 브랜드 녹색을
-        // 아주 옅게 섞어 자색 헤더의 밝은 자색 버튼과 같은 인상을 준다.
-        ? Color.alphaBlend(
-            theme.colorScheme.primary.withValues(alpha: 0.08),
-            color,
-          )
+        // 백색 헤더에서는 버튼을 달력 그리드와 같은 따뜻한 베이지로 맞춘다.
+        ? theme.scaffoldBackgroundColor
         : onColor.withValues(alpha: 0.18);
     final t = theme.textTheme;
     final titleStyle = compact ? t.titleLarge : t.headlineSmall;

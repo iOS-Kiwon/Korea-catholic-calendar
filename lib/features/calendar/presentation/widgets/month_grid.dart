@@ -23,6 +23,7 @@ class MonthGrid extends ConsumerWidget {
     required this.selectedDate,
     required this.onSelectDay,
     this.compact = false,
+    this.fixedRowHeight,
   });
 
   final CalendarService calendar;
@@ -31,6 +32,10 @@ class MonthGrid extends ConsumerWidget {
   final DateTime? selectedDate;
   final ValueChanged<DateTime> onSelectDay;
   final bool compact;
+
+  /// When set, every rendered week uses this height instead of deriving it
+  /// from the parent's available height.
+  final double? fixedRowHeight;
 
   bool _sameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
@@ -103,11 +108,13 @@ class MonthGrid extends ConsumerWidget {
         // circle. The grid is already inside an Expanded area on phones, so
         // this does not change the overall calendar screen height.
         final defaultRowHeight = compact ? 72.0 : 92.0;
-        final rowHeight = constraints.maxHeight.isFinite
-            ? compact
-                  ? math.min(defaultRowHeight, constraints.maxHeight / rows)
-                  : constraints.maxHeight / rows
-            : defaultRowHeight;
+        final rowHeight =
+            fixedRowHeight ??
+            (constraints.maxHeight.isFinite
+                ? compact
+                      ? math.min(defaultRowHeight, constraints.maxHeight / rows)
+                      : constraints.maxHeight / rows
+                : defaultRowHeight);
         final compactTitleMaxLines = !compact
             ? 1
             : rowHeight >= _compactThreeLineTitleMinRowHeight

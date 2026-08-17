@@ -9,7 +9,9 @@ import 'package:catholic_calendar/features/calendar/presentation/pages/calendar_
 import 'package:catholic_calendar/features/calendar/presentation/pages/day_detail_page.dart';
 import 'package:catholic_calendar/features/calendar/presentation/widgets/day_detail_view.dart';
 import 'package:catholic_calendar/features/calendar/presentation/widgets/day_info_bar.dart';
+import 'package:catholic_calendar/features/calendar/presentation/widgets/day_cell.dart';
 import 'package:catholic_calendar/features/calendar/presentation/widgets/month_grid.dart';
+import 'package:catholic_calendar/features/calendar/presentation/widgets/month_header.dart';
 import 'package:catholic_calendar/features/events/analytics/category_log_service.dart';
 import 'package:catholic_calendar/features/events/application/event_providers.dart';
 import 'package:catholic_calendar/features/events/application/recurrence_expander.dart';
@@ -178,6 +180,80 @@ void main() {
               widget.constraints?.maxHeight == 6,
         );
     expect(liturgicalDots, isEmpty);
+  });
+
+  testWidgets('fixed calendar row heights keep compact and wide cells stable', (
+    tester,
+  ) async {
+    final service = CalendarService(engine: LiturgicalCalendar());
+
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(
+          body: SizedBox(
+            width: 390,
+            height: 420,
+            child: MonthGrid(
+              calendar: service,
+              month: const YearMonth(2026, 5),
+              today: DateTime(2026, 5, 1),
+              selectedDate: null,
+              onSelectDay: (_) {},
+              compact: true,
+              fixedRowHeight: 70,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.getSize(find.byType(MonthGrid)).height, 420);
+    expect(tester.getSize(find.byType(CompactDayCell).first).height, 70);
+    expect(tester.widget<Text>(find.text('주님 승천')).maxLines, 3);
+
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(
+          body: SizedBox(
+            width: 1200,
+            height: 558,
+            child: MonthGrid(
+              calendar: service,
+              month: const YearMonth(2026, 8),
+              today: DateTime(2026, 8, 1),
+              selectedDate: null,
+              onSelectDay: (_) {},
+              fixedRowHeight: 93,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.getSize(find.byType(DayCell).first).height, 93);
+  });
+
+  testWidgets('phone calendar reserves a fixed six-row grid slot', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      _wrap(
+        CalendarPage(
+          month: YearMonth(2026, 8),
+          initialSelected: DateTime(2026, 8, 6),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.getSize(find.byType(WeekdayRow)).height, 36);
+    expect(tester.getSize(find.byType(MonthGrid)).height, 420);
   });
 
   testWidgets('compact month grid shows transferred solemnity short label', (
