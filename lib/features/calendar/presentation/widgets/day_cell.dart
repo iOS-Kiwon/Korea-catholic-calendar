@@ -12,12 +12,21 @@ Color _numberColor(
   DateTime d,
   bool inMonth,
   bool isKoreanHoliday,
+  LiturgicalColor liturgicalColor,
 ) {
   final theme = Theme.of(c);
   if (!inMonth) return theme.disabledColor;
   if (isKoreanHoliday) return const Color(0xFFC62828);
   if (d.weekday == DateTime.sunday) return const Color(0xFFC62828);
   if (d.weekday == DateTime.saturday) return const Color(0xFF1565C0);
+  if (liturgicalColor == LiturgicalColor.white) {
+    // 백색 전례일은 순검정보다 그리드 배경을 조금 섞어 차콜 톤으로 낮춘다.
+    return Color.lerp(
+      theme.colorScheme.onSurface,
+      theme.scaffoldBackgroundColor,
+      0.16,
+    )!;
+  }
   return theme.colorScheme.onSurface;
 }
 
@@ -29,6 +38,7 @@ class DayNumber extends StatelessWidget {
     required this.inCurrentMonth,
     required this.isToday,
     required this.isSelected,
+    required this.liturgicalColor,
     this.isKoreanHoliday = false,
     this.isKoreanHolidayTitle = false,
     this.size = 34,
@@ -38,6 +48,7 @@ class DayNumber extends StatelessWidget {
   final bool inCurrentMonth;
   final bool isToday;
   final bool isSelected;
+  final LiturgicalColor liturgicalColor;
   final bool isKoreanHoliday;
   final bool isKoreanHolidayTitle;
   final double size;
@@ -51,7 +62,13 @@ class DayNumber extends StatelessWidget {
         : (isSelected ? _selectedFill : Colors.transparent);
     final fg = isToday
         ? Colors.white
-        : _numberColor(context, date, inCurrentMonth, isKoreanHoliday);
+        : _numberColor(
+            context,
+            date,
+            inCurrentMonth,
+            isKoreanHoliday,
+            liturgicalColor,
+          );
     final circleSize = isToday || isSelected ? size - 4 : size;
     return SizedBox(
       width: size,
@@ -94,7 +111,7 @@ class EventDot extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: theme.colorScheme.primary,
-        border: Border.all(color: theme.colorScheme.surface, width: 1),
+        border: Border.all(color: theme.scaffoldBackgroundColor, width: 1),
       ),
     );
   }
@@ -131,12 +148,20 @@ class DayCell extends StatelessWidget {
     final titleStyle = theme.textTheme.labelMedium ?? const TextStyle();
     final notable = inCurrentMonth && isNotableDay(day);
     final accent = context.liturgical.of(day.color);
+    final hasTitle = shortTitle?.trim().isNotEmpty == true;
+    final titleAccent = isKoreanHolidayTitle ? const Color(0xFFC62828) : accent;
+    final isWhiteTitle =
+        day.color == LiturgicalColor.white && !isKoreanHolidayTitle;
 
     return InkWell(
       onTap: onTap,
+      splashFactory: NoSplash.splashFactory,
+      overlayColor: const WidgetStatePropertyAll(Colors.transparent),
       child: Container(
         decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
+          // Keep the grid visually continuous with the phone layout. The
+          // footer/card surface is intentionally a different, softer white.
+          color: theme.scaffoldBackgroundColor,
           border: Border.all(
             color: theme.dividerColor.withValues(alpha: 0.2),
             width: 0.5,
@@ -145,7 +170,10 @@ class DayCell extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(height: 3, color: notable ? accent : Colors.transparent),
+            Container(
+              height: 3,
+              color: notable || hasTitle ? titleAccent : Colors.transparent,
+            ),
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(6, 4, 6, 6),
@@ -160,6 +188,7 @@ class DayCell extends StatelessWidget {
                           inCurrentMonth: inCurrentMonth,
                           isToday: isToday,
                           isSelected: isSelected,
+                          liturgicalColor: day.color,
                           isKoreanHoliday: isKoreanHoliday,
                           size: 28,
                         ),
@@ -168,21 +197,20 @@ class DayCell extends StatelessWidget {
                       ],
                     ),
                     if (shortTitle case final title?) ...[
-                      const SizedBox(height: 0),
+                      const SizedBox(height: 1),
                       Expanded(
-                        child: Transform.translate(
-                          offset: const Offset(0, -2),
-                          child: Text(
-                            title,
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                            style: titleStyle.copyWith(
-                              color: isKoreanHolidayTitle
-                                  ? const Color(0xFFC62828)
-                                  : theme.colorScheme.onSurfaceVariant,
-                              fontSize: (titleStyle.fontSize ?? 12) + 2,
-                              height: 1.2,
-                            ),
+                        child: Text(
+                          title,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: titleStyle.copyWith(
+                            color: isKoreanHolidayTitle
+                                ? const Color(0xFFC62828)
+                                : isWhiteTitle
+                                ? Colors.black
+                                : theme.colorScheme.onSurfaceVariant,
+                            fontSize: (titleStyle.fontSize ?? 12) + 2,
+                            height: 1.2,
                           ),
                         ),
                       ),
@@ -228,10 +256,14 @@ class CompactDayCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isWhiteTitle =
+        day.color == LiturgicalColor.white && !isKoreanHolidayTitle;
 
     return InkWell(
       onTap: onTap,
       customBorder: const CircleBorder(),
+      splashFactory: NoSplash.splashFactory,
+      overlayColor: const WidgetStatePropertyAll(Colors.transparent),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
@@ -244,6 +276,7 @@ class CompactDayCell extends StatelessWidget {
                 inCurrentMonth: inCurrentMonth,
                 isToday: isToday,
                 isSelected: isSelected,
+                liturgicalColor: day.color,
                 isKoreanHoliday: isKoreanHoliday,
               ),
               if (hasEvent)
@@ -251,25 +284,24 @@ class CompactDayCell extends StatelessWidget {
             ],
           ),
           if (shortTitle case final title?) ...[
-            const SizedBox(height: 0),
+            const SizedBox(height: 1),
             Expanded(
-              child: Transform.translate(
-                offset: const Offset(0, -2),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 1),
-                  child: Text(
-                    title,
-                    maxLines: titleMaxLines,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: isKoreanHolidayTitle
-                          ? const Color(0xFFC62828)
-                          : context.liturgical.of(day.color),
-                      fontSize: 10,
-                      height: 1.0,
-                      fontWeight: FontWeight.w600,
-                    ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 1),
+                child: Text(
+                  title,
+                  maxLines: titleMaxLines,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: isKoreanHolidayTitle
+                        ? const Color(0xFFC62828)
+                        : isWhiteTitle
+                        ? Colors.black
+                        : context.liturgical.of(day.color),
+                    fontSize: 10,
+                    height: 1.0,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),

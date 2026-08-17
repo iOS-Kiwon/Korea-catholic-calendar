@@ -47,7 +47,8 @@ class _SpeedDialFabState extends State<SpeedDialFab>
   // 탭 이벤트를 계속 가로챈다.
   void _onStatusChanged(AnimationStatus status) {
     if (!mounted) return;
-    if (status == AnimationStatus.dismissed || status == AnimationStatus.completed) {
+    if (status == AnimationStatus.dismissed ||
+        status == AnimationStatus.completed) {
       setState(() {});
     }
   }
@@ -134,17 +135,18 @@ class _SpeedDialFabState extends State<SpeedDialFab>
   }
 
   Widget _mainButton() {
+    final foregroundColor = _readableOn(widget.color);
     return FloatingActionButton(
       key: const ValueKey('speed_dial_main'),
       heroTag: null,
       backgroundColor: widget.color,
-      foregroundColor: Colors.white,
+      foregroundColor: foregroundColor,
       onPressed: _toggle,
       child: AnimatedBuilder(
         animation: _controller,
         builder: (context, _) => Transform.rotate(
           angle: _controller.value * 0.785398, // 45°(π/4)
-          child: const Icon(Icons.add),
+          child: Icon(Icons.add, color: foregroundColor),
         ),
       ),
     );
@@ -156,11 +158,18 @@ class _SpeedDialFabState extends State<SpeedDialFab>
     required IconData icon,
     required VoidCallback onTap,
   }) {
+    final foregroundColor = widget.color.computeLuminance() > 0.9
+        ? Colors.black
+        : widget.color;
     // 아래(0)부터 위(2)로 순차 등장.
     final start = 0.1 * index;
     final animation = CurvedAnimation(
       parent: _controller,
-      curve: Interval(start, (start + 0.6).clamp(0.0, 1.0), curve: Curves.easeOut),
+      curve: Interval(
+        start,
+        (start + 0.6).clamp(0.0, 1.0),
+        curve: Curves.easeOut,
+      ),
     );
 
     return AnimatedBuilder(
@@ -189,7 +198,10 @@ class _SpeedDialFabState extends State<SpeedDialFab>
               ),
               child: Text(
                 label,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),
@@ -199,12 +211,15 @@ class _SpeedDialFabState extends State<SpeedDialFab>
             mini: true,
             tooltip: label,
             backgroundColor: Colors.white,
-            foregroundColor: widget.color,
+            foregroundColor: foregroundColor,
             onPressed: onTap,
-            child: Icon(icon),
+            child: Icon(icon, color: foregroundColor),
           ),
         ],
       ),
     );
   }
+
+  Color _readableOn(Color background) =>
+      background.computeLuminance() > 0.55 ? Colors.black : Colors.white;
 }

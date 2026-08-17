@@ -38,8 +38,17 @@ class MonthHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final onColor = _readableOn(color);
-    final t = Theme.of(context).textTheme;
+    final controlBackground = color.computeLuminance() > 0.9
+        // 백색 헤더에서도 버튼이 보이되, 회색 면 대신 브랜드 녹색을
+        // 아주 옅게 섞어 자색 헤더의 밝은 자색 버튼과 같은 인상을 준다.
+        ? Color.alphaBlend(
+            theme.colorScheme.primary.withValues(alpha: 0.08),
+            color,
+          )
+        : onColor.withValues(alpha: 0.18);
+    final t = theme.textTheme;
     final titleStyle = compact ? t.titleLarge : t.headlineSmall;
     final titleFontSize = (titleStyle?.fontSize ?? 24) + 1;
     final monthTitle = showSundayCycle
@@ -91,6 +100,7 @@ class MonthHeader extends StatelessWidget {
                   child: _chevron(
                     Icons.chevron_left,
                     onColor,
+                    controlBackground,
                     onPrevMonth,
                     '이전 달',
                   ),
@@ -101,12 +111,13 @@ class MonthHeader extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (showToday) ...[
-                        _todayPill(onColor, onToday),
+                        _todayPill(onColor, controlBackground, onToday),
                         const SizedBox(width: 6),
                       ],
                       _chevron(
                         Icons.chevron_right,
                         onColor,
+                        controlBackground,
                         onNextMonth,
                         '다음 달',
                       ),
@@ -131,11 +142,11 @@ class MonthHeader extends StatelessWidget {
   }
 
   /// `오늘` 캡슐 버튼(헤더 전례색 배경 위). 누르면 오늘로 이동.
-  Widget _todayPill(Color onColor, VoidCallback onTap) {
+  Widget _todayPill(Color onColor, Color backgroundColor, VoidCallback onTap) {
     return Tooltip(
       message: '오늘',
       child: Material(
-        color: onColor.withValues(alpha: 0.18),
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
@@ -161,13 +172,14 @@ class MonthHeader extends StatelessWidget {
   Widget _chevron(
     IconData icon,
     Color onColor,
+    Color backgroundColor,
     VoidCallback onTap,
     String tip,
   ) {
     return Tooltip(
       message: tip,
       child: Material(
-        color: onColor.withValues(alpha: 0.18),
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
@@ -228,4 +240,4 @@ class WeekdayRow extends StatelessWidget {
 
 /// Chooses black/white text for legibility on [background].
 Color _readableOn(Color background) =>
-    background.computeLuminance() > 0.55 ? Colors.black87 : Colors.white;
+    background.computeLuminance() > 0.55 ? Colors.black : Colors.white;

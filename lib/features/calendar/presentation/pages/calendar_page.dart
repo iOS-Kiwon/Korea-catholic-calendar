@@ -315,22 +315,25 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
               children: [
                 _header(s, compact: false),
                 Expanded(
-                  child: Stack(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-                        child: Column(
-                          children: [
-                            const Align(
-                              alignment: Alignment.centerLeft,
-                              child: Legend(),
-                            ),
-                            const WeekdayRow(),
-                            Expanded(child: _grid(s, compact: false)),
-                          ],
+                  child: ColoredBox(
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    child: Stack(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                          child: Column(
+                            children: [
+                              const Align(
+                                alignment: Alignment.centerLeft,
+                                child: Legend(),
+                              ),
+                              const WeekdayRow(),
+                              Expanded(child: _grid(s, compact: false)),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
                 _infoBar(s, compact: false),
