@@ -13,6 +13,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.net.Uri
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.View
@@ -198,7 +199,24 @@ open class TodayWidgetProvider : AppWidgetProvider() {
                 WidgetMode.Calendar -> buildLargeViews(context, snapshot, todayKey, appWidgetId)
             }
 
-            views.setOnClickPendingIntent(R.id.today_widget_root, openAppIntent(context))
+            // 위젯 배경(날짜 칸·버튼이 아닌 곳) 탭. 데이터 없는 '앱 열기' 대신 보고 있는
+            // 화면에 맞는 딥링크를 실어 보낸다. 4x4는 보고 있는 달, 나머지는 오늘.
+            //
+            // 데이터를 싣는 것이 중요한 이유가 하나 더 있다. 예전에는 이 인텐트에 data가
+            // 없어서, 어떤 이유로든 날짜 칸의 클릭 대신 이 배경 클릭이 발동하면 앱이
+            // 그냥 기본 화면으로 열려 원인을 구분할 수 없었다. 이제는 4x4에서 날짜를
+            // 눌렀는데 '선택 없는 그 달'이 열리면 배경 클릭이 먹은 것이고, 엉뚱한 달이
+            // 열리면 링크 전달 문제다.
+            views.setOnClickPendingIntent(
+                R.id.today_widget_root,
+                when (mode) {
+                    WidgetMode.Calendar -> monthOpenIntent(
+                        context,
+                        displayedMonthSerial(context, appWidgetId)
+                    )
+                    else -> dayOpenIntent(context, todayKey) ?: openAppIntent(context)
+                }
+            )
             return views
         }
 
@@ -383,14 +401,9 @@ open class TodayWidgetProvider : AppWidgetProvider() {
             todayKey: String,
             appWidgetId: Int
         ): RemoteViews {
-            val targetSerial = displayedMonthSerial(context, snapshot, appWidgetId)
+            val targetSerial = displayedMonthSerial(context, appWidgetId)
             val month = findMonthBySerial(snapshot, targetSerial)
-                ?: snapshot.optJSONObject("month")
-                ?: JSONObject()
-            val days = month.optJSONArray("days") ?: JSONArray()
             val views = RemoteViews(context.packageName, R.layout.today_widget_large)
-            views.setTextViewText(R.id.today_widget_month_title, month.optString("title", ""))
-            views.removeAllViews(R.id.today_widget_month_rows)
             views.setOnClickPendingIntent(
                 R.id.today_widget_prev,
                 widgetActionIntent(context, appWidgetId, ACTION_PREV_MONTH)
@@ -403,6 +416,41 @@ open class TodayWidgetProvider : AppWidgetProvider() {
                 R.id.today_widget_today,
                 widgetActionIntent(context, appWidgetId, ACTION_TODAY_MONTH)
             )
+
+            // 스냅샷에 없는 달이면 격자 대신 안내를 보여준다. 헤더는 그대로 두므로
+            // 반대 화살표나 `오늘`로 달력에 돌아올 수 있다.
+            if (month == null) {
+                views.setTextViewText(
+                    R.id.today_widget_month_title,
+                    monthTitleOf(targetSerial)
+                )
+                views.setViewVisibility(R.id.today_widget_weekday_row, View.GONE)
+                views.setViewVisibility(R.id.today_widget_month_rows, View.GONE)
+                views.setViewVisibility(R.id.today_widget_out_of_range, View.VISIBLE)
+                val range = monthSerialRange(snapshot)
+                views.setTextViewText(
+                    R.id.today_widget_out_of_range_message,
+                    when {
+                        // 앱을 한 번도 실행하지 않아 스냅샷이 없는 상태.
+                        range == null -> "앱을 한 번 실행하면\n달력이 표시됩니다."
+                        targetSerial > range.last -> "이후 일정은\n앱에서 확인하세요."
+                        else -> "이전 일정은\n앱에서 확인하세요."
+                    }
+                )
+                // 위젯은 이 달을 그릴 수 없지만 앱은 그릴 수 있다. 그 달로 바로 보낸다.
+                views.setOnClickPendingIntent(
+                    R.id.today_widget_out_of_range_action,
+                    monthOpenIntent(context, targetSerial)
+                )
+                return views
+            }
+
+            val days = month.optJSONArray("days") ?: JSONArray()
+            views.setTextViewText(R.id.today_widget_month_title, month.optString("title", ""))
+            views.setViewVisibility(R.id.today_widget_weekday_row, View.VISIBLE)
+            views.setViewVisibility(R.id.today_widget_month_rows, View.VISIBLE)
+            views.setViewVisibility(R.id.today_widget_out_of_range, View.GONE)
+            views.removeAllViews(R.id.today_widget_month_rows)
             for (rowIndex in 0 until 6) {
                 val row = RemoteViews(context.packageName, R.layout.today_widget_month_row)
                 for (colIndex in 0 until 7) {
@@ -457,12 +505,16 @@ open class TodayWidgetProvider : AppWidgetProvider() {
             if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) return true
 
             val snapshot = readSnapshot(context)
-            val current = displayedMonthSerial(context, snapshot, appWidgetId)
+            val current = displayedMonthSerial(context, appWidgetId)
+            // 스냅샷 범위 밖으로는 딱 한 칸까지만 나가게 한다. 그 한 칸이 안내
+            // 화면이고, 반대 화살표 한 번으로 달력에 돌아온다. clamp가 없으면
+            // serial이 무한히 커져서, 되돌아오려면 나간 횟수만큼 눌러야 했다.
+            val range = monthSerialRange(snapshot)
             val next = when (action) {
                 ACTION_PREV_MONTH -> current - 1
                 ACTION_NEXT_MONTH -> current + 1
                 else -> currentMonthSerial()
-            }
+            }.let { if (range == null) it else it.coerceIn(range.first - 1, range.last + 1) }
             if (action == ACTION_TODAY_MONTH) {
                 clearDisplayedMonthSerial(context, appWidgetId)
             } else {
@@ -607,18 +659,20 @@ open class TodayWidgetProvider : AppWidgetProvider() {
             }
         }
 
-        private fun displayedMonthSerial(
-            context: Context,
-            snapshot: JSONObject,
-            appWidgetId: Int
-        ): Int {
+        /// 이 위젯이 보여줄 달. 사용자가 이전/다음으로 옮겨둔 값이 있으면 그것,
+        /// 없으면 **기기 시계의 현재 달**.
+        ///
+        /// 예전에는 기본값으로 snapshot.month(앱이 스냅샷을 저장한 시점의 달)를 썼다.
+        /// 스냅샷은 Flutter 없이 재생성할 수 없어 자정 갱신으로도 바뀌지 않으므로,
+        /// 앱을 한 달 넘게 열지 않으면 지난달이 그대로 남았고 `오늘` 버튼을 눌러도
+        /// (저장값을 지워 기본값으로 돌아가므로) 지난달로 갔다.
+        /// months에는 ±12개월이 구워져 있어 현재 달은 보통 그 안에 있고, 없으면
+        /// buildLargeViews의 findMonthBySerial이 snapshot.month로 폴백한다.
+        private fun displayedMonthSerial(context: Context, appWidgetId: Int): Int {
             val prefs = context.getSharedPreferences(PREF_WIDGET_STATE, Context.MODE_PRIVATE)
             val saved = prefs.getInt(monthStateKey(appWidgetId), Int.MIN_VALUE)
             if (saved != Int.MIN_VALUE) return saved
-            val month = snapshot.optJSONObject("month")
-            val year = month?.optInt("year") ?: Calendar.getInstance().get(Calendar.YEAR)
-            val monthValue = month?.optInt("month") ?: (Calendar.getInstance().get(Calendar.MONTH) + 1)
-            return monthSerial(year, monthValue)
+            return currentMonthSerial()
         }
 
         private fun saveDisplayedMonthSerial(context: Context, appWidgetId: Int, serial: Int) {
@@ -664,11 +718,72 @@ open class TodayWidgetProvider : AppWidgetProvider() {
                 context,
                 0,
                 intent,
+        /// 스냅샷에 구워진 달들의 serial 범위. 스냅샷이 없으면 null.
+        private fun monthSerialRange(snapshot: JSONObject): IntRange? {
+            val months = snapshot.optJSONArray("months") ?: return null
+            if (months.length() == 0) return null
+            var min = Int.MAX_VALUE
+            var max = Int.MIN_VALUE
+            for (i in 0 until months.length()) {
+                val month = months.optJSONObject(i) ?: continue
+                val serial = monthSerial(month.optInt("year"), month.optInt("month"))
+                if (serial < min) min = serial
+                if (serial > max) max = serial
+            }
+            return if (min > max) null else min..max
+        }
+
+        /// serial → "2027.9" (스냅샷에 그 달이 없어 title을 못 읽을 때 쓴다).
+        private fun monthTitleOf(serial: Int): String =
+            "${serial / 12}.${serial % 12 + 1}"
+
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
         }
 
         private fun widgetActionIntent(
+        /// 앱을 특정 화면으로 여는 PendingIntent.
+        ///
+        /// **암시적** VIEW 인텐트를 쓴다. app_links(Flutter)가 인텐트의 data URI를
+        /// 읽어 `resolveWidgetLink`로 넘기는 경로가 공유 링크에서 이미 검증돼 있고,
+        /// 콜드/웜 스타트를 둘 다 처리해 준다(MainActivity는 launchMode=singleTop).
+        ///
+        /// **data URI가 칸마다 달라야 한다.** PendingIntent는 extras를 무시하고
+        /// action/data/component로 동일성을 판정하므로, 42칸이 같은 URI를 쓰면 하나로
+        /// 합쳐져 모든 칸이 같은 날짜를 연다. requestCode도 함께 다르게 준다.
+        private fun appLinkIntent(
+            context: Context,
+            uri: String,
+            requestCode: Int
+        ): PendingIntent {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(uri)).apply {
+                setPackage(context.packageName)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            return PendingIntent.getActivity(
+                context,
+                requestCode,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        }
+
+        /// 날짜 칸 탭 → 그 날짜가 선택된 앱 메인 화면.
+        /// requestCode는 yyyyMMdd(예: 20260815)로 칸마다 다르다.
+        private fun dayOpenIntent(context: Context, dateKey: String): PendingIntent? {
+            val digits = dateKey.replace("-", "").toIntOrNull() ?: return null
+            return appLinkIntent(context, "catholiccalendar://day/$dateKey", digits)
+        }
+
+        /// 범위 밖 안내의 [앱으로 이동하기] → 그 달의 앱 메인 화면.
+        /// requestCode는 day 쪽(8자리)과 겹치지 않게 음수로 둔다.
+        private fun monthOpenIntent(context: Context, serial: Int): PendingIntent {
+            val year = serial / 12
+            val month = serial % 12 + 1
+            val key = "$year-${month.toString().padStart(2, '0')}"
+            return appLinkIntent(context, "catholiccalendar://month/$key", -serial)
+        }
+
             context: Context,
             appWidgetId: Int,
             action: String

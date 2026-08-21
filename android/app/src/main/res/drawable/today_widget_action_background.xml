@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 위젯 안 안내 화면의 [앱으로 이동하기] 버튼 배경. 앱 시드 색(#2E7D32)과 같다. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="#2E7D32" />
+    <corners android:radius="999dp" />
+</shape>
