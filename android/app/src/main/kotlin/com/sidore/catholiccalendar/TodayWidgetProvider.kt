@@ -535,6 +535,14 @@ open class TodayWidgetProvider : AppWidgetProvider() {
             forceInMonth: Boolean = false
         ): RemoteViews {
             val cell = RemoteViews(context.packageName, R.layout.today_widget_day_cell)
+            // 칸을 누르면 그 날짜가 선택된 앱 메인 화면으로. 칸이 비어 있으면(격자
+            // 바깥) 위젯 루트에 걸린 '앱 열기'가 그대로 처리한다.
+            val cellDateKey = day.optString("dateKey")
+            if (cellDateKey.isNotBlank()) {
+                dayOpenIntent(context, cellDateKey)?.let {
+                    cell.setOnClickPendingIntent(R.id.today_widget_day_root, it)
+                }
+            }
             // 주간 위젯은 7일 모두 '이번 주'라 다음/이전 달 날짜도 진하게 그린다.
             val inMonth = forceInMonth || day.optBoolean("inMonth")
             // baked된 isToday 대신 현재 날짜 기준으로 판정.

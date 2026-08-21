@@ -129,7 +129,10 @@ struct TodayWidgetView: View {
             }
         }
         .containerBackground(.white, for: .widget)
-        .widgetURL(URL(string: "catholiccalendar://today"))
+        // 작은 위젯 전체, 그리고 큰 위젯에서 날짜 칸이 아닌 곳(제목·요일 행)의 탭.
+        // 예전에는 `catholiccalendar://today`였는데 앱이 해석하지 않아 기본 화면만
+        // 열렸다. 오늘 날짜를 명시해 Android 위젯과 동작을 맞춘다.
+        .widgetURL(widgetDayURL(todayKey))
     }
 }
 
@@ -292,7 +295,18 @@ struct MonthWidgetView: View {
                 ForEach(Array(visibleRows.enumerated()), id: \.offset) { _, row in
                     HStack(spacing: 0) {
                         ForEach(row) { day in
-                            MonthDayCell(day: day, isToday: day.dateKey == todayKey)
+                            // 칸마다 Link를 걸어 그 날짜가 선택된 앱 화면을 연다.
+                            // Link 밖(제목·요일 행)을 누르면 아래 widgetURL이 받는다.
+                            // 셀 안의 모든 Text가 색을 명시하므로 Link의 tint에
+                            // 물들지 않는다.
+                            if let url = widgetDayURL(day.dateKey) {
+                                Link(destination: url) {
+                                    MonthDayCell(day: day, isToday: day.dateKey == todayKey)
+                                }
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            } else {
+                                MonthDayCell(day: day, isToday: day.dateKey == todayKey)
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -439,6 +453,16 @@ private func color(for name: String) -> Color {
         return Color(red: 0.78, green: 0.16, blue: 0.16)
     case "white":
         return Color(red: 0.36, green: 0.34, blue: 0.42)
+/// 위젯 → 앱 딥링크. 앱이 이 날짜가 선택된 달력 메인 화면을 연다.
+///
+/// Android 위젯과 같은 스킴/형식을 쓰고, Dart 쪽 `resolveWidgetLink`
+/// (`lib/features/widgets/widget_deep_link.dart`)가 플랫폼 구분 없이 해석한다.
+/// 스킴은 Info.plist의 CFBundleURLSchemes에 이미 등록되어 있다.
+private func widgetDayURL(_ dateKey: String) -> URL? {
+    guard !dateKey.isEmpty else { return nil }
+    return URL(string: "catholiccalendar://day/\(dateKey)")
+}
+
     case "violet":
         return Color(red: 0.41, green: 0.23, blue: 0.72)
     case "rose":
