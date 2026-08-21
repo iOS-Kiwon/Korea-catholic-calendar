@@ -83,6 +83,8 @@ class WidgetSnapshotService {
             '${today.month}/${today.day} ${_weekdayLabel(today.weekday)}요일',
         'liturgicalTitle': todayLiturgicalTitle,
         'liturgicalColor': _colorName(todayDay.color),
+        // 관공서 공휴일·대체공휴일. 위젯이 날짜 숫자를 주일처럼 빨간색으로 그린다.
+        'isHoliday': calendar.isKoreanHoliday(today),
         'eventTitle': todayEvents.isEmpty ? '' : todayEvents.first.title,
         'eventDisplayText': todayEvent == null
             ? ''
@@ -185,6 +187,9 @@ class WidgetSnapshotService {
       'titleFull': liturgicalTitle,
       'dateLabel': '${date.month}/${date.day} ${_weekdayLabel(date.weekday)}요일',
       'liturgicalColor': _colorName(day.color),
+      // 관공서 공휴일·대체공휴일(예: 광복절, 그 대체공휴일). 위젯이 날짜 숫자를
+      // 주일과 같은 빨간색으로 그린다. 앱 달력의 `day_cell.dart`와 같은 규칙이다.
+      'isHoliday': calendar.isKoreanHoliday(date),
       'eventTitle': dayEvents.isEmpty ? '' : dayEvents.first.title,
       'eventDisplayText': firstEvent == null
           ? ''

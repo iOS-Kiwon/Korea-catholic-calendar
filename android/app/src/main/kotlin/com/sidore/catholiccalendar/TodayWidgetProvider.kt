@@ -555,7 +555,12 @@ open class TodayWidgetProvider : AppWidgetProvider() {
             cell.setTextViewText(R.id.today_widget_day_number, day.optInt("day").toString())
             cell.setTextColor(
                 R.id.today_widget_day_number,
-                dayNumberColor(day.optInt("weekday"), inMonth, isToday)
+                dayNumberColor(
+                    day.optInt("weekday"),
+                    inMonth,
+                    isToday,
+                    day.optBoolean("isHoliday")
+                )
             )
             cell.setInt(
                 R.id.today_widget_day_root,
@@ -713,19 +718,6 @@ open class TodayWidgetProvider : AppWidgetProvider() {
 
         private fun monthSerial(year: Int, month: Int): Int = year * 12 + (month - 1)
 
-        private fun currentMonthSerial(): Int {
-            val cal = Calendar.getInstance()
-            return monthSerial(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1)
-        }
-
-        private fun openAppIntent(context: Context): PendingIntent {
-            val intent = Intent(context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            }
-            return PendingIntent.getActivity(
-                context,
-                0,
-                intent,
         /// 스냅샷에 구워진 달들의 serial 범위. 스냅샷이 없으면 null.
         private fun monthSerialRange(snapshot: JSONObject): IntRange? {
             val months = snapshot.optJSONArray("months") ?: return null
@@ -745,11 +737,11 @@ open class TodayWidgetProvider : AppWidgetProvider() {
         private fun monthTitleOf(serial: Int): String =
             "${serial / 12}.${serial % 12 + 1}"
 
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
+        private fun currentMonthSerial(): Int {
+            val cal = Calendar.getInstance()
+            return monthSerial(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1)
         }
 
-        private fun widgetActionIntent(
         /// 앱을 특정 화면으로 여는 PendingIntent.
         ///
         /// **암시적** VIEW 인텐트를 쓴다. app_links(Flutter)가 인텐트의 data URI를
@@ -792,6 +784,19 @@ open class TodayWidgetProvider : AppWidgetProvider() {
             return appLinkIntent(context, "catholiccalendar://month/$key", -serial)
         }
 
+        private fun openAppIntent(context: Context): PendingIntent {
+            val intent = Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            return PendingIntent.getActivity(
+                context,
+                0,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        }
+
+        private fun widgetActionIntent(
             context: Context,
             appWidgetId: Int,
             action: String
@@ -921,10 +926,18 @@ open class TodayWidgetProvider : AppWidgetProvider() {
             return WidgetMode.Tiny
         }
 
-        private fun dayNumberColor(weekday: Int, inMonth: Boolean, isToday: Boolean): Int {
+        private fun dayNumberColor(
+            weekday: Int,
+            inMonth: Boolean,
+            isToday: Boolean,
+            isHoliday: Boolean
+        ): Int {
             // 오늘은 빨간색 대신 검정(배경 하이라이트로 오늘을 구분).
             if (isToday) return Color.rgb(29, 27, 32)
             if (!inMonth) return Color.rgb(178, 172, 185)
+            // 관공서 공휴일·대체공휴일은 주일과 같은 빨간색. 앱 달력과 같은 규칙이다
+            // (day_cell.dart의 `_numberColor`: 공휴일 → 주일 → 토요일 순).
+            if (isHoliday) return Color.rgb(218, 72, 28)
             if (weekday == 7) return Color.rgb(218, 72, 28)
             if (weekday == 6) return Color.rgb(21, 101, 192)
             return Color.rgb(29, 27, 32)

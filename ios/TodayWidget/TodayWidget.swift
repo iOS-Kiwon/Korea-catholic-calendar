@@ -58,6 +58,9 @@ struct DaySnapshot: Decodable, Identifiable {
     // (구버전 스냅샷 호환을 위해 optional)
     let titleFull: String?
     let dateLabel: String?
+    /// 대한민국 관공서 공휴일·대체공휴일. 날짜 숫자를 주일과 같은 빨간색으로 그린다.
+    /// (구버전 스냅샷 호환을 위해 optional)
+    let isHoliday: Bool?
 }
 
 struct TodayEntry: TimelineEntry {
@@ -376,6 +379,9 @@ struct MonthDayCell: View {
         // 오늘은 빨간색 대신 검정(배경 하이라이트로 오늘을 구분).
         if isToday { return .black }
         if !day.inMonth { return Color(red: 0.62, green: 0.62, blue: 0.62) }
+        // 관공서 공휴일·대체공휴일은 주일과 같은 빨간색. 앱 달력과 같은 규칙이다
+        // (day_cell.dart의 `_numberColor`: 공휴일 → 주일 → 토요일 순).
+        if day.isHoliday == true { return Color(red: 0.78, green: 0.16, blue: 0.16) }
         if day.weekday == 7 { return Color(red: 0.78, green: 0.16, blue: 0.16) }
         if day.weekday == 6 { return Color(red: 0.08, green: 0.39, blue: 0.75) }
         return Color.black
@@ -447,12 +453,6 @@ private func widgetDateKey(for date: Date) -> String {
     WidgetDateKey.formatter.string(from: date)
 }
 
-private func color(for name: String) -> Color {
-    switch name {
-    case "red":
-        return Color(red: 0.78, green: 0.16, blue: 0.16)
-    case "white":
-        return Color(red: 0.36, green: 0.34, blue: 0.42)
 /// 위젯 → 앱 딥링크. 앱이 이 날짜가 선택된 달력 메인 화면을 연다.
 ///
 /// Android 위젯과 같은 스킴/형식을 쓰고, Dart 쪽 `resolveWidgetLink`
@@ -463,6 +463,12 @@ private func widgetDayURL(_ dateKey: String) -> URL? {
     return URL(string: "catholiccalendar://day/\(dateKey)")
 }
 
+private func color(for name: String) -> Color {
+    switch name {
+    case "red":
+        return Color(red: 0.78, green: 0.16, blue: 0.16)
+    case "white":
+        return Color(red: 0.36, green: 0.34, blue: 0.42)
     case "violet":
         return Color(red: 0.41, green: 0.23, blue: 0.72)
     case "rose":
@@ -566,7 +572,9 @@ extension WidgetSnapshot {
                             : [],
                         extraEventCount: index % 16 == 0 ? 1 : 0,
                         titleFull: "오늘의 전례",
-                        dateLabel: "\(calendar.component(.month, from: date))/\(calendar.component(.day, from: date)) \(names[(weekday - 1) % 7])요일"
+                        dateLabel: "\(calendar.component(.month, from: date))/\(calendar.component(.day, from: date)) \(names[(weekday - 1) % 7])요일",
+                        // 미리보기에서 공휴일 빨간색을 확인할 수 있도록 몇 칸만 표시.
+                        isHoliday: index % 11 == 0
                     )
                 }
             )
