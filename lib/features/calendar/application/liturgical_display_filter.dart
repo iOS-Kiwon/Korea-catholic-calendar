@@ -29,13 +29,13 @@ enum LiturgicalDisplayFilter {
 
 final _sundayOrdinal = RegExp(r'^(연중|사순|부활|대림) 제(\d+)주일$');
 
-/// 주일(id=sunday)의 "제N주일"에서 "주일"을 떼어 축약. 예: 연중 제17주일 -> 연중 제17.
+/// 주일(id=sunday)의 제목을 달력용으로 축약. 예: 연중 제17주일 -> 연중 제17주일.
 /// 주일이 아니거나 패턴이 다르면 null.
 String? sundayShortTitle(LiturgicalDay day) {
   if (day.celebration.id != 'sunday') return null;
   final m = _sundayOrdinal.firstMatch(day.title);
   if (m == null) return null;
-  return '${m.group(1)} 제${m.group(2)}';
+  return '${m.group(1)} 제${m.group(2)}주일';
 }
 
 /// [filter]에서 [day]에 전례일 텍스트를 표시하는가.

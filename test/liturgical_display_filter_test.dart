@@ -8,11 +8,11 @@ void main() {
   final engine = LiturgicalCalendar();
   LiturgicalDay day(int y, int m, int d) => engine.day(DateTime(y, m, d));
 
-  test('sundayShortTitle: 제N주일에서 "주일" 제거', () {
+  test('sundayShortTitle: 제N주일 표기 유지', () {
     // 2026-07-26 연중 제17주일
-    expect(sundayShortTitle(day(2026, 7, 26)), '연중 제17');
+    expect(sundayShortTitle(day(2026, 7, 26)), '연중 제17주일');
     // 2026-03-01 사순 제2주일
-    expect(sundayShortTitle(day(2026, 3, 1)), '사순 제2');
+    expect(sundayShortTitle(day(2026, 3, 1)), '사순 제2주일');
     // 평일/명명 축일은 null
     expect(sundayShortTitle(day(2026, 7, 28)), isNull); // 연중 평일
     expect(sundayShortTitle(day(2026, 8, 15)), isNull); // 성모 승천(주일 아님)
@@ -80,10 +80,10 @@ void main() {
   group('gridLiturgicalLabel (라벨 폴백 + 필터)', () {
     final ordinarySunday = day(2026, 7, 26);
     final saintFeast = saintFeastOf(2026, 7, 25);
-    test('주일: shortTitle 없으면 주일 축약', () {
+    test('주일: shortTitle 없으면 주일 축약명 표시', () {
       expect(
         gridLiturgicalLabel(LiturgicalDisplayFilter.sundaysAndSolemnities, null, ordinarySunday),
-        '연중 제17',
+        '연중 제17주일',
       );
     });
     test('성인 축일(대축일/축일만): shortTitle 없으면 day.title 폴백', () {
