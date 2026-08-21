@@ -19,9 +19,10 @@ import '../features/events/presentation/backup_notice.dart';
 import '../features/events/presentation/backup_reminder.dart';
 import '../features/events/presentation/event_editor_sheet.dart';
 import '../features/sharing/share_link.dart';
+import '../features/widgets/widget_deep_link.dart';
 import '../features/widgets/widget_snapshot_service.dart';
-import '../features/calendar/application/calendar_providers.dart';
 import '../features/widgets/widget_sync_throttle.dart';
+import '../features/calendar/application/calendar_providers.dart';
 import 'router.dart';
 import 'theme/app_theme.dart';
 
@@ -49,7 +50,6 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
     ],
   );
   final _widgetSnapshotService = const WidgetSnapshotService();
-  final _appLinks = AppLinks();
 
   /// 일정·축일이 바뀐 그 순간 위젯을 갱신한다. 다만 스냅샷 생성이 비싸고 호출이
   /// 몰려 들어오므로 스로틀로 합친다(자세한 근거는 [WidgetSyncThrottle] 참조).
@@ -59,6 +59,7 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
       if (mounted) _syncWidgetSnapshot();
     }),
   );
+  final _appLinks = AppLinks();
   final _initialLinkChecked = Completer<void>();
   StreamSubscription<Uri>? _linkSub;
   bool _handlingLink = false;
@@ -82,14 +83,20 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
   @override
   void dispose() {
     _linkSub?.cancel();
-    super.dispose();
     _widgetSyncThrottle.dispose();
+    super.dispose();
   }
 
   Future<void> _initIncomingLinks() async {
     try {
       final uri = await _appLinks.getInitialLink();
       if (uri == null) return;
+      // 위젯에서 날짜를 눌러 들어온 경우. 공유 링크와 달리 시작 프롬프트(백업 안내·
+      // 강제 업데이트)를 막지 않는다 - 편집 시트를 띄우지 않아 겹칠 일이 없다.
+      if (resolveWidgetLink(uri) != null) {
+        unawaited(_onIncomingLink(uri));
+        return;
+      }
       final outcome = resolveIncomingLink(uri);
       if (outcome is ShareLinkDraft || outcome is ShareLinkNeedsUpdate) {
         _suppressStartupPromptsForShare = true;
@@ -128,6 +135,15 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
 
   Future<void> _onIncomingLink(Uri uri) async {
     if (_handlingLink) return;
+    final widgetTarget = resolveWidgetLink(uri);
+    // 이 경로는 플랫폼 딥링크 수신이라 자동 테스트가 없다. 실기기에서 위젯 탭이
+    // 먹지 않을 때 "링크가 안 왔는지"와 "와서 해석에 실패했는지"를 구분할 수 있어야
+    // 한다(logcat / flutter logs).
+    debugPrint('[KCC link] 수신 uri=$uri → widgetTarget=$widgetTarget');
+    if (widgetTarget != null) {
+      _openWidgetTarget(widgetTarget);
+      return;
+    }
     final outcome = resolveIncomingLink(uri);
     if (outcome is! ShareLinkDraft && outcome is! ShareLinkNeedsUpdate) return;
     _handlingLink = true;
@@ -162,6 +178,20 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
         // 이후 링크가 영구히 무시되지 않도록 한다.
         _handlingLink = false;
       }
+    });
+  }
+
+  /// 위젯에서 누른 날짜/달을 앱 메인 화면에 보여준다.
+  ///
+  /// 라우터/네비게이터가 준비된 뒤에 움직여야 하므로 다음 프레임에서 처리한다.
+  /// 상세 화면이나 설정처럼 `Navigator.push`로 쌓인 화면이 위에 있으면 먼저 걷어낸다
+  /// (그러지 않으면 달력만 뒤에서 바뀌고 사용자는 변화를 못 본다).
+  void _openWidgetTarget(WidgetLinkTarget target) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _rootNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+      _router.go(target.location);
+      debugPrint('[KCC link] 이동 ${target.location}');
     });
   }
 

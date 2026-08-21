@@ -50,6 +50,18 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="catholiccalendar" android:host="e" />
             </intent-filter>
+            <!--
+              홈 위젯 → 앱. 날짜 칸을 누르면 catholiccalendar://day/2026-08-15,
+              범위 밖 안내의 [앱으로 이동하기]는 catholiccalendar://month/2027-09.
+              app_links가 받아 app.dart의 resolveWidgetLink로 해석한다.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="catholiccalendar" android:host="day" />
+                <data android:scheme="catholiccalendar" android:host="month" />
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

@@ -72,6 +72,13 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   void didUpdateWidget(CalendarPage old) {
     super.didUpdateWidget(old);
     if (old.month != widget.month) _selected = null;
+    // 같은 달 안에서 라우트가 바뀌면(`/2026/08` → `/2026/08/15`) 페이지 키가 같아
+    // State가 재사용되므로 `initState`가 다시 돌지 않는다. 위젯에서 날짜를 눌러
+    // 들어온 경우가 이 경로이므로, 여기서 선택을 받아 적용해야 한다.
+    if (widget.initialSelected != null &&
+        widget.initialSelected != old.initialSelected) {
+      _selected = widget.initialSelected;
+    }
   }
 
   bool _inMonth(DateTime d) =>
