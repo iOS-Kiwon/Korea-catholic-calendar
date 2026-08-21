@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:liturgical_calendar/liturgical_calendar.dart';
 
-import '../../../../app/theme/liturgical_colors.dart';
 import '../../../events/application/event_providers.dart';
 import '../../../events/model/calendar_event.dart';
 import '../../../events/presentation/event_display.dart';
@@ -51,21 +50,9 @@ class DayInfoBar extends ConsumerWidget {
         (day.celebration.rank == Rank.solemnity ||
             day.celebration.rank == Rank.feastOfTheLord);
     final memorials = [
-      _MemorialLine(
-        id: day.celebration.id,
-        title: day.title,
-        color: day.color,
-        rank: day.celebration.rank,
-        displayType: day.celebration.displayType,
-      ),
+      _MemorialLine(title: day.title, color: day.color),
       for (final m in day.optionalMemorials)
-        _MemorialLine(
-          id: m.id,
-          title: m.name,
-          color: m.color,
-          rank: m.rank,
-          displayType: m.displayType,
-        ),
+        _MemorialLine(title: m.name, color: m.color),
     ].take(_maxMemorialRows).toList();
 
     return Container(
@@ -243,21 +230,20 @@ class _SupportBanner extends StatelessWidget {
 }
 
 class _MemorialLine {
-  const _MemorialLine({
-    required this.id,
-    required this.title,
-    required this.color,
-    required this.rank,
-    this.displayType,
-  });
+  const _MemorialLine({required this.title, required this.color});
 
-  final String id;
   final String title;
   final LiturgicalColor color;
-  final Rank rank;
-  final LiturgicalDisplayType? displayType;
 }
 
+/// 기념/전례 한 줄: 전례색 배지 + 이름.
+///
+/// 배지는 종류(`축일`/`전례`)가 아니라 **전례색**을 보여준다. 색은 그 자체로
+/// 정보이기 때문이다 - 홍색은 순교자·사도, 백색은 그 외 성인이며, 선택 기념일은
+/// 기념하기로 하면 제의색이 그날 기본색과 달라진다(예: 연중 수요일 녹색 +
+/// 성 요한 외드 사제 백색). 종류를 글자로 쓰고 색을 배경 틴트로만 깔던 이전
+/// 방식은 백색(`#F8F9FA`)을 24% 알파로 흰 카드에 얹어 배경이 보이지 않았고,
+/// 인접한 두 행이 같은 개념을 다르게 인코딩했다.
 class _MemorialRow extends StatelessWidget {
   const _MemorialRow({required this.line, required this.style});
 
@@ -266,24 +252,11 @@ class _MemorialRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final typeLabel = _memorialTypeLabel(
-      line.id,
-      line.title,
-      line.rank,
-      line.displayType,
-    );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         children: [
-          if (typeLabel == '전례')
-            LiturgicalColorLabel(color: line.color, style: style)
-          else
-            EventLabelHighlight(
-              label: typeLabel,
-              color: context.liturgical.of(line.color),
-              style: style,
-            ),
+          LiturgicalColorLabel(color: line.color, style: style),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -297,56 +270,4 @@ class _MemorialRow extends StatelessWidget {
       ),
     );
   }
-}
-
-String _memorialTypeLabel(
-  String id,
-  String title,
-  Rank rank,
-  LiturgicalDisplayType? displayType,
-) {
-  switch (displayType) {
-    case LiturgicalDisplayType.saintFeast:
-      return '축일';
-    case LiturgicalDisplayType.liturgy:
-    case LiturgicalDisplayType.review:
-      return '전례';
-    case null:
-      break;
-  }
-  if (_isLiturgicalOnlyMemorial(id, title, rank)) {
-    return '전례';
-  }
-  if (_isSaintFeastMemorial(title)) {
-    return '축일';
-  }
-  return '전례';
-}
-
-bool _isLiturgicalOnlyMemorial(String id, String title, Rank rank) {
-  return id == 'all_souls' ||
-      title.contains('위령의 날') ||
-      rank == Rank.solemnity ||
-      rank == Rank.feastOfTheLord;
-}
-
-bool _isSaintFeastMemorial(String title) {
-  return _looksLikeSaintTitle(title) ||
-      title.contains('복되신 동정 마리아') ||
-      title.contains('성모') ||
-      title.contains('대천사') ||
-      title.contains('수호천사') ||
-      title.contains('죄 없는 아기 순교자');
-}
-
-bool _looksLikeSaintTitle(String title) {
-  return title.startsWith('성 ') ||
-      title.startsWith('성녀 ') ||
-      title.startsWith('성인 ') ||
-      title.startsWith('복자 ') ||
-      title.startsWith('복녀 ') ||
-      title.contains(' 성 ') ||
-      title.contains(' 성녀 ') ||
-      title.contains(' 복자 ') ||
-      title.contains(' 복녀 ');
 }

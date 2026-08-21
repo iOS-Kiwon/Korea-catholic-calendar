@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:liturgical_calendar/liturgical_calendar.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../../app/theme/liturgical_colors.dart';
 import '../../../app_metadata/app_metadata_service.dart';
 import '../../../events/application/event_providers.dart';
 import '../../../events/model/calendar_event.dart';
@@ -76,16 +75,7 @@ class DayDetailView extends ConsumerWidget {
                 // 전례력
                 _SectionHeader('전례력'),
                 const SizedBox(height: 12),
-                _LiturgicalLine(
-                  color: day.color,
-                  text: day.title,
-                  displayType: day.celebration.displayType,
-                  fallbackLabel: _fallbackLiturgicalLabel(
-                    day.celebration.id,
-                    day.title,
-                    day.celebration.rank,
-                  ),
-                ),
+                _LiturgicalLine(color: day.color, text: day.title),
                 if (canAddSaintFeast)
                   Align(
                     alignment: Alignment.centerLeft,
@@ -107,16 +97,7 @@ class DayDetailView extends ConsumerWidget {
                   ),
                 for (final m in day.optionalMemorials) ...[
                   const SizedBox(height: 10),
-                  _LiturgicalLine(
-                    color: m.color,
-                    text: m.name,
-                    displayType: m.displayType,
-                    fallbackLabel: _fallbackLiturgicalLabel(
-                      m.id,
-                      m.name,
-                      m.rank,
-                    ),
-                  ),
+                  _LiturgicalLine(color: m.color, text: m.name),
                   if (_canAddSaintFeast(m))
                     Align(
                       alignment: Alignment.centerLeft,
@@ -218,32 +199,6 @@ bool _canAddSaintFeast(Celebration celebration) {
   }
 }
 
-String _displayTypeLabel(
-  LiturgicalDisplayType? displayType,
-  String fallbackLabel,
-) {
-  switch (displayType) {
-    case LiturgicalDisplayType.saintFeast:
-      return '축일';
-    case LiturgicalDisplayType.liturgy:
-    case LiturgicalDisplayType.review:
-      return '전례';
-    case null:
-      return fallbackLabel;
-  }
-}
-
-String _fallbackLiturgicalLabel(String id, String title, Rank rank) {
-  if (id == 'all_souls' ||
-      title.contains('위령의 날') ||
-      rank == Rank.solemnity ||
-      rank == Rank.feastOfTheLord) {
-    return '전례';
-  }
-  if (_looksLikeSaintFeastTitle(title)) return '축일';
-  return '전례';
-}
-
 bool _looksLikeSaintFeastTitle(String title) {
   return title.startsWith('성 ') ||
       title.startsWith('성녀 ') ||
@@ -300,39 +255,29 @@ class _SectionDivider extends StatelessWidget {
   }
 }
 
-/// 표시 타입 형광펜 + 이름 (전례력 행).
+/// 전례색 배지 + 이름 (전례력 행).
+///
+/// 배지는 종류(`축일`/`전례`)가 아니라 **전례색**을 보여준다. 이유는
+/// `day_info_bar.dart`의 `_MemorialRow` 주석 참조. `축일 추가` 버튼은 여전히
+/// `displayType`으로 결정되므로(`_canAddSaintFeast`) 종류 정보 자체는 살아 있다.
 class _LiturgicalLine extends StatelessWidget {
-  const _LiturgicalLine({
-    required this.color,
-    required this.text,
-    required this.displayType,
-    required this.fallbackLabel,
-  });
+  const _LiturgicalLine({required this.color, required this.text});
 
   final LiturgicalColor color;
   final String text;
-  final LiturgicalDisplayType? displayType;
-  final String fallbackLabel;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      // 배지는 내부에 vertical 1px 패딩이 있어(EventLabelHighlight) `start`로 두면
+      // 배지 글자만 제목보다 아래로 내려간다. 여기 제목은 축약하지 않은 전례명이라
+      // 두 줄로 넘어갈 수 있어 `center`도 쓸 수 없다(배지가 두 줄 전체의 중앙에
+      // 걸린다). 첫 줄 베이스라인을 맞추는 것이 두 경우 모두에서 옳다.
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 1),
-          child: _displayTypeLabel(displayType, fallbackLabel) == '전례'
-              ? LiturgicalColorLabel(
-                  color: color,
-                  style: theme.textTheme.bodyLarge,
-                )
-              : EventLabelHighlight(
-                  label: _displayTypeLabel(displayType, fallbackLabel),
-                  color: context.liturgical.of(color),
-                  style: theme.textTheme.bodyLarge,
-                ),
-        ),
+        LiturgicalColorLabel(color: color, style: theme.textTheme.bodyLarge),
         const SizedBox(width: 12),
         Expanded(child: Text(text, style: theme.textTheme.bodyLarge)),
       ],

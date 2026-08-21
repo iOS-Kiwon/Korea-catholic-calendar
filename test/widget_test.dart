@@ -784,36 +784,60 @@ void main() {
     expect(find.text('종일'), findsNothing);
   });
 
-  testWidgets('bottom info bar labels liturgical feast as 축일', (tester) async {
-    final day = LiturgicalCalendar()
-        .day(DateTime(2026, 7, 25))
-        .copyWith(
-          title: '성 야고보 사도 축일',
-          celebration: const Celebration(
-            id: 'james_apostle',
-            name: '성 야고보 사도 축일',
-            rank: Rank.feast,
-            color: LiturgicalColor.red,
-            kind: CelebrationKind.sanctorale,
-            precedence: PrecedenceCode.generalFeast,
-          ),
-        );
+  testWidgets('bottom info bar shows a visible 백색 badge for saint memorials', (
+    tester,
+  ) async {
+    // 2026-08-19: 연중 제20주간 수요일(녹색) + 선택 기념 성 요한 외드 사제(백색).
+    // 예전에는 이 행에 `축일` 칩을 쓰고 배경으로 백색 토큰(#F8F9FA)을 24% 알파로
+    // 깔았다. 카드 표면(#F8F6F0)과 채널당 0~2 차이라 배경이 보이지 않았다.
+    // 이제 전례색 배지를 쓰므로 백색은 회색 배경 + 흰 글자가 되어 확실히 보인다.
+    final service = CalendarService(
+      engine: LiturgicalCalendar(),
+      cbck: CalendarService.parseDays(const [
+        {
+          'date': '2026-08-19',
+          'color': 'green',
+          'title': '연중 제20주간 수요일',
+          'alternatives': [
+            {'name': '성 요한 외드 사제', 'color': 'white'},
+          ],
+        },
+      ]),
+    );
 
     await tester.pumpWidget(
       _wrap(
         Scaffold(
-          body: DayInfoBar(day: day, onTapDetail: () {}),
+          body: DayInfoBar(
+            day: service.day(DateTime(2026, 8, 19)),
+            onTapDetail: () {},
+          ),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('축일'), findsOneWidget);
-    expect(find.text('성 야고보 사도 축일'), findsOneWidget);
+    expect(find.text('[녹]'), findsOneWidget);
+    expect(find.text('[백]'), findsOneWidget);
+    expect(find.text('연중 제20주간 수요일'), findsOneWidget);
+    expect(find.text('성 요한 외드 사제'), findsOneWidget);
+    // 종류(축일/전례)는 더 이상 칩에 쓰지 않는다 - 배지는 전례색만 보여준다.
+    expect(find.text('축일'), findsNothing);
     expect(find.text('전례'), findsNothing);
+
+    // 백색 배지의 배경이 '거의 흰색'이 아니라 회색이어야 한다.
+    final badge = tester.widget<DecoratedBox>(
+      find
+          .ancestor(of: find.text('[백]'), matching: find.byType(DecoratedBox))
+          .first,
+    );
+    expect(
+      (badge.decoration as BoxDecoration).color,
+      const Color(0xFF666666).withValues(alpha: 0.92),
+    );
   });
 
-  testWidgets('bottom info bar labels fetched feast data as 축일', (
+  testWidgets('bottom info bar shows the fetched liturgical color', (
     tester,
   ) async {
     final service = CalendarService(
@@ -835,12 +859,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('축일'), findsOneWidget);
+    // CBCK가 준 홍색(사도·순교)이 배지로 그대로 드러난다.
+    expect(find.text('[홍]'), findsOneWidget);
     expect(find.text('성 야고보 사도 축일'), findsOneWidget);
+    expect(find.text('축일'), findsNothing);
     expect(find.text('전례'), findsNothing);
   });
 
-  testWidgets('bottom info bar labels saint alternatives as 축일', (
+  testWidgets('bottom info bar shows each memorial\'s own liturgical color', (
     tester,
   ) async {
     final service = CalendarService(
@@ -870,14 +896,15 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    // 주 전례는 그날 색(녹), 선택 기념일 둘은 각자의 색(백)을 쓴다.
     expect(find.text('[녹]'), findsOneWidget);
-    expect(find.text('축일'), findsNWidgets(2));
+    expect(find.text('[백]'), findsNWidgets(2));
     expect(find.text('연중 제21주간 화요일'), findsOneWidget);
     expect(find.text('성 루도비코'), findsOneWidget);
     expect(find.text('성 요셉 데 갈라산즈 사제'), findsOneWidget);
   });
 
-  testWidgets('bottom info bar labels solemnity as 전례', (tester) async {
+  testWidgets('bottom info bar shows 백색 badge for a solemnity', (tester) async {
     final day = LiturgicalCalendar().day(DateTime(2026, 12, 25));
     expect(day.celebration.rank, Rank.solemnity);
 
@@ -895,7 +922,7 @@ void main() {
     expect(find.text('축일'), findsNothing);
   });
 
-  testWidgets('bottom info bar labels All Souls Day as 전례', (tester) async {
+  testWidgets('bottom info bar shows 자색 badge for All Souls Day', (tester) async {
     final day = LiturgicalCalendar()
         .day(DateTime(2026, 11, 2))
         .copyWith(title: '죽은 모든 이를 기억하는 위령의 날');
@@ -916,7 +943,7 @@ void main() {
     expect(find.text('축일'), findsNothing);
   });
 
-  testWidgets('bottom info bar does not label non-saint rank feast as 축일', (
+  testWidgets('bottom info bar badge follows the day color, not celebration color', (
     tester,
   ) async {
     final day = LiturgicalCalendar()
@@ -947,7 +974,7 @@ void main() {
     expect(find.text('축일'), findsNothing);
   });
 
-  testWidgets('bottom info bar uses displayType over rank/title heuristics', (
+  testWidgets('bottom info bar badge ignores displayType and rank heuristics', (
     tester,
   ) async {
     final day = LiturgicalCalendar()
@@ -1015,8 +1042,63 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('축일'), findsOneWidget);
+    // 배지는 종류가 아니라 전례색이므로 displayType과 무관하게 그대로다.
+    // `축일 추가` 버튼의 노출만 displayType으로 갈린다.
+    expect(find.text('[녹]'), findsOneWidget);
     expect(find.widgetWithText(TextButton, '축일 추가'), findsOneWidget);
+  });
+
+  testWidgets('day detail aligns the color badge with the title baseline', (
+    tester,
+  ) async {
+    // 배지는 내부에 vertical 1px 패딩이 있어 `CrossAxisAlignment.start`로 두면
+    // 배지 글자가 제목보다 2px 아래로 내려갔다. 상세 화면 제목은 축약하지 않은
+    // 전례명이라 두 줄로 넘어갈 수 있어 `center`도 못 쓴다(배지가 두 줄 전체의
+    // 중앙에 걸린다). 그래서 첫 줄 베이스라인 정렬이어야 한다.
+    tester.view.physicalSize = const Size(390, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final service = CalendarService(
+      engine: LiturgicalCalendar(),
+      cbck: CalendarService.parseDays(const [
+        {
+          'date': '2026-08-19',
+          'color': 'green',
+          'title': '연중 제20주간 수요일',
+          'alternatives': [
+            {'name': '성 요한 외드 사제', 'color': 'white'},
+          ],
+        },
+      ]),
+    );
+    final day = service.day(DateTime(2026, 8, 19));
+
+    await tester.pumpWidget(_wrap(Scaffold(body: DayDetailView(day: day))));
+    await tester.pumpAndSettle();
+
+    // 두 행 모두 배지 글자와 제목 글자의 위쪽이 같아야 한다(같은 스타일이므로
+    // 베이스라인이 맞으면 top도 맞는다).
+    expect(
+      tester.getRect(find.text('[녹]')).top,
+      tester.getRect(find.text('연중 제20주간 수요일')).top,
+    );
+    expect(
+      tester.getRect(find.text('[백]')).top,
+      tester.getRect(find.text('성 요한 외드 사제')).top,
+    );
+
+    // 제목이 두 줄로 넘어가도 배지는 첫 줄에 붙어 있어야 한다.
+    const longTitle = '죽은 모든 이를 기억하는 위령의 날 아주 긴 제목';
+    await tester.pumpWidget(
+      _wrap(Scaffold(body: DayDetailView(day: day.copyWith(title: longTitle)))),
+    );
+    await tester.pumpAndSettle();
+
+    final badge = tester.getRect(find.text('[녹]'));
+    final title = tester.getRect(find.text(longTitle));
+    expect(title.height, greaterThan(badge.height), reason: '두 줄 케이스가 아니다');
+    expect(badge.top, title.top);
   });
 
   testWidgets('adding an event by picking a category persists and shows it', (
