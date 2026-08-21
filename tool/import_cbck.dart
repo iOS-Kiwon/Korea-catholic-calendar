@@ -74,11 +74,19 @@ bool _looksLikeSaintTitle(String title) {
 String _cleanTitle(String s) =>
     s.replaceFirst(RegExp(r'\s*-\s*[^-]*(미사|성야)\s*$'), '').trim();
 
+List<String> _titleLines(String s) => [
+      for (final line in s.split(RegExp(r'<br\s*/?>', caseSensitive: false)))
+        if (_stripTags(line).isNotEmpty) _stripLeadingTag(_stripTags(line)),
+    ];
+
 Map<String, dynamic> _parseEntry(Map<String, dynamic> e) {
   final titleHtml = (e['title_html'] as String? ?? e['title'] as String? ?? '');
   final segments = titleHtml.split('또는');
+  // CBCK uses a line break for an additional liturgy on some special Sundays
+  // (e.g. the World Mission Sunday mass). Preserve every line in the compact
+  // day title; `또는` remains the separator for optional alternatives.
   final primary = _stripTags(segments.first);
-  final title = _cleanTitle(_stripLeadingTag(primary));
+  final title = _titleLines(segments.first).map(_cleanTitle).join(', ');
   final color = _tagColor(primary) ?? 'green';
   final rank = _rankFromTitle(title);
 
