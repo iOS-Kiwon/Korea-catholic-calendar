@@ -97,7 +97,12 @@ open class TodayWidgetProvider : AppWidgetProvider() {
         }
 
         // 세 크기 provider의 모든 위젯을 다시 그린다. 남은 위젯이 없으면 알람을 취소.
-        private fun refreshAllWidgets(context: Context) {
+        //
+        // 자정/부팅 경로뿐 아니라 `MainActivity.syncWidgetSnapshot`(앱에서 일정·축일이
+        // 바뀐 직후)에서도 이 함수를 쓴다. 예전에는 MainActivity가 provider 목록을
+        // 따로 하드코딩해서, 나중에 추가된 4x1 주간 위젯이 즉시 갱신 대상에서 빠져
+        // 다음 자정까지 예전 내용을 보여줬다. 목록은 여기 한 곳에만 둔다.
+        fun refreshAllWidgets(context: Context) {
             val manager = AppWidgetManager.getInstance(context)
             val components = listOf(
                 ComponentName(context, TodayWidgetTwoByTwoProvider::class.java),

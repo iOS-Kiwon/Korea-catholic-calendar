@@ -21,6 +21,7 @@ import '../features/events/presentation/event_editor_sheet.dart';
 import '../features/sharing/share_link.dart';
 import '../features/widgets/widget_snapshot_service.dart';
 import '../features/calendar/application/calendar_providers.dart';
+import '../features/widgets/widget_sync_throttle.dart';
 import 'router.dart';
 import 'theme/app_theme.dart';
 
@@ -49,6 +50,15 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
   );
   final _widgetSnapshotService = const WidgetSnapshotService();
   final _appLinks = AppLinks();
+
+  /// 일정·축일이 바뀐 그 순간 위젯을 갱신한다. 다만 스냅샷 생성이 비싸고 호출이
+  /// 몰려 들어오므로 스로틀로 합친다(자세한 근거는 [WidgetSyncThrottle] 참조).
+  late final _widgetSyncThrottle = WidgetSyncThrottle(
+    // 요청을 유발한 프레임을 막지 않도록 그 프레임을 넘긴 뒤 생성한다.
+    onSync: () => WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _syncWidgetSnapshot();
+    }),
+  );
   final _initialLinkChecked = Completer<void>();
   StreamSubscription<Uri>? _linkSub;
   bool _handlingLink = false;
@@ -73,6 +83,7 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
   void dispose() {
     _linkSub?.cancel();
     super.dispose();
+    _widgetSyncThrottle.dispose();
   }
 
   Future<void> _initIncomingLinks() async {
@@ -225,8 +236,11 @@ class _CatholicCalendarAppState extends ConsumerState<CatholicCalendarApp> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(calendarControllerProvider, (_, _) => _syncWidgetSnapshot());
-    ref.listen(eventStoreProvider, (_, _) => _syncWidgetSnapshot());
+    ref.listen(
+      calendarControllerProvider,
+      (_, _) => _widgetSyncThrottle.request(),
+    );
+    ref.listen(eventStoreProvider, (_, _) => _widgetSyncThrottle.request());
 
     return MaterialApp.router(
       title: '가톨릭 달력',

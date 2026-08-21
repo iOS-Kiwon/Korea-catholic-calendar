@@ -1,8 +1,6 @@
 package com.sidore.catholiccalendar
 
 import android.content.Intent
-import android.appwidget.AppWidgetManager
-import android.content.ComponentName
 import android.net.Uri
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
@@ -75,16 +73,8 @@ class MainActivity : FlutterActivity() {
             .putString("widget_snapshot", payload)
             .apply()
 
-        val manager = AppWidgetManager.getInstance(this)
-        val components = listOf(
-            ComponentName(this, TodayWidgetTwoByTwoProvider::class.java),
-            ComponentName(this, TodayWidgetFourByFourProvider::class.java)
-        )
-        for (component in components) {
-            val ids = manager.getAppWidgetIds(component)
-            if (ids.isNotEmpty()) {
-                TodayWidgetProvider.updateWidgets(this, manager, ids)
-            }
-        }
+        // 2x2 / 4x4 / 4x1 전부 다시 그린다. provider 목록은
+        // TodayWidgetProvider.refreshAllWidgets 한 곳에만 둔다.
+        TodayWidgetProvider.refreshAllWidgets(this)
     }
 }
