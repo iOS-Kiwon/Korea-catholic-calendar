@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:liturgical_calendar/liturgical_calendar.dart';
 
 import '../../../../app/theme/liturgical_colors.dart';
+import '../calendar_label_metrics.dart';
 import '../season_style.dart';
 
 const _todayFill = Color(0xFF121212); // 오늘: 검정 원
@@ -90,6 +91,74 @@ class DayNumber extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// 셀의 전례명 라벨. 남은 높이를 실제로 재서 들어가는 줄 수만 쓴다.
+///
+/// 이 위젯이 필요한 이유: 라벨은 `Expanded` 안에 있어 `Text`가 tight 높이를 받는데,
+/// `TextOverflow.ellipsis`는 `maxLines` 초과에만 `…`를 넣고 **박스 높이 초과는
+/// 예외도 경고도 없이 그냥 잘라낸다**(rendering/paragraph.dart:949, :964).
+/// 그래서 OS 글꼴을 키우면 3번째 줄이 반쯤 잘려 보였다.
+/// `maxLines`를 측정된 박스 높이에서 역산하면 3줄 → 2줄 → 1줄로 강등되며 `…`로
+/// 깔끔히 끝난다.
+class _CellTitle extends StatelessWidget {
+  const _CellTitle({
+    required this.title,
+    required this.style,
+    required this.fontSize,
+    required this.heightFactor,
+    required this.maxLines,
+    this.textAlign,
+  });
+
+  final String title;
+  final TextStyle style;
+
+  /// 스케일 **전** 폰트 크기. [style]에 지정된 값과 같아야 한다.
+  final double fontSize;
+
+  /// [style]의 `height`와 같아야 한다.
+  final double heightFactor;
+
+  /// 상위가 정한 줄 수 상한. 실제 줄 수는 이 값 이하로만 결정된다.
+  final int maxLines;
+
+  final TextAlign? textAlign;
+
+  @override
+  Widget build(BuildContext context) {
+    // scope가 LayoutBuilder보다 위에 있어야 아래 계산이 clamp된 스케일러를 읽고,
+    // 계산과 렌더링이 같은 값을 쓰게 된다.
+    return GridLabelTextScope(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final lineHeight = gridLabelLineHeight(
+            context,
+            fontSize: fontSize,
+            heightFactor: heightFactor,
+          );
+          final lines = gridLabelFittingLines(
+            available: constraints.maxHeight,
+            lineHeight: lineHeight,
+            maxLines: maxLines,
+          );
+          // 반 줄을 보여주는 대신 감춘다. 날짜 숫자는 그대로 남는다.
+          if (lines == 0) return const SizedBox.shrink();
+          return Text(
+            title,
+            maxLines: lines,
+            overflow: TextOverflow.ellipsis,
+            textAlign: textAlign,
+            strutStyle: gridLabelStrut(
+              fontSize: fontSize,
+              heightFactor: heightFactor,
+            ),
+            style: style,
+          );
+        },
       ),
     );
   }
@@ -199,10 +268,11 @@ class DayCell extends StatelessWidget {
                     if (shortTitle case final title?) ...[
                       const SizedBox(height: 1),
                       Expanded(
-                        child: Text(
-                          title,
+                        child: _CellTitle(
+                          title: title,
+                          fontSize: (titleStyle.fontSize ?? 12) + 2,
+                          heightFactor: 1.2,
                           maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
                           style: titleStyle.copyWith(
                             color: isKoreanHolidayTitle
                                 ? const Color(0xFFC62828)
@@ -288,21 +358,23 @@ class CompactDayCell extends StatelessWidget {
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 1),
-                child: Text(
-                  title,
+                child: _CellTitle(
+                  title: title,
+                  fontSize: 10,
+                  heightFactor: 1.0,
                   maxLines: titleMaxLines,
-                  overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: isKoreanHolidayTitle
-                        ? const Color(0xFFC62828)
-                        : isWhiteTitle
-                        ? Colors.black
-                        : context.liturgical.of(day.color),
-                    fontSize: 10,
-                    height: 1.0,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: (theme.textTheme.labelSmall ?? const TextStyle())
+                      .copyWith(
+                        color: isKoreanHolidayTitle
+                            ? const Color(0xFFC62828)
+                            : isWhiteTitle
+                            ? Colors.black
+                            : context.liturgical.of(day.color),
+                        fontSize: 10,
+                        height: 1.0,
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
               ),
             ),

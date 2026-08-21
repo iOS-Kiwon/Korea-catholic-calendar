@@ -31,6 +31,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:liturgical_calendar/liturgical_calendar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'support/text_clip.dart';
+
 /// A no-op notification service so tests never touch platform channels.
 class _FakeNotifications implements NotificationService {
   _FakeNotifications({
@@ -185,6 +187,9 @@ void main() {
   testWidgets('fixed calendar row heights keep compact and wide cells stable', (
     tester,
   ) async {
+    // 이 테스트의 픽셀 값들은 모두 "폰트 배율 1.0 기준선"이다. 호스트 환경의
+    // 접근성 설정이 새어들지 않도록 명시적으로 고정한다.
+    setSystemTextSettings(tester);
     final service = CalendarService(engine: LiturgicalCalendar());
 
     await tester.pumpWidget(
@@ -211,6 +216,13 @@ void main() {
     expect(tester.getSize(find.byType(MonthGrid)).height, 420);
     expect(tester.getSize(find.byType(CompactDayCell).first).height, 70);
     expect(tester.widget<Text>(find.text('주님 승천')).maxLines, 3);
+    // `maxLines: 3`인데 세로로 잘리는 것이 정확히 OS 글꼴 확대 시의 버그였다.
+    // 줄 수만 보면 그 상태를 통과시키므로 클립 여부를 함께 단정한다.
+    expectNoVerticalTextClip(
+      tester,
+      within: find.byType(MonthGrid),
+      ignore: isDateNumber,
+    );
 
     await tester.pumpWidget(
       _wrap(
@@ -233,11 +245,17 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.getSize(find.byType(DayCell).first).height, 93);
+    expectNoVerticalTextClip(
+      tester,
+      within: find.byType(MonthGrid),
+      ignore: isDateNumber,
+    );
   });
 
   testWidgets('phone calendar reserves a fixed six-row grid slot', (
     tester,
   ) async {
+    setSystemTextSettings(tester); // 아래 픽셀 값은 배율 1.0 기준선
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -289,9 +307,51 @@ void main() {
     );
   });
 
+  // OS 글꼴 확대 / 굵은 글씨에서 실제 달력 화면의 전례명이 세로로 잘리지 않는지.
+  // 셀 단위 검증은 test/calendar_label_scale_test.dart에 있고, 여기서는 실제 화면
+  // 조립 경로(헤더 + 요일줄 + 6줄 고정 그리드 + 하단 카드)를 통과했을 때의 행 높이로
+  // 확인한다. 그리드 subtree만 단정한다 - 날짜 숫자/요일줄/헤더의 고정 높이 문제는
+  // 전례명과 별개의 알려진 문제로 이번 수정 범위 밖이다.
+  for (final (scale, bold) in const [
+    (1.0, false),
+    (1.15, true),
+    (1.5, true),
+    (2.0, true),
+    (3.0, true),
+  ]) {
+    testWidgets(
+      'phone calendar grid labels never clip vertically (배율 $scale, 굵게 $bold)',
+      (tester) async {
+        setSystemTextSettings(
+          tester,
+          textScaleFactor: scale,
+          boldText: bold,
+        );
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        await tester.pumpWidget(
+          _wrap(const CalendarPage(month: YearMonth(2026, 5))),
+        );
+        await tester.pumpAndSettle();
+
+        expectNoVerticalTextClip(
+          tester,
+          within: find.byType(MonthGrid),
+          ignore: isDateNumber,
+        );
+      },
+    );
+  }
+
   testWidgets(
     'compact month grid uses up to three title lines when space allows',
     (tester) async {
+      // 아래 임계값(행 높이 72/60/50)은 배율 1.0 기준이며, 라벨 박스
+      // `행 높이 - (3 + DayNumber 34 + 1)`을 줄 높이 10px로 나눈 결과다.
+      // 셀 상단 여백이나 `DayNumber.size`를 바꾸면 기대값도 바뀐다.
+      setSystemTextSettings(tester);
       final service = CalendarService(engine: LiturgicalCalendar());
 
       Future<void> pumpGrid(double height) async {
@@ -318,12 +378,15 @@ void main() {
 
       await pumpGrid(450);
       expect(tester.widget<Text>(find.text('주님 승천')).maxLines, 3);
+      expectTextFits(tester, '주님 승천');
 
       await pumpGrid(360);
       expect(tester.widget<Text>(find.text('주님 승천')).maxLines, 2);
+      expectTextFits(tester, '주님 승천');
 
       await pumpGrid(300);
       expect(tester.widget<Text>(find.text('주님 승천')).maxLines, 1);
+      expectTextFits(tester, '주님 승천');
     },
   );
 

@@ -9,6 +9,10 @@ import '../../application/liturgical_display_filter.dart';
 import '../../data/calendar_service.dart';
 import 'day_cell.dart';
 
+// 아래 두 임계값과 `compactTitleMaxLines`는 줄 수의 **상한**이다. 폰트 배율이
+// 커지면 셀이(`_CellTitle`) 남은 높이를 실제로 재서 이 값보다 더 줄인다.
+// 예전에는 이 임계값이 유일한 결정자였고 배율 1.0을 전제했기 때문에, OS 글꼴을
+// 키우면 3줄을 그대로 유지한 채 3번째 줄이 세로로 잘렸다.
 const _compactThreeLineTitleMinRowHeight = 70.0;
 const _compactTwoLineTitleMinRowHeight = 59.0;
 
