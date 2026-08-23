@@ -746,7 +746,7 @@ open class TodayWidgetProvider : AppWidgetProvider() {
         ///
         /// **암시적** VIEW 인텐트를 쓴다. app_links(Flutter)가 인텐트의 data URI를
         /// 읽어 `resolveWidgetLink`로 넘기는 경로가 공유 링크에서 이미 검증돼 있고,
-        /// 콜드/웜 스타트를 둘 다 처리해 준다(MainActivity는 launchMode=singleTop).
+        /// 콜드/웜 스타트를 둘 다 처리해 준다(MainActivity는 launchMode=singleTask).
         ///
         /// **data URI가 칸마다 달라야 한다.** PendingIntent는 extras를 무시하고
         /// action/data/component로 동일성을 판정하므로, 42칸이 같은 URI를 쓰면 하나로
