@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/date/year_month.dart';
@@ -12,20 +12,6 @@ YearMonth _parseMonth(GoRouterState state) {
   final month = int.tryParse(state.pathParameters['month'] ?? '') ?? now.month;
   return YearMonth(year, month.clamp(1, 12));
 }
-
-/// 달력 페이지. **키를 달 단위로 준다.**
-///
-/// `/2026/08` ↔ `/2026/08/15`처럼 같은 달 안에서 오가면 키가 같아 Navigator가
-/// 새 화면을 띄우지 않고 **같은 페이지를 그 자리에서 다시 빌드**한다(전환 애니메이션도
-/// 없다). 선택 날짜는 `CalendarPage.didUpdateWidget`이 받아 적용한다.
-///
-/// 다른 달로 가면 키가 달라져 정상적으로 새 페이지가 되고, 그때는 `initState`가
-/// `initialSelected`를 적용한다.
-MaterialPage<void> _calendarPage(YearMonth ym, CalendarPage child) =>
-    MaterialPage<void>(
-      key: ValueKey('calendar-${ym.year}-${ym.month}'),
-      child: child,
-    );
 
 GoRouter buildRouter({
   GlobalKey<NavigatorState>? navigatorKey,
@@ -48,17 +34,18 @@ GoRouter buildRouter({
         path: '/',
         redirect: (context, state) => monthPath(YearMonth.of(DateTime.now())),
       ),
-      // `:day`는 `/:year/:month`의 **자식이 아니라 형제**다. 자식으로 두면
-      // `/2026/08` → `/2026/08/15` 이동이 달력 페이지를 하나 더 쌓아서, 위젯에서
-      // 날짜를 누르면 새 달력 화면이 열린 것처럼 보였다.
+      // 메인 달력의 월 이동은 무전환으로 고정한다. 좌우 제스처에서 월 화면이
+      // 새 페이지처럼 밀려 들어오는 애니메이션이 발생하지 않아야 한다.
       GoRoute(
         name: 'month',
         path: '/:year/:month',
-        pageBuilder: (context, state) {
-          final ym = _parseMonth(state);
-          return _calendarPage(ym, CalendarPage(month: ym));
-        },
+        pageBuilder: (context, state) => NoTransitionPage<void>(
+          key: state.pageKey,
+          child: CalendarPage(month: _parseMonth(state)),
+        ),
       ),
+      // 위젯의 날짜 딥링크도 같은 무전환 정책을 사용해, 앱 진입 및 진입 직후
+      // 제스처에서 라우트 종류가 바뀌어도 애니메이션이 생기지 않게 한다.
       GoRoute(
         name: 'day',
         path: '/:year/:month/:day',
@@ -66,9 +53,9 @@ GoRouter buildRouter({
           final ym = _parseMonth(state);
           final day = (int.tryParse(state.pathParameters['day'] ?? '') ?? 1)
               .clamp(1, ym.daysInMonth);
-          return _calendarPage(
-            ym,
-            CalendarPage(
+          return NoTransitionPage<void>(
+            key: state.pageKey,
+            child: CalendarPage(
               month: ym,
               initialSelected: DateTime(ym.year, ym.month, day),
             ),

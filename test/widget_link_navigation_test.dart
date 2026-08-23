@@ -2,8 +2,8 @@
 // 있는 메인 화면에서 그 날짜가 선택되어야 한다.
 //
 // 예전에는 `:day`가 `/:year/:month`의 자식 라우트라 페이지가 하나 더 쌓여서 새 화면이
-// 열린 것처럼 보였다. 지금은 형제 라우트 + 달 단위 페이지 키라, 같은 달 안에서는
-// 같은 페이지가 그 자리에서 다시 빌드된다.
+// 열린 것처럼 보였다. 지금은 형제 라우트 + NoTransitionPage라, 같은 달 안에서도
+// 애니메이션 없이 선택 날짜가 바뀐다.
 import 'package:catholic_calendar/app/router.dart';
 import 'package:catholic_calendar/app/theme/app_theme.dart';
 import 'package:catholic_calendar/features/calendar/application/calendar_providers.dart';
@@ -55,6 +55,22 @@ void main() {
     return router;
   }
 
+  testWidgets('메인 달력 좌우 제스처는 애니메이션 없이 월을 바꾼다', (tester) async {
+    final router = await pump(tester);
+    final initial = tester.widget<CalendarPage>(find.byType(CalendarPage)).month;
+
+    await tester.drag(find.byType(CalendarPage), const Offset(-120, 0));
+    await tester.pump();
+
+    expect(find.byType(CalendarPage), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<CalendarPage>(find.byType(CalendarPage)).month,
+      initial.next,
+    );
+    expect(router.location, '/${initial.next.year}/${initial.next.month.toString().padLeft(2, '0')}');
+  });
+
   testWidgets('같은 달 날짜 링크는 화면을 쌓지 않고 그 자리에서 선택만 바꾼다', (tester) async {
     final router = await pump(tester);
 
@@ -72,11 +88,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // 핵심: 달력 페이지가 **하나**여야 한다(새 화면이 열리지 않음).
-    expect(
-      find.byType(CalendarPage),
-      findsOneWidget,
-      reason: '새 달력 화면이 쌓였다',
-    );
+    expect(find.byType(CalendarPage), findsOneWidget, reason: '새 달력 화면이 쌓였다');
     expect(selectedDays(tester), [15]);
   });
 
@@ -93,30 +105,36 @@ void main() {
         ),
       )!.location,
     );
+    await tester.pump();
+    expect(
+      find.byType(CalendarPage),
+      findsOneWidget,
+      reason: '다른 달의 위젯 날짜 진입에 전환 애니메이션이 생겼다',
+    );
     await tester.pumpAndSettle();
 
     expect(find.byType(CalendarPage), findsOneWidget);
-    expect(
-      tester.widget<CalendarPage>(find.byType(CalendarPage)).month,
-      other,
-    );
+    expect(tester.widget<CalendarPage>(find.byType(CalendarPage)).month, other);
     expect(selectedDays(tester), [7]);
   });
 
   testWidgets('같은 달에서 날짜만 바꿔 눌러도 그 자리에서 선택이 옮겨간다', (tester) async {
     final router = await pump(tester);
     final month = tester.widget<CalendarPage>(find.byType(CalendarPage)).month;
-    final prefix =
-        '${month.year}-${month.month.toString().padLeft(2, '0')}';
+    final prefix = '${month.year}-${month.month.toString().padLeft(2, '0')}';
 
     router.go(
-      resolveWidgetLink(Uri.parse('catholiccalendar://day/$prefix-15'))!.location,
+      resolveWidgetLink(
+        Uri.parse('catholiccalendar://day/$prefix-15'),
+      )!.location,
     );
     await tester.pumpAndSettle();
     expect(selectedDays(tester), [15]);
 
     router.go(
-      resolveWidgetLink(Uri.parse('catholiccalendar://day/$prefix-22'))!.location,
+      resolveWidgetLink(
+        Uri.parse('catholiccalendar://day/$prefix-22'),
+      )!.location,
     );
     await tester.pumpAndSettle();
     expect(find.byType(CalendarPage), findsOneWidget);
@@ -151,8 +169,8 @@ void main() {
   });
 
   testWidgets('같은 달 안에서는 화면 전환 애니메이션조차 없다', (tester) async {
-    // 페이지 키가 달 단위라, 같은 달이면 Navigator가 페이지를 교체하지 않고 그 자리에서
-    // 다시 빌드한다. 전환 중에도 달력이 하나뿐이어야 한다(= push처럼 보이지 않는다).
+    // 위젯 날짜 라우트는 NoTransitionPage라 전환 중에도 달력이 하나뿐이어야 한다
+    // (= push처럼 보이지 않는다).
     final router = await pump(tester);
     final month = tester.widget<CalendarPage>(find.byType(CalendarPage)).month;
     final prefix = '${month.year}/${month.month.toString().padLeft(2, '0')}';
@@ -171,9 +189,7 @@ void main() {
     expect(selectedDays(tester), [15]);
   });
 
-  testWidgets('달만 지정한 링크(범위 밖 안내의 앱으로 이동하기)는 그 달을 열고 선택은 오늘', (
-    tester,
-  ) async {
+  testWidgets('달만 지정한 링크(범위 밖 안내의 앱으로 이동하기)는 그 달을 열고 선택은 오늘', (tester) async {
     final router = await pump(tester);
     final month = tester.widget<CalendarPage>(find.byType(CalendarPage)).month;
     final other = month.previous.previous;
