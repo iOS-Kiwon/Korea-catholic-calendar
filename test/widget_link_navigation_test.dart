@@ -57,7 +57,9 @@ void main() {
 
   testWidgets('메인 달력 좌우 제스처는 애니메이션 없이 월을 바꾼다', (tester) async {
     final router = await pump(tester);
-    final initial = tester.widget<CalendarPage>(find.byType(CalendarPage)).month;
+    final initial = tester
+        .widget<CalendarPage>(find.byType(CalendarPage))
+        .month;
 
     await tester.drag(find.byType(CalendarPage), const Offset(-120, 0));
     await tester.pump();
@@ -68,7 +70,10 @@ void main() {
       tester.widget<CalendarPage>(find.byType(CalendarPage)).month,
       initial.next,
     );
-    expect(router.location, '/${initial.next.year}/${initial.next.month.toString().padLeft(2, '0')}');
+    expect(
+      router.routerDelegate.currentConfiguration.uri.path,
+      '/${initial.next.year}/${initial.next.month.toString().padLeft(2, '0')}',
+    );
   });
 
   testWidgets('같은 달 날짜 링크는 화면을 쌓지 않고 그 자리에서 선택만 바꾼다', (tester) async {
