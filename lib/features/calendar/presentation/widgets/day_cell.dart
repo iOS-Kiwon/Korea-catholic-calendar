@@ -8,6 +8,14 @@ import '../season_style.dart';
 const _todayFill = Color(0xFF121212); // 오늘: 검정 원
 const _selectedFill = Color(0xFFD6D6D6); // 선택: 회색 원
 
+/// 와이드 셀(아이패드·맥·웹)에서 선택한 날의 셀 배경.
+///
+/// 큰 화면에서는 셀이 넓어 날짜 숫자 뒤의 회색 원만으로는 선택한 날이 눈에 들어오지
+/// 않는다. 그래서 셀 전체를 페이지 배경보다 한 톤 어둡게 칠한다. 폰 셀은 셀이 작아
+/// 원만으로 충분하므로 이 값을 쓰지 않는다.
+Color _selectedCellFill(ThemeData theme) =>
+    Color.lerp(theme.scaffoldBackgroundColor, Colors.black, 0.10)!;
+
 Color _numberColor(
   BuildContext c,
   DateTime d,
@@ -218,7 +226,6 @@ class DayCell extends StatelessWidget {
     final notable = inCurrentMonth && isNotableDay(day);
     final accent = context.liturgical.of(day.color);
     final hasTitle = shortTitle?.trim().isNotEmpty == true;
-    final titleAccent = isKoreanHolidayTitle ? const Color(0xFFC62828) : accent;
     final isWhiteTitle =
         day.color == LiturgicalColor.white && !isKoreanHolidayTitle;
 
@@ -230,7 +237,9 @@ class DayCell extends StatelessWidget {
         decoration: BoxDecoration(
           // Keep the grid visually continuous with the phone layout. The
           // footer/card surface is intentionally a different, softer white.
-          color: theme.scaffoldBackgroundColor,
+          color: isSelected
+              ? _selectedCellFill(theme)
+              : theme.scaffoldBackgroundColor,
           border: Border.all(
             color: theme.dividerColor.withValues(alpha: 0.2),
             width: 0.5,
@@ -239,9 +248,13 @@ class DayCell extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // 띠는 **전례색만** 나타낸다(범례와 1:1). 공휴일 이름이 셀 라벨로
+            // 들어오는 날(추석 등)에도 전례색을 유지해야 한다. 공휴일 빨강
+            // `#C62828`은 전례색 홍색과 값이 같아, 띠에 쓰면 그날이 사도·순교일로
+            // 읽힌다(예: 한가위는 백색인데 빨간 띠). 공휴일 강조는 글자색이 맡는다.
             Container(
               height: 3,
-              color: notable || hasTitle ? titleAccent : Colors.transparent,
+              color: notable || hasTitle ? accent : Colors.transparent,
             ),
             Expanded(
               child: Padding(
